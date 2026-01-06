@@ -25,14 +25,22 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true);
     try {
-      // Login and get tokens
-      const tokens = await authApi.login(data.username, data.password);
+      // Login - returns tokens AND user info
+      const response = await authApi.login(data.username, data.password);
 
-      // Get user info with the token directly
-      const user = await authApi.getCurrentUser(tokens.access_token);
+      // Build user object from response
+      const user = {
+        id: response.user.id,
+        username: response.user.username,
+        email: response.user.email,
+        full_name: response.user.full_name,
+        is_superuser: response.user.is_superuser,
+        roles: response.user.roles.map((name: string) => ({ name })),
+        permissions: response.user.permissions,
+      };
 
-      // Store full auth state
-      setAuth(user, tokens.access_token, tokens.refresh_token);
+      // Store auth state
+      setAuth(user, response.access_token, response.refresh_token);
 
       toast.success('Login successful');
       navigate('/dashboard');

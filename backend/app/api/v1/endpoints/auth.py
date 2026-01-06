@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.api.deps import DBSession, CurrentUser
-from app.schemas.auth import LoginRequest, RefreshTokenRequest, Token, PasswordChangeRequest
+from app.schemas.auth import LoginRequest, RefreshTokenRequest, Token, PasswordChangeRequest, LoginResponse, LoginUserInfo
 from app.schemas.common import MessageResponse
 from app.schemas.user import CurrentUserResponse
 from app.services.auth import AuthService
@@ -16,13 +16,13 @@ from app.core.security import get_password_hash, verify_password
 router = APIRouter()
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=LoginResponse)
 async def login(
     request: Request,
     login_data: LoginRequest,
     db: DBSession,
 ):
-    """Authenticate user and return tokens."""
+    """Authenticate user and return tokens with user info."""
     auth_service = AuthService(db)
     audit_service = AuditService(db)
 
@@ -67,7 +67,29 @@ async def login(
         description=f"User logged in successfully",
     )
 
-    return tokens
+    # Gather permissions from roles
+    permissions = []
+    for role in user.roles:
+        for perm in role.permissions:
+            perm_str = f"{perm.resource}:{perm.action}"
+            if perm_str not in permissions:
+                permissions.append(perm_str)
+
+    return LoginResponse(
+        access_token=tokens.access_token,
+        refresh_token=tokens.refresh_token,
+        token_type=tokens.token_type,
+        expires_in=tokens.expires_in,
+        user=LoginUserInfo(
+            id=str(user.id),
+            username=user.username,
+            email=user.email,
+            full_name=user.full_name,
+            is_superuser=user.is_superuser,
+            roles=[role.name for role in user.roles],
+            permissions=permissions,
+        ),
+    )
 
 
 @router.post("/refresh", response_model=Token)

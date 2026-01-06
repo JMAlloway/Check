@@ -28,6 +28,28 @@ class Token(BaseModel):
     expires_in: int
 
 
+class LoginUserInfo(BaseModel):
+    """User info included in login response."""
+
+    id: str
+    username: str
+    email: str
+    full_name: str | None
+    is_superuser: bool
+    roles: list[str]
+    permissions: list[str]
+
+
+class LoginResponse(BaseModel):
+    """Login response with tokens and user info."""
+
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    user: LoginUserInfo
+
+
 class TokenPayload(BaseModel):
     """Token payload schema."""
 

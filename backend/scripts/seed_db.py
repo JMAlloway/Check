@@ -24,8 +24,11 @@ from app.core.security import get_password_hash
 async def create_tables():
     """Create all database tables."""
     async with engine.begin() as conn:
-        # Drop all tables first to ensure clean state
-        await conn.run_sync(Base.metadata.drop_all)
+        # Drop and recreate public schema to ensure clean state
+        await conn.execute(text("DROP SCHEMA public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
+        await conn.execute(text("GRANT ALL ON SCHEMA public TO postgres"))
+        await conn.execute(text("GRANT ALL ON SCHEMA public TO public"))
         # Then create all tables
         await conn.run_sync(Base.metadata.create_all)
     print("Tables created successfully!")

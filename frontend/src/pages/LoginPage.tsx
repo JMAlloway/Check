@@ -25,13 +25,16 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true);
     try {
-      // Login
+      // Login and get tokens
       const tokens = await authApi.login(data.username, data.password);
 
-      // Get user info
+      // Temporarily store tokens so the interceptor can use them
+      useAuthStore.setState({ accessToken: tokens.access_token, refreshToken: tokens.refresh_token });
+
+      // Get user info (now has token in store)
       const user = await authApi.getCurrentUser();
 
-      // Store auth state
+      // Store full auth state
       setAuth(user, tokens.access_token, tokens.refresh_token);
 
       toast.success('Login successful');

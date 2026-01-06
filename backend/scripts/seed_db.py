@@ -17,8 +17,17 @@ from app.models.decision import Decision, ReasonCode
 from app.models.policy import Policy, PolicyVersion, PolicyRule
 from app.models.queue import Queue, QueueAssignment
 from app.models.audit import AuditLog, ItemView
+from app.models.fraud import (
+    FraudEvent, FraudSharedArtifact, NetworkMatchAlert, TenantFraudConfig,
+    FraudType, FraudChannel, AmountBucket, SharingLevel, FraudEventStatus
+)
 
 from app.core.security import get_password_hash
+from app.core.config import settings
+import hashlib
+import hmac
+from datetime import datetime, timezone, timedelta
+from uuid import uuid4
 
 
 async def seed_database():
@@ -58,6 +67,11 @@ async def seed_database():
             Permission(name="policy:view", resource="policy", action="view", description="View policies"),
             Permission(name="policy:manage", resource="policy", action="manage", description="Manage policies"),
             Permission(name="report:view", resource="report", action="view", description="View reports"),
+            # Fraud Intelligence permissions
+            Permission(name="fraud:view", resource="fraud", action="view", description="View fraud events and alerts"),
+            Permission(name="fraud:create", resource="fraud", action="create", description="Create fraud events"),
+            Permission(name="fraud:submit", resource="fraud", action="submit", description="Submit fraud events to network"),
+            Permission(name="fraud:config", resource="fraud", action="config", description="Configure fraud settings"),
         ]
 
         for perm in permissions:
@@ -123,6 +137,90 @@ async def seed_database():
         approver_user.roles = [approver_role]
         db.add(approver_user)
 
+        await db.flush()
+
+        # Create tenant fraud configuration
+        default_tenant_id = "default-tenant"
+        fraud_config = TenantFraudConfig(
+            tenant_id=default_tenant_id,
+            default_sharing_level=SharingLevel.NETWORK_MATCH,
+            allow_narrative_sharing=True,
+            allow_account_indicator_sharing=True,
+            shared_artifact_retention_months=24,
+            receive_network_alerts=True,
+            minimum_alert_severity="low",
+        )
+        db.add(fraud_config)
+        await db.flush()
+
+        # Helper function to hash indicators (simulating the hashing service)
+        def hash_indicator(value: str) -> str:
+            pepper = settings.NETWORK_PEPPER.encode()
+            return hmac.new(pepper, value.encode(), hashlib.sha256).hexdigest()
+
+        # Create sample shared artifacts from "other institutions" for network matching demo
+        # These simulate fraud indicators shared by other banks in the network
+        sample_artifacts = [
+            # Routing number associated with fraud
+            {
+                "contributing_tenant_id": "bank-a",
+                "indicator_type": "routing_number",
+                "indicator_hash": hash_indicator("021000021"),  # Sample routing number
+                "fraud_type": FraudType.COUNTERFEIT_CHECK,
+                "channel": FraudChannel.MOBILE,
+                "amount_bucket": AmountBucket.BUCKET_1000_5000,
+            },
+            {
+                "contributing_tenant_id": "bank-b",
+                "indicator_type": "routing_number",
+                "indicator_hash": hash_indicator("021000021"),
+                "fraud_type": FraudType.FORGED_SIGNATURE,
+                "channel": FraudChannel.RDC,
+                "amount_bucket": AmountBucket.BUCKET_5000_10000,
+            },
+            # Payee name associated with fraud
+            {
+                "contributing_tenant_id": "bank-c",
+                "indicator_type": "payee_name",
+                "indicator_hash": hash_indicator("ACME CORP"),  # Normalized payee name
+                "fraud_type": FraudType.FICTITIOUS_PAYEE,
+                "channel": FraudChannel.BRANCH,
+                "amount_bucket": AmountBucket.BUCKET_10000_50000,
+            },
+            {
+                "contributing_tenant_id": "bank-a",
+                "indicator_type": "payee_name",
+                "indicator_hash": hash_indicator("ACME CORP"),
+                "fraud_type": FraudType.FICTITIOUS_PAYEE,
+                "channel": FraudChannel.MOBILE,
+                "amount_bucket": AmountBucket.BUCKET_5000_10000,
+            },
+            # Check fingerprint
+            {
+                "contributing_tenant_id": "bank-d",
+                "indicator_type": "check_fingerprint",
+                "indicator_hash": hash_indicator("021000021:1234567890:1001"),  # routing:account:check#
+                "fraud_type": FraudType.DUPLICATE_DEPOSIT,
+                "channel": FraudChannel.ATM,
+                "amount_bucket": AmountBucket.BUCKET_500_1000,
+            },
+        ]
+
+        now = datetime.now(timezone.utc)
+        for i, artifact_data in enumerate(sample_artifacts):
+            artifact = FraudSharedArtifact(
+                fraud_event_id=None,  # Simulated external events
+                contributing_tenant_id=artifact_data["contributing_tenant_id"],
+                indicator_type=artifact_data["indicator_type"],
+                indicator_hash=artifact_data["indicator_hash"],
+                fraud_type=artifact_data["fraud_type"],
+                channel=artifact_data["channel"],
+                amount_bucket=artifact_data["amount_bucket"],
+                event_date=(now - timedelta(days=30 + i * 15)).date(),
+                expires_at=now + timedelta(days=365),
+            )
+            db.add(artifact)
+
         await db.commit()
 
         print("Database seeded successfully!")
@@ -130,6 +228,9 @@ async def seed_database():
         print("  admin    / admin123    (full access)")
         print("  reviewer / reviewer123 (review only)")
         print("  approver / approver123 (review + approve)")
+        print("\nFraud Intelligence:")
+        print(f"  Tenant config created for: {default_tenant_id}")
+        print(f"  Sample network artifacts: {len(sample_artifacts)} indicators")
 
 
 if __name__ == "__main__":

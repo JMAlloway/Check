@@ -13,7 +13,7 @@ from app.db.session import engine, Base
 from app.schemas.common import HealthResponse
 
 # Import all models so they're registered with Base.metadata
-from app.models import user, check, decision, policy, queue, audit  # noqa: F401
+from app.models import user, check, decision, policy, queue, audit, fraud  # noqa: F401
 
 
 @asynccontextmanager

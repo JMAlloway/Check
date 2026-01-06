@@ -234,3 +234,126 @@ export interface DashboardStats {
   items_by_risk: Record<string, number>;
   items_by_status: Record<string, number>;
 }
+
+// Fraud Intelligence types
+export type FraudType =
+  | 'check_kiting'
+  | 'counterfeit_check'
+  | 'forged_signature'
+  | 'altered_check'
+  | 'account_takeover'
+  | 'identity_theft'
+  | 'first_party_fraud'
+  | 'synthetic_identity'
+  | 'duplicate_deposit'
+  | 'unauthorized_endorsement'
+  | 'payee_alteration'
+  | 'amount_alteration'
+  | 'fictitious_payee'
+  | 'other';
+
+export type FraudChannel = 'branch' | 'atm' | 'mobile' | 'rdc' | 'mail' | 'online' | 'other';
+
+export type AmountBucket =
+  | 'under_100'
+  | '100_to_500'
+  | '500_to_1000'
+  | '1000_to_5000'
+  | '5000_to_10000'
+  | '10000_to_50000'
+  | 'over_50000';
+
+export type SharingLevel = 0 | 1 | 2;
+
+export type FraudEventStatus = 'draft' | 'submitted' | 'withdrawn';
+
+export type MatchSeverity = 'low' | 'medium' | 'high';
+
+export interface FraudEvent {
+  id: string;
+  tenant_id: string;
+  check_item_id?: string;
+  case_id?: string;
+  event_date: string;
+  amount: number;
+  amount_bucket: AmountBucket;
+  fraud_type: FraudType;
+  channel: FraudChannel;
+  confidence: number;
+  narrative_private?: string;
+  narrative_shareable?: string;
+  sharing_level: SharingLevel;
+  status: FraudEventStatus;
+  created_by_user_id: string;
+  created_at: string;
+  updated_at: string;
+  submitted_at?: string;
+  submitted_by_user_id?: string;
+  withdrawn_at?: string;
+  withdrawn_by_user_id?: string;
+  withdrawn_reason?: string;
+  has_shared_artifact: boolean;
+}
+
+export interface FraudEventCreate {
+  check_item_id?: string;
+  case_id?: string;
+  event_date: string;
+  amount: number;
+  fraud_type: FraudType;
+  channel: FraudChannel;
+  confidence: number;
+  narrative_private?: string;
+  narrative_shareable?: string;
+  sharing_level: SharingLevel;
+}
+
+export interface MatchReasonDetail {
+  indicator_type: string;
+  match_count: number;
+  first_seen: string;
+  last_seen: string;
+  fraud_types: string[];
+  channels: string[];
+}
+
+export interface NetworkAlert {
+  id: string;
+  check_item_id?: string;
+  case_id?: string;
+  severity: MatchSeverity;
+  total_matches: number;
+  distinct_institutions: number;
+  earliest_match_date?: string;
+  latest_match_date?: string;
+  match_reasons: MatchReasonDetail[];
+  created_at: string;
+  last_checked_at: string;
+  is_dismissed: boolean;
+  dismissed_at?: string;
+  dismissed_reason?: string;
+}
+
+export interface NetworkAlertSummary {
+  has_alerts: boolean;
+  total_alerts: number;
+  highest_severity?: MatchSeverity;
+  alerts: NetworkAlert[];
+}
+
+export interface PIIDetectionResult {
+  has_potential_pii: boolean;
+  warnings: string[];
+  detected_patterns: string[];
+}
+
+export interface TenantFraudConfig {
+  tenant_id: string;
+  default_sharing_level: SharingLevel;
+  allow_narrative_sharing: boolean;
+  allow_account_indicator_sharing: boolean;
+  shared_artifact_retention_months: number;
+  receive_network_alerts: boolean;
+  minimum_alert_severity: MatchSeverity;
+  updated_at: string;
+}

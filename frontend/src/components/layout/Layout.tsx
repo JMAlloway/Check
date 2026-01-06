@@ -11,6 +11,7 @@ import {
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
   UserCircleIcon,
+  ShieldExclamationIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../stores/authStore';
 import clsx from 'clsx';
@@ -18,6 +19,7 @@ import clsx from 'clsx';
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
   { name: 'Review Queue', href: '/queue', icon: QueueListIcon },
+  { name: 'Fraud Trends', href: '/fraud/trends', icon: ShieldExclamationIcon },
   { name: 'Reports', href: '/reports', icon: ChartBarIcon },
 ];
 

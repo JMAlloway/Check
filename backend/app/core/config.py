@@ -87,6 +87,11 @@ class Settings(BaseSettings):
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 100
 
+    # Fraud Intelligence Sharing
+    NETWORK_PEPPER: str = "change-this-network-pepper-in-production"  # HMAC secret for indicator hashing
+    FRAUD_PRIVACY_THRESHOLD: int = 3  # Minimum count before showing aggregate data
+    FRAUD_ARTIFACT_RETENTION_MONTHS: int = 24  # Default retention for shared artifacts
+
 
 @lru_cache
 def get_settings() -> Settings:

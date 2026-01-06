@@ -138,6 +138,8 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     decisions: Mapped[list["Decision"]] = relationship(back_populates="check_item", cascade="all, delete-orphan")
     assigned_reviewer: Mapped["User"] = relationship(foreign_keys=[assigned_reviewer_id])
     assigned_approver: Mapped["User"] = relationship(foreign_keys=[assigned_approver_id])
+    fraud_events: Mapped[list["FraudEvent"]] = relationship(back_populates="check_item")
+    network_alerts: Mapped[list["NetworkMatchAlert"]] = relationship(back_populates="check_item", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_check_items_status_priority", "status", "priority"),
@@ -191,3 +193,4 @@ class CheckHistory(Base, UUIDMixin, TimestampMixin):
 # Import for relationship
 from app.models.decision import Decision  # noqa: E402
 from app.models.user import User  # noqa: E402
+from app.models.fraud import FraudEvent, NetworkMatchAlert  # noqa: E402

@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeftIcon, DocumentArrowDownIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, DocumentArrowDownIcon, ShieldExclamationIcon } from '@heroicons/react/24/outline';
 import { checkApi, auditApi } from '../services/api';
 import { CheckItem, CheckHistory, ROIRegion } from '../types';
 import CheckImageViewer from '../components/check/CheckImageViewer';
 import CheckContextPanel from '../components/check/CheckContextPanel';
 import CheckHistoryPanel from '../components/check/CheckHistoryPanel';
 import DecisionPanel from '../components/decision/DecisionPanel';
+import NetworkIntelligencePanel from '../components/fraud/NetworkIntelligencePanel';
+import FraudReportModal from '../components/fraud/FraudReportModal';
 import { StatusBadge, RiskBadge } from '../components/common/StatusBadge';
 import toast from 'react-hot-toast';
 
@@ -24,6 +26,7 @@ export default function CheckReviewPage() {
   const { itemId } = useParams<{ itemId: string }>();
   const [comparisonItem, setComparisonItem] = useState<CheckHistory | null>(null);
   const [showComparison, setShowComparison] = useState(false);
+  const [showFraudModal, setShowFraudModal] = useState(false);
 
   const { data: item, isLoading, error } = useQuery<CheckItem>({
     queryKey: ['checkItem', itemId],
@@ -108,6 +111,13 @@ export default function CheckReviewPage() {
         </div>
         <div className="flex space-x-2">
           <button
+            onClick={() => setShowFraudModal(true)}
+            className="flex items-center px-3 py-2 text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
+          >
+            <ShieldExclamationIcon className="h-5 w-5 mr-1" />
+            Report Fraud
+          </button>
+          <button
             onClick={handleGeneratePacket}
             disabled={isGeneratingPacket}
             className="flex items-center px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -168,16 +178,16 @@ export default function CheckReviewPage() {
           </div>
         )}
 
-        {/* Right Panel - Context, History, Decision */}
+        {/* Right Panel - Context, History, Network Intel, Decision */}
         <div className={showComparison ? 'col-span-4' : 'col-span-6'}>
-          <div className="grid grid-rows-3 gap-4 h-full">
+          <div className="grid gap-4 h-full" style={{ gridTemplateRows: '1fr 1fr 0.8fr 1.2fr' }}>
             {/* Context Panel */}
-            <div className="row-span-1 overflow-hidden">
+            <div className="overflow-hidden">
               <CheckContextPanel item={item} />
             </div>
 
             {/* History Panel */}
-            <div className="row-span-1 overflow-hidden">
+            <div className="overflow-hidden">
               <CheckHistoryPanel
                 itemId={item.id}
                 currentAmount={item.amount}
@@ -188,13 +198,25 @@ export default function CheckReviewPage() {
               />
             </div>
 
+            {/* Network Intelligence Panel */}
+            <div className="overflow-hidden">
+              <NetworkIntelligencePanel checkItemId={item.id} />
+            </div>
+
             {/* Decision Panel */}
-            <div className="row-span-1 overflow-hidden">
+            <div className="overflow-hidden">
               <DecisionPanel item={item} />
             </div>
           </div>
         </div>
       </div>
+
+      {/* Fraud Report Modal */}
+      <FraudReportModal
+        isOpen={showFraudModal}
+        onClose={() => setShowFraudModal(false)}
+        item={item}
+      />
     </div>
   );
 }

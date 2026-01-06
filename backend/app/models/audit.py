@@ -58,6 +58,13 @@ class AuditAction(str, Enum):
     AI_ASSIST_VIEWED = "ai_assist_viewed"
     AI_ASSIST_FEEDBACK = "ai_assist_feedback"
 
+    # Fraud Intelligence
+    FRAUD_EVENT_CREATED = "fraud_event_created"
+    FRAUD_EVENT_SUBMITTED = "fraud_event_submitted"
+    FRAUD_EVENT_WITHDRAWN = "fraud_event_withdrawn"
+    FRAUD_CONFIG_UPDATED = "fraud_config_updated"
+    NETWORK_ALERT_DISMISSED = "network_alert_dismissed"
+
 
 class AuditLog(Base, UUIDMixin):
     """Immutable audit log entry."""

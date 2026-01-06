@@ -262,3 +262,95 @@ export const auditApi = {
     window.URL.revokeObjectURL(url);
   },
 };
+
+// Fraud Intelligence API
+export const fraudApi = {
+  // Fraud Events
+  createEvent: async (data: {
+    check_item_id?: string;
+    case_id?: string;
+    event_date: string;
+    amount: number;
+    fraud_type: string;
+    channel: string;
+    confidence: number;
+    narrative_private?: string;
+    narrative_shareable?: string;
+    sharing_level: number;
+  }) => {
+    const response = await api.post('/fraud/fraud-events', data);
+    return response.data;
+  },
+
+  getEvents: async (params: {
+    page?: number;
+    page_size?: number;
+    status?: string;
+    fraud_type?: string;
+    check_item_id?: string;
+  }) => {
+    const response = await api.get('/fraud/fraud-events', { params });
+    return response.data;
+  },
+
+  getEvent: async (eventId: string) => {
+    const response = await api.get(`/fraud/fraud-events/${eventId}`);
+    return response.data;
+  },
+
+  updateEvent: async (eventId: string, data: Record<string, unknown>) => {
+    const response = await api.patch(`/fraud/fraud-events/${eventId}`, data);
+    return response.data;
+  },
+
+  submitEvent: async (eventId: string, data: {
+    sharing_level?: number;
+    confirm_no_pii?: boolean;
+  }) => {
+    const response = await api.post(`/fraud/fraud-events/${eventId}/submit`, data);
+    return response.data;
+  },
+
+  withdrawEvent: async (eventId: string, reason: string) => {
+    const response = await api.post(`/fraud/fraud-events/${eventId}/withdraw`, { reason });
+    return response.data;
+  },
+
+  // Network Alerts
+  getNetworkAlerts: async (checkItemId: string) => {
+    const response = await api.get('/fraud/network-alerts', {
+      params: { check_item_id: checkItemId },
+    });
+    return response.data;
+  },
+
+  dismissAlert: async (alertId: string, reason?: string) => {
+    const response = await api.post(`/fraud/network-alerts/${alertId}/dismiss`, { reason });
+    return response.data;
+  },
+
+  // Network Trends
+  getNetworkTrends: async (range: string = '6m', granularity: string = 'month') => {
+    const response = await api.get('/fraud/network-trends', {
+      params: { range, granularity },
+    });
+    return response.data;
+  },
+
+  // Config
+  getConfig: async () => {
+    const response = await api.get('/fraud/config');
+    return response.data;
+  },
+
+  updateConfig: async (data: Record<string, unknown>) => {
+    const response = await api.patch('/fraud/config', data);
+    return response.data;
+  },
+
+  // PII Check
+  checkPII: async (text: string, strict: boolean = false) => {
+    const response = await api.post('/fraud/check-pii', { text, strict });
+    return response.data;
+  },
+};

@@ -7,6 +7,7 @@ import QueuePage from './pages/QueuePage';
 import CheckReviewPage from './pages/CheckReviewPage';
 import AdminPage from './pages/AdminPage';
 import ReportsPage from './pages/ReportsPage';
+import FraudTrendsPage from './pages/FraudTrendsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -35,6 +36,7 @@ function App() {
                 <Route path="/review/:itemId" element={<CheckReviewPage />} />
                 <Route path="/admin/*" element={<AdminPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/fraud/trends" element={<FraudTrendsPage />} />
               </Routes>
             </Layout>
           </ProtectedRoute>

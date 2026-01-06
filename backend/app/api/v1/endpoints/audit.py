@@ -1,11 +1,14 @@
 """Audit log endpoints."""
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
+from uuid import uuid4
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
+import io
 
 from app.api.deps import DBSession, CurrentUser, require_permission
 from app.models.audit import AuditAction, AuditLog, ItemView
@@ -19,8 +22,12 @@ from app.schemas.audit import (
 )
 from app.schemas.common import PaginatedResponse
 from app.audit.service import AuditService
+from app.services.pdf_generator import AuditPacketGenerator
 
 router = APIRouter()
+
+# In-memory cache for generated packets (in production, use Redis or S3)
+_packet_cache: dict[str, tuple[bytes, datetime]] = {}
 
 
 @router.get("/logs", response_model=PaginatedResponse[AuditLogResponse])
@@ -157,10 +164,13 @@ async def generate_audit_packet(
     current_user: Annotated[object, Depends(require_permission("audit", "export"))],
 ):
     """Generate an audit packet for a check item."""
-    from datetime import timedelta, timezone
-    from uuid import uuid4
+    global _packet_cache
 
-    from app.core.security import generate_signed_url
+    # Clean up expired packets
+    now = datetime.now(timezone.utc)
+    expired_keys = [k for k, (_, exp) in _packet_cache.items() if exp < now]
+    for k in expired_keys:
+        del _packet_cache[k]
 
     # Verify item exists
     result = await db.execute(
@@ -176,6 +186,25 @@ async def generate_audit_packet(
 
     # Generate packet ID
     packet_id = str(uuid4())
+
+    # Generate PDF
+    pdf_generator = AuditPacketGenerator(db)
+    try:
+        pdf_bytes = await pdf_generator.generate(
+            check_item_id=packet_request.check_item_id,
+            include_images=packet_request.include_images,
+            include_history=packet_request.include_history,
+            generated_by=current_user.username,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate PDF: {str(e)}",
+        )
+
+    # Store in cache (expires in 1 hour)
+    expires_at = now + timedelta(hours=1)
+    _packet_cache[packet_id] = (pdf_bytes, expires_at)
 
     # Log packet generation
     audit_service = AuditService(db)
@@ -193,18 +222,52 @@ async def generate_audit_packet(
         },
     )
 
-    # Generate download URL (valid for 1 hour)
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
-    download_url = generate_signed_url(f"packet_{packet_id}", expires_in=3600)
+    # Generate download URL
+    download_url = f"/api/v1/audit/packet/{packet_id}/download"
 
     return AuditPacketResponse(
         packet_id=packet_id,
         check_item_id=packet_request.check_item_id,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=now,
         generated_by=current_user.username,
         format=packet_request.format,
         download_url=download_url,
         expires_at=expires_at,
+    )
+
+
+@router.get("/packet/{packet_id}/download")
+async def download_audit_packet(
+    packet_id: str,
+    current_user: Annotated[object, Depends(require_permission("audit", "export"))],
+):
+    """Download a generated audit packet."""
+    global _packet_cache
+
+    # Check if packet exists and is not expired
+    if packet_id not in _packet_cache:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Packet not found or expired",
+        )
+
+    pdf_bytes, expires_at = _packet_cache[packet_id]
+
+    if datetime.now(timezone.utc) > expires_at:
+        del _packet_cache[packet_id]
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Packet has expired",
+        )
+
+    # Return PDF as streaming response
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=audit_packet_{packet_id}.pdf",
+            "Content-Length": str(len(pdf_bytes)),
+        },
     )
 
 

@@ -31,21 +31,31 @@ export default function CheckReviewPage() {
     enabled: !!itemId,
   });
 
+  const [isGeneratingPacket, setIsGeneratingPacket] = useState(false);
+
   const handleGeneratePacket = async () => {
     if (!itemId) return;
 
+    setIsGeneratingPacket(true);
     try {
+      // Generate the packet
       const result = await auditApi.generatePacket({
         check_item_id: itemId,
         include_images: true,
         include_history: true,
         format: 'pdf',
       });
-      toast.success('Audit packet generated');
-      // In a real app, you'd redirect to the download URL
-      console.log('Download URL:', result.download_url);
-    } catch {
+
+      // Download the PDF
+      const filename = `audit_packet_${itemId.slice(0, 8)}.pdf`;
+      await auditApi.downloadPacket(result.download_url, filename);
+
+      toast.success('Audit packet downloaded');
+    } catch (error) {
+      console.error('Failed to generate packet:', error);
       toast.error('Failed to generate audit packet');
+    } finally {
+      setIsGeneratingPacket(false);
     }
   };
 
@@ -99,10 +109,20 @@ export default function CheckReviewPage() {
         <div className="flex space-x-2">
           <button
             onClick={handleGeneratePacket}
-            className="flex items-center px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            disabled={isGeneratingPacket}
+            className="flex items-center px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <DocumentArrowDownIcon className="h-5 w-5 mr-1" />
-            Audit Packet
+            {isGeneratingPacket ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 mr-1 border-b-2 border-gray-700"></div>
+                Generating...
+              </>
+            ) : (
+              <>
+                <DocumentArrowDownIcon className="h-5 w-5 mr-1" />
+                Audit Packet
+              </>
+            )}
           </button>
         </div>
       </div>

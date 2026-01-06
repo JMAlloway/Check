@@ -243,4 +243,22 @@ export const auditApi = {
     const response = await api.post('/audit/packet', data);
     return response.data;
   },
+
+  downloadPacket: async (downloadUrl: string, filename: string) => {
+    // Download PDF and trigger browser download
+    const response = await api.get(downloadUrl, {
+      responseType: 'blob',
+    });
+
+    // Create blob URL and trigger download
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  },
 };

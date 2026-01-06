@@ -7,8 +7,8 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import select, text
-from app.db.session import AsyncSessionLocal, engine, Base
+from sqlalchemy import select
+from app.db.session import AsyncSessionLocal
 
 # Import all models to register them with Base.metadata
 from app.models.user import User, Role, Permission
@@ -21,24 +21,8 @@ from app.models.audit import AuditLog, ItemView
 from app.core.security import get_password_hash
 
 
-async def create_tables():
-    """Create all database tables."""
-    async with engine.begin() as conn:
-        # Drop and recreate public schema to ensure clean state
-        await conn.execute(text("DROP SCHEMA public CASCADE"))
-        await conn.execute(text("CREATE SCHEMA public"))
-        await conn.execute(text("GRANT ALL ON SCHEMA public TO postgres"))
-        await conn.execute(text("GRANT ALL ON SCHEMA public TO public"))
-        # Then create all tables
-        await conn.run_sync(Base.metadata.create_all)
-    print("Tables created successfully!")
-
-
 async def seed_database():
     """Create test users and roles."""
-
-    # First create tables
-    await create_tables()
 
     async with AsyncSessionLocal() as db:
         # Check if admin user exists

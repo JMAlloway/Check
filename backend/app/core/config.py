@@ -1,5 +1,6 @@
 """Application configuration management."""
 
+import json
 from functools import lru_cache
 from typing import Any
 
@@ -70,6 +71,18 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Any) -> list[str]:
+        """Parse CORS_ORIGINS from JSON string or list."""
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                # If not valid JSON, treat as comma-separated
+                return [origin.strip() for origin in v.split(",")]
+        return v
 
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 100

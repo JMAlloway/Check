@@ -68,7 +68,7 @@ async def seed_database():
         admin_role = Role(
             name="admin",
             description="Full system access",
-            is_system_role=True,
+            is_system=True,
         )
         admin_role.permissions = permissions
         db.add(admin_role)
@@ -76,7 +76,7 @@ async def seed_database():
         reviewer_role = Role(
             name="reviewer",
             description="Can review check items",
-            is_system_role=True,
+            is_system=True,
         )
         reviewer_role.permissions = [p for p in permissions if p.action in ["view", "review"]]
         db.add(reviewer_role)
@@ -84,7 +84,7 @@ async def seed_database():
         approver_role = Role(
             name="approver",
             description="Can approve check items",
-            is_system_role=True,
+            is_system=True,
         )
         approver_role.permissions = [p for p in permissions if p.action in ["view", "review", "approve"]]
         db.add(approver_role)
@@ -96,8 +96,7 @@ async def seed_database():
             username="admin",
             email="admin@example.com",
             hashed_password=get_password_hash("admin123"),
-            first_name="Admin",
-            last_name="User",
+            full_name="Admin User",
             is_active=True,
             is_superuser=True,
         )
@@ -108,8 +107,7 @@ async def seed_database():
             username="reviewer",
             email="reviewer@example.com",
             hashed_password=get_password_hash("reviewer123"),
-            first_name="Test",
-            last_name="Reviewer",
+            full_name="Test Reviewer",
             is_active=True,
         )
         reviewer_user.roles = [reviewer_role]
@@ -119,8 +117,7 @@ async def seed_database():
             username="approver",
             email="approver@example.com",
             hashed_password=get_password_hash("approver123"),
-            first_name="Test",
-            last_name="Approver",
+            full_name="Test Approver",
             is_active=True,
         )
         approver_user.roles = [approver_role]

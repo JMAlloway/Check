@@ -9,7 +9,11 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1 import api_router
 from app.core.config import settings
+from app.db.session import engine, Base
 from app.schemas.common import HealthResponse
+
+# Import all models so they're registered with Base.metadata
+from app.models import user, check, decision, policy, queue, audit  # noqa: F401
 
 
 @asynccontextmanager
@@ -17,6 +21,12 @@ async def lifespan(app: FastAPI):
     """Application lifespan management."""
     # Startup
     print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+
+    # Create database tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    print("Database tables created/verified")
+
     yield
     # Shutdown
     print("Shutting down...")

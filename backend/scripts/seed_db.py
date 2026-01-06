@@ -8,17 +8,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import select
-from app.db.session import AsyncSessionLocal, engine, Base
+from app.db.session import AsyncSessionLocal
 from app.models.user import User, Role, Permission
 from app.core.security import get_password_hash
 
 
 async def seed_database():
     """Create test users and roles."""
-
-    # Create tables (skip if they exist)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all, checkfirst=True)
 
     async with AsyncSessionLocal() as db:
         # Check if admin user exists

@@ -1,0 +1,95 @@
+"""Decision and reason code models."""
+
+from datetime import datetime
+from enum import Enum
+
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum as SQLEnum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.session import Base
+from app.models.base import TimestampMixin, UUIDMixin
+
+
+class DecisionType(str, Enum):
+    """Type of decision."""
+
+    REVIEW_RECOMMENDATION = "review_recommendation"
+    APPROVAL_DECISION = "approval_decision"
+    ESCALATION = "escalation"
+
+
+class DecisionAction(str, Enum):
+    """Decision action."""
+
+    APPROVE = "approve"
+    RETURN = "return"
+    REJECT = "reject"
+    HOLD = "hold"
+    ESCALATE = "escalate"
+    NEEDS_MORE_INFO = "needs_more_info"
+
+
+class ReasonCode(Base, UUIDMixin, TimestampMixin):
+    """Configurable reason codes for decisions."""
+
+    __tablename__ = "reason_codes"
+
+    code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    description: Mapped[str] = mapped_column(String(255), nullable=False)
+    category: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g., "signature", "amount", "fraud"
+    decision_type: Mapped[str] = mapped_column(String(50), nullable=False)  # "return", "reject", "escalate"
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    display_order: Mapped[int] = mapped_column(Integer, default=0)
+    requires_notes: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class Decision(Base, UUIDMixin, TimestampMixin):
+    """Decision record for a check item."""
+
+    __tablename__ = "decisions"
+
+    check_item_id: Mapped[str] = mapped_column(String(36), ForeignKey("check_items.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+
+    decision_type: Mapped[DecisionType] = mapped_column(SQLEnum(DecisionType), nullable=False)
+    action: Mapped[DecisionAction] = mapped_column(SQLEnum(DecisionAction), nullable=False)
+
+    # Reason codes (can have multiple)
+    reason_codes: Mapped[str | None] = mapped_column(Text)  # JSON array of reason code IDs
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    # AI assist info
+    ai_assisted: Mapped[bool] = mapped_column(Boolean, default=False)
+    ai_flags_reviewed: Mapped[str | None] = mapped_column(Text)  # JSON array of AI flags user reviewed
+
+    # Attachments
+    attachments: Mapped[str | None] = mapped_column(Text)  # JSON array of attachment references
+
+    # Policy tracking
+    policy_version_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("policy_versions.id"))
+
+    # Workflow tracking
+    previous_status: Mapped[str | None] = mapped_column(String(50))
+    new_status: Mapped[str | None] = mapped_column(String(50))
+
+    # Dual control
+    is_dual_control_required: Mapped[bool] = mapped_column(Boolean, default=False)
+    dual_control_approver_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"))
+    dual_control_approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    check_item: Mapped["CheckItem"] = relationship(back_populates="decisions")
+    user: Mapped["User"] = relationship(foreign_keys=[user_id])
+    dual_control_approver: Mapped["User"] = relationship(foreign_keys=[dual_control_approver_id])
+
+
+# Import for type hints
+from app.models.check import CheckItem  # noqa: E402
+from app.models.user import User  # noqa: E402

@@ -7,11 +7,16 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import select
-from app.db.session import AsyncSessionLocal
+from sqlalchemy import select, text
+from app.db.session import AsyncSessionLocal, engine, Base
 
-# Import all models to register them with Base.metadata
+# Import ALL models to register them with Base.metadata
 from app.models.user import User, Role, Permission
+from app.models.check import CheckItem, CheckImage, CheckHistory
+from app.models.decision import Decision, ReasonCode
+from app.models.policy import Policy, PolicyVersion, PolicyRule
+from app.models.queue import Queue, QueueAssignment
+from app.models.audit import AuditLog, ItemView
 
 from app.core.security import get_password_hash
 
@@ -19,7 +24,14 @@ from app.core.security import get_password_hash
 async def seed_database():
     """Create test users and roles."""
 
-    print("Seeding database with test users...")
+    # First, drop and recreate all tables to ensure clean state
+    print("Setting up database tables...")
+    async with engine.begin() as conn:
+        # Drop all tables first
+        await conn.run_sync(Base.metadata.drop_all)
+        # Create all tables fresh
+        await conn.run_sync(Base.metadata.create_all)
+    print("Tables created successfully!")
 
     async with AsyncSessionLocal() as db:
         # Check if admin user exists

@@ -142,7 +142,7 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     __table_args__ = (
         Index("ix_check_items_status_priority", "status", "priority"),
         Index("ix_check_items_queue_status", "queue_id", "status"),
-        Index("ix_check_items_presented_date", "presented_date"),
+        # Note: presented_date index is created via index=True on the column
     )
 
 

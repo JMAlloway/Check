@@ -63,7 +63,7 @@ class DualControlApprovalRequest(BaseModel):
     notes: str | None = None
 
 
-class DecisionResponse(BaseSchema, TimestampSchema):
+class DecisionResponse(TimestampSchema):
     """Decision response schema."""
 
     id: str

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -13,15 +13,15 @@ from app.models.base import TimestampMixin, UUIDMixin
 user_roles = Table(
     "user_roles",
     Base.metadata,
-    mapped_column("user_id", String(36), ForeignKey("users.id"), primary_key=True),
-    mapped_column("role_id", String(36), ForeignKey("roles.id"), primary_key=True),
+    Column("user_id", String(36), ForeignKey("users.id"), primary_key=True),
+    Column("role_id", String(36), ForeignKey("roles.id"), primary_key=True),
 )
 
 role_permissions = Table(
     "role_permissions",
     Base.metadata,
-    mapped_column("role_id", String(36), ForeignKey("roles.id"), primary_key=True),
-    mapped_column("permission_id", String(36), ForeignKey("permissions.id"), primary_key=True),
+    Column("role_id", String(36), ForeignKey("roles.id"), primary_key=True),
+    Column("permission_id", String(36), ForeignKey("permissions.id"), primary_key=True),
 )
 
 

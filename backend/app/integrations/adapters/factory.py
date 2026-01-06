@@ -1,6 +1,6 @@
 """Adapter factory for creating integration adapters."""
 
-from typing import Protocol
+from abc import ABC
 
 from app.core.config import settings
 from app.integrations.interfaces.base import (
@@ -16,7 +16,7 @@ class IntegrationAdapter(
     CheckImageProvider,
     AccountContextProvider,
     CheckHistoryProvider,
-    Protocol,
+    ABC,
 ):
     """Combined interface for a full integration adapter."""
 

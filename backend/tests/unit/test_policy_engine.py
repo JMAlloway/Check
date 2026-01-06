@@ -200,13 +200,8 @@ class TestAIFlagGeneration:
         from app.services.check import CheckService
 
         service = CheckService(None)
-        item = MockCheckItem(
-            amount=Decimal("5000"),
-            avg_check_amount_30d=Decimal("1000"),
-        )
 
-        # Convert to real CheckItem attributes
-        class MockCheckItem:
+        class MockItem:
             amount = Decimal("5000")
             avg_check_amount_30d = Decimal("1000")
             max_check_amount_90d = Decimal("2000")
@@ -214,7 +209,7 @@ class TestAIFlagGeneration:
             returned_item_count_90d = 0
             upstream_flags = None
 
-        flags = service._generate_ai_flags(MockCheckItem())
+        flags = service._generate_ai_flags(MockItem())
 
         assert len(flags) > 0
         flag_codes = [f.code for f in flags]

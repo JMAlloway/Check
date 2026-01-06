@@ -66,7 +66,7 @@ async def search_audit_logs(
                 description=log.description,
                 before_value=json.loads(log.before_value) if log.before_value else None,
                 after_value=json.loads(log.after_value) if log.after_value else None,
-                metadata=json.loads(log.metadata) if log.metadata else None,
+                metadata=json.loads(log.extra_data) if log.extra_data else None,
             )
             for log in logs
         ],

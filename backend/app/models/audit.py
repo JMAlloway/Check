@@ -86,7 +86,7 @@ class AuditLog(Base, UUIDMixin):
     description: Mapped[str | None] = mapped_column(Text)
     before_value: Mapped[str | None] = mapped_column(Text)  # JSON
     after_value: Mapped[str | None] = mapped_column(Text)  # JSON
-    metadata: Mapped[str | None] = mapped_column(Text)  # JSON for additional context
+    extra_data: Mapped[str | None] = mapped_column(Text)  # JSON for additional context
 
     # Session context
     session_id: Mapped[str | None] = mapped_column(String(36))

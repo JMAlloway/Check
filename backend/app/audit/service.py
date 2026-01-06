@@ -67,7 +67,7 @@ class AuditService:
             description=description,
             before_value=json.dumps(before_value) if before_value else None,
             after_value=json.dumps(after_value) if after_value else None,
-            metadata=json.dumps(metadata) if metadata else None,
+            extra_data=json.dumps(metadata) if metadata else None,
             session_id=session_id,
         )
 

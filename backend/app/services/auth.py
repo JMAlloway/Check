@@ -15,7 +15,7 @@ from app.core.security import (
     get_password_hash,
     verify_password,
 )
-from app.models.user import User, UserSession
+from app.models.user import User, UserSession, Role
 from app.schemas.auth import Token
 
 
@@ -41,7 +41,7 @@ class AuthService:
         # Find user by username or email
         result = await self.db.execute(
             select(User)
-            .options(selectinload(User.roles))
+            .options(selectinload(User.roles).selectinload(Role.permissions))
             .where((User.username == username) | (User.email == username))
         )
         user = result.scalar_one_or_none()
@@ -161,7 +161,9 @@ class AuthService:
 
         # Get user
         result = await self.db.execute(
-            select(User).options(selectinload(User.roles)).where(User.id == user_id)
+            select(User)
+            .options(selectinload(User.roles).selectinload(Role.permissions))
+            .where(User.id == user_id)
         )
         user = result.scalar_one_or_none()
 

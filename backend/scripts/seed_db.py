@@ -24,12 +24,16 @@ from app.core.security import get_password_hash
 async def seed_database():
     """Create test users and roles."""
 
-    # First, drop and recreate all tables to ensure clean state
-    print("Setting up database tables...")
+    # First, completely reset the database schema
+    print("Resetting database schema...")
     async with engine.begin() as conn:
-        # Drop all tables first
-        await conn.run_sync(Base.metadata.drop_all)
-        # Create all tables fresh
+        # Drop everything in public schema and recreate it
+        await conn.execute(text("DROP SCHEMA public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
+        await conn.execute(text("GRANT ALL ON SCHEMA public TO PUBLIC"))
+
+    print("Creating tables...")
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     print("Tables created successfully!")
 

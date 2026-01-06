@@ -23,15 +23,12 @@ from app.core.security import get_password_hash
 
 async def create_tables():
     """Create all database tables."""
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        print("Tables created successfully!")
-    except Exception as e:
-        if "already exists" in str(e):
-            print("Tables already exist, continuing...")
-        else:
-            raise
+    async with engine.begin() as conn:
+        # Drop all tables first to ensure clean state
+        await conn.run_sync(Base.metadata.drop_all)
+        # Then create all tables
+        await conn.run_sync(Base.metadata.create_all)
+    print("Tables created successfully!")
 
 
 async def seed_database():

@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import select
-from app.db.session import async_session_maker, engine, Base
+from app.db.session import AsyncSessionLocal, engine, Base
 from app.models.user import User, Role, Permission
 from app.core.security import get_password_hash
 
@@ -20,7 +20,7 @@ async def seed_database():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    async with async_session_maker() as db:
+    async with AsyncSessionLocal() as db:
         # Check if admin user exists
         result = await db.execute(select(User).where(User.username == "admin"))
         if result.scalar_one_or_none():

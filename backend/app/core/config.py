@@ -88,7 +88,12 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = 100
 
     # Fraud Intelligence Sharing
-    NETWORK_PEPPER: str = "change-this-network-pepper-in-production"  # HMAC secret for indicator hashing
+    # Current pepper for indicator hashing (HMAC secret)
+    NETWORK_PEPPER: str = "change-this-network-pepper-in-production"
+    NETWORK_PEPPER_VERSION: int = 1  # Increment when rotating pepper
+    # Prior pepper (for matching during rotation window) - set to empty string when not rotating
+    NETWORK_PEPPER_PRIOR: str = ""
+    NETWORK_PEPPER_PRIOR_VERSION: int = 0  # Version of prior pepper (0 = no prior)
     FRAUD_PRIVACY_THRESHOLD: int = 3  # Minimum count before showing aggregate data
     FRAUD_ARTIFACT_RETENTION_MONTHS: int = 24  # Default retention for shared artifacts
 

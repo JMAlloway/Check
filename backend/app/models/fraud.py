@@ -209,6 +209,9 @@ class FraudSharedArtifact(Base, UUIDMixin, TimestampMixin):
     # JSON structure: {"routing_hash": "...", "payee_hash": "...", "check_fingerprint": "..."}
     indicators_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
+    # Pepper version for rotation support (allows matching against current + prior pepper)
+    pepper_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
     # Whether this artifact is active for matching
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

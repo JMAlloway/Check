@@ -9,6 +9,12 @@ Security Notes:
 - All hashing is deterministic to allow cross-tenant matching
 - Raw indicator values are never stored in shared artifacts
 - Normalization is critical for consistent matching
+
+Pepper Rotation:
+- New artifacts are always created with the current pepper version
+- Matching can check against both current and prior pepper versions
+- During rotation, set NETWORK_PEPPER_PRIOR and NETWORK_PEPPER_PRIOR_VERSION
+- After rotation window (e.g., 30 days), clear prior pepper settings
 """
 
 import hashlib
@@ -27,20 +33,36 @@ class FraudHashingService:
 
     Uses HMAC-SHA256 with a network pepper for deterministic,
     privacy-preserving indicator hashing.
+
+    Supports pepper rotation:
+    - New artifacts are always created with current pepper
+    - Matching checks against both current and prior pepper versions
+    - Prior pepper can be configured for rotation windows
     """
 
-    def __init__(self, pepper: str | None = None):
+    def __init__(
+        self,
+        pepper: str | None = None,
+        pepper_version: int | None = None,
+        prior_pepper: str | None = None,
+        prior_pepper_version: int | None = None,
+    ):
         """
         Initialize the hashing service.
 
         Args:
             pepper: Optional override for network pepper (mainly for testing)
+            pepper_version: Optional override for current pepper version
+            prior_pepper: Optional override for prior pepper (for rotation)
+            prior_pepper_version: Optional override for prior pepper version
         """
         self._pepper = pepper or self._get_network_pepper()
+        self._pepper_version = pepper_version if pepper_version is not None else self._get_pepper_version()
+        self._prior_pepper = prior_pepper if prior_pepper is not None else self._get_prior_pepper()
+        self._prior_pepper_version = prior_pepper_version if prior_pepper_version is not None else self._get_prior_pepper_version()
 
     def _get_network_pepper(self) -> str:
         """Get the network pepper from settings or environment."""
-        # Try settings first, then environment variable
         pepper = getattr(settings, "NETWORK_PEPPER", None)
         if not pepper:
             pepper = os.environ.get("NETWORK_PEPPER")
@@ -49,21 +71,67 @@ class FraudHashingService:
             pepper = "dev-pepper-not-for-production-use"
         return pepper
 
-    def _hmac_hash(self, value: str) -> str:
+    def _get_pepper_version(self) -> int:
+        """Get the current pepper version from settings."""
+        return getattr(settings, "NETWORK_PEPPER_VERSION", 1)
+
+    def _get_prior_pepper(self) -> str:
+        """Get the prior pepper from settings (empty string if not set)."""
+        return getattr(settings, "NETWORK_PEPPER_PRIOR", "")
+
+    def _get_prior_pepper_version(self) -> int:
+        """Get the prior pepper version from settings (0 if no prior)."""
+        return getattr(settings, "NETWORK_PEPPER_PRIOR_VERSION", 0)
+
+    @property
+    def current_pepper_version(self) -> int:
+        """Get the current pepper version."""
+        return self._pepper_version
+
+    @property
+    def has_prior_pepper(self) -> bool:
+        """Check if a prior pepper is configured for rotation."""
+        return bool(self._prior_pepper) and self._prior_pepper_version > 0
+
+    @property
+    def active_pepper_versions(self) -> list[int]:
+        """Get list of active pepper versions (current + prior if set)."""
+        versions = [self._pepper_version]
+        if self.has_prior_pepper:
+            versions.append(self._prior_pepper_version)
+        return versions
+
+    def _hmac_hash(self, value: str, pepper: str | None = None) -> str:
         """
         Compute HMAC-SHA256 hash of a value.
 
         Args:
             value: The normalized value to hash
+            pepper: Optional pepper override (uses current if not specified)
 
         Returns:
             Hex digest of the HMAC-SHA256 hash
         """
+        use_pepper = pepper or self._pepper
         return hmac.new(
-            self._pepper.encode("utf-8"),
+            use_pepper.encode("utf-8"),
             value.encode("utf-8"),
             hashlib.sha256
         ).hexdigest()
+
+    def _hmac_hash_with_prior(self, value: str) -> str | None:
+        """
+        Compute HMAC-SHA256 hash using the prior pepper.
+
+        Args:
+            value: The normalized value to hash
+
+        Returns:
+            Hex digest or None if no prior pepper configured
+        """
+        if not self.has_prior_pepper:
+            return None
+        return self._hmac_hash(value, self._prior_pepper)
 
     # ========================================================================
     # Normalization Methods
@@ -201,12 +269,13 @@ class FraudHashingService:
     # Hashing Methods
     # ========================================================================
 
-    def hash_routing_number(self, routing: str | None) -> str | None:
+    def hash_routing_number(self, routing: str | None, pepper: str | None = None) -> str | None:
         """
         Hash a routing number.
 
         Args:
             routing: Raw routing number
+            pepper: Optional pepper override
 
         Returns:
             HMAC hash of normalized routing number or None
@@ -214,14 +283,15 @@ class FraudHashingService:
         normalized = self.normalize_routing_number(routing)
         if not normalized:
             return None
-        return self._hmac_hash(f"routing:{normalized}")
+        return self._hmac_hash(f"routing:{normalized}", pepper)
 
-    def hash_payee_name(self, payee: str | None) -> str | None:
+    def hash_payee_name(self, payee: str | None, pepper: str | None = None) -> str | None:
         """
         Hash a payee name.
 
         Args:
             payee: Raw payee name
+            pepper: Optional pepper override
 
         Returns:
             HMAC hash of normalized payee name or None
@@ -229,14 +299,15 @@ class FraudHashingService:
         normalized = self.normalize_payee_name(payee)
         if not normalized:
             return None
-        return self._hmac_hash(f"payee:{normalized}")
+        return self._hmac_hash(f"payee:{normalized}", pepper)
 
-    def hash_account_indicator(self, account: str | None) -> str | None:
+    def hash_account_indicator(self, account: str | None, pepper: str | None = None) -> str | None:
         """
         Hash an account indicator (partial, privacy-preserving).
 
         Args:
             account: Raw account number
+            pepper: Optional pepper override
 
         Returns:
             HMAC hash of partial account indicator or None
@@ -244,7 +315,7 @@ class FraudHashingService:
         normalized = self.normalize_account_number(account)
         if not normalized:
             return None
-        return self._hmac_hash(f"account:{normalized}")
+        return self._hmac_hash(f"account:{normalized}", pepper)
 
     def compute_check_fingerprint(
         self,
@@ -252,6 +323,7 @@ class FraudHashingService:
         check_number: str | None,
         amount_bucket: str,
         date_bucket: str,  # YYYY-MM format
+        pepper: str | None = None,
     ) -> str | None:
         """
         Compute a check fingerprint from available non-PII fields.
@@ -264,6 +336,7 @@ class FraudHashingService:
             check_number: Check number
             amount_bucket: Amount bucket (e.g., "1000_to_5000")
             date_bucket: Date bucket in YYYY-MM format
+            pepper: Optional pepper override
 
         Returns:
             HMAC hash of composite fingerprint or None
@@ -287,7 +360,7 @@ class FraudHashingService:
             components.append(f"check:{normalized_check}")
 
         fingerprint = "|".join(sorted(components))
-        return self._hmac_hash(f"fingerprint:{fingerprint}")
+        return self._hmac_hash(f"fingerprint:{fingerprint}", pepper)
 
     def generate_indicators(
         self,
@@ -300,7 +373,7 @@ class FraudHashingService:
         include_account: bool = False,
     ) -> dict[str, str | None]:
         """
-        Generate all applicable hashed indicators for a check.
+        Generate all applicable hashed indicators for a check using current pepper.
 
         Args:
             routing_number: Check routing number
@@ -340,6 +413,80 @@ class FraudHashingService:
         # Filter out None values for cleaner storage
         return {k: v for k, v in indicators.items() if v is not None}
 
+    def generate_indicators_for_matching(
+        self,
+        routing_number: str | None = None,
+        payee_name: str | None = None,
+        check_number: str | None = None,
+        amount_bucket: str | None = None,
+        date_bucket: str | None = None,
+        account_number: str | None = None,
+        include_account: bool = False,
+    ) -> dict[int, dict[str, str]]:
+        """
+        Generate hashed indicators for BOTH current and prior pepper versions.
+
+        Used when checking for matches against network artifacts that may
+        have been created with different pepper versions during rotation.
+
+        Args:
+            routing_number: Check routing number
+            payee_name: Payee name
+            check_number: Check number
+            amount_bucket: Amount bucket for fingerprint
+            date_bucket: Date bucket (YYYY-MM) for fingerprint
+            account_number: Account number (only used if include_account=True)
+            include_account: Whether to include account indicator
+
+        Returns:
+            Dictionary mapping pepper_version -> indicators dict
+        """
+        result = {}
+
+        # Generate with current pepper
+        result[self._pepper_version] = self._generate_indicators_with_pepper(
+            self._pepper,
+            routing_number, payee_name, check_number,
+            amount_bucket, date_bucket, account_number, include_account
+        )
+
+        # Generate with prior pepper if configured
+        if self.has_prior_pepper:
+            result[self._prior_pepper_version] = self._generate_indicators_with_pepper(
+                self._prior_pepper,
+                routing_number, payee_name, check_number,
+                amount_bucket, date_bucket, account_number, include_account
+            )
+
+        return result
+
+    def _generate_indicators_with_pepper(
+        self,
+        pepper: str,
+        routing_number: str | None,
+        payee_name: str | None,
+        check_number: str | None,
+        amount_bucket: str | None,
+        date_bucket: str | None,
+        account_number: str | None,
+        include_account: bool,
+    ) -> dict[str, str]:
+        """Generate indicators with a specific pepper."""
+        indicators = {
+            "routing_hash": self.hash_routing_number(routing_number, pepper),
+            "payee_hash": self.hash_payee_name(payee_name, pepper),
+        }
+
+        if routing_number and amount_bucket and date_bucket:
+            indicators["check_fingerprint"] = self.compute_check_fingerprint(
+                routing_number, check_number, amount_bucket, date_bucket, pepper
+            )
+
+        if include_account and account_number:
+            indicators["account_hash"] = self.hash_account_indicator(account_number, pepper)
+
+        return {k: v for k, v in indicators.items() if v is not None}
+
 
 # Singleton instance
 _hashing_service: FraudHashingService | None = None
@@ -351,3 +498,9 @@ def get_hashing_service() -> FraudHashingService:
     if _hashing_service is None:
         _hashing_service = FraudHashingService()
     return _hashing_service
+
+
+def reset_hashing_service() -> None:
+    """Reset the singleton (for testing or config reload)."""
+    global _hashing_service
+    _hashing_service = None

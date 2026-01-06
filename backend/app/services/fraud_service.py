@@ -324,6 +324,7 @@ class FraudService:
             channel=event.channel,
             amount_bucket=event.amount_bucket,
             indicators_json=indicators,
+            pepper_version=self.hashing.current_pepper_version,  # Store pepper version for rotation
             is_active=True,
         )
 
@@ -364,14 +365,17 @@ class FraudService:
                 alerts=[],
             )
 
-        # Generate indicators for this check
-        indicators = self.hashing.generate_indicators(
+        # Generate indicators for this check (with all active pepper versions for matching)
+        indicators_by_version = self.hashing.generate_indicators_for_matching(
             routing_number=check_item.routing_number or check_item.micr_routing,
             payee_name=check_item.payee_name,
             check_number=check_item.check_number,
             amount_bucket=get_amount_bucket(check_item.amount).value,
             date_bucket=check_item.presented_date.strftime("%Y-%m") if check_item.presented_date else None,
         )
+
+        # Use current pepper version indicators as the primary set
+        indicators = indicators_by_version.get(self.hashing.current_pepper_version, {})
 
         if not indicators:
             return NetworkAlertSummary(
@@ -382,9 +386,10 @@ class FraudService:
             )
 
         # Find matching artifacts (excluding same tenant)
+        # Uses all active pepper versions for matching during rotation
         matching_artifacts = await self._find_matching_artifacts(
             tenant_id=tenant_id,
-            indicators=indicators,
+            indicators_by_version=indicators_by_version,
         )
 
         if not matching_artifacts:
@@ -425,26 +430,53 @@ class FraudService:
     async def _find_matching_artifacts(
         self,
         tenant_id: str,
-        indicators: dict[str, str],
+        indicators_by_version: dict[int, dict[str, str]],
     ) -> list[FraudSharedArtifact]:
-        """Find shared artifacts matching the given indicators."""
-        # Build OR conditions for each indicator
-        conditions = []
+        """
+        Find shared artifacts matching the given indicators.
 
-        if "routing_hash" in indicators:
-            conditions.append(
-                FraudSharedArtifact.indicators_json["routing_hash"].astext == indicators["routing_hash"]
-            )
-        if "payee_hash" in indicators:
-            conditions.append(
-                FraudSharedArtifact.indicators_json["payee_hash"].astext == indicators["payee_hash"]
-            )
-        if "check_fingerprint" in indicators:
-            conditions.append(
-                FraudSharedArtifact.indicators_json["check_fingerprint"].astext == indicators["check_fingerprint"]
-            )
+        Supports pepper rotation by matching against artifacts created with
+        different pepper versions. For each pepper version, we match against
+        artifacts that were created with that version.
 
-        if not conditions:
+        Args:
+            tenant_id: Current tenant (excluded from matches)
+            indicators_by_version: Dict mapping pepper_version -> indicators dict
+
+        Returns:
+            List of matching artifacts
+        """
+        all_conditions = []
+
+        for pepper_version, indicators in indicators_by_version.items():
+            # Build conditions for this pepper version
+            version_conditions = []
+
+            if "routing_hash" in indicators:
+                version_conditions.append(
+                    and_(
+                        FraudSharedArtifact.pepper_version == pepper_version,
+                        FraudSharedArtifact.indicators_json["routing_hash"].astext == indicators["routing_hash"]
+                    )
+                )
+            if "payee_hash" in indicators:
+                version_conditions.append(
+                    and_(
+                        FraudSharedArtifact.pepper_version == pepper_version,
+                        FraudSharedArtifact.indicators_json["payee_hash"].astext == indicators["payee_hash"]
+                    )
+                )
+            if "check_fingerprint" in indicators:
+                version_conditions.append(
+                    and_(
+                        FraudSharedArtifact.pepper_version == pepper_version,
+                        FraudSharedArtifact.indicators_json["check_fingerprint"].astext == indicators["check_fingerprint"]
+                    )
+                )
+
+            all_conditions.extend(version_conditions)
+
+        if not all_conditions:
             return []
 
         # Query for matching artifacts
@@ -452,7 +484,7 @@ class FraudService:
             FraudSharedArtifact.is_active == True,
             FraudSharedArtifact.sharing_level == SharingLevel.NETWORK_MATCH,
             FraudSharedArtifact.tenant_id != tenant_id,  # Exclude same tenant
-            or_(*conditions),
+            or_(*all_conditions),
         )
 
         result = await self.db.execute(query)

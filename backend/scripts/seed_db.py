@@ -16,9 +16,9 @@ from app.core.security import get_password_hash
 async def seed_database():
     """Create test users and roles."""
 
-    # Create tables
+    # Create tables (skip if they exist)
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(Base.metadata.create_all, checkfirst=True)
 
     async with AsyncSessionLocal() as db:
         # Check if admin user exists

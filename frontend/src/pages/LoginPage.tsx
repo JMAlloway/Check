@@ -28,11 +28,8 @@ export default function LoginPage() {
       // Login and get tokens
       const tokens = await authApi.login(data.username, data.password);
 
-      // Temporarily store tokens so the interceptor can use them
-      useAuthStore.setState({ accessToken: tokens.access_token, refreshToken: tokens.refresh_token });
-
-      // Get user info (now has token in store)
-      const user = await authApi.getCurrentUser();
+      // Get user info with the token directly
+      const user = await authApi.getCurrentUser(tokens.access_token);
 
       // Store full auth state
       setAuth(user, tokens.access_token, tokens.refresh_token);

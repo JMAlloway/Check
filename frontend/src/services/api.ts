@@ -73,8 +73,9 @@ export const authApi = {
     return response.data;
   },
 
-  getCurrentUser: async () => {
-    const response = await api.get('/auth/me');
+  getCurrentUser: async (token?: string) => {
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+    const response = await api.get('/auth/me', { headers });
     return response.data;
   },
 };

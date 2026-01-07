@@ -66,6 +66,9 @@ class User(Base, UUIDMixin, TimestampMixin):
 
     __tablename__ = "users"
 
+    # Multi-tenant support
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)

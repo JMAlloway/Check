@@ -2,6 +2,21 @@
 
 from app.models.audit import AuditLog, ItemView
 from app.models.check import CheckItem, CheckImage, CheckHistory
+from app.models.connector import (
+    BankConnectorConfig,
+    CommitBatch,
+    CommitRecord,
+    BatchAcknowledgement,
+    ReconciliationReport,
+    CommitDecisionType,
+    HoldReasonCode,
+    BatchStatus,
+    RecordStatus,
+    FileFormat,
+    DeliveryMethod,
+    ErrorCategory,
+    AcknowledgementStatus,
+)
 from app.models.decision import Decision, ReasonCode
 from app.models.fraud import (
     FraudEvent,
@@ -25,8 +40,24 @@ __all__ = [
     "CheckItem",
     "CheckImage",
     "CheckHistory",
+    # Connector B
+    "BankConnectorConfig",
+    "CommitBatch",
+    "CommitRecord",
+    "BatchAcknowledgement",
+    "ReconciliationReport",
+    "CommitDecisionType",
+    "HoldReasonCode",
+    "BatchStatus",
+    "RecordStatus",
+    "FileFormat",
+    "DeliveryMethod",
+    "ErrorCategory",
+    "AcknowledgementStatus",
+    # Decision
     "Decision",
     "ReasonCode",
+    # Fraud
     "FraudEvent",
     "FraudSharedArtifact",
     "NetworkMatchAlert",
@@ -37,11 +68,14 @@ __all__ = [
     "SharingLevel",
     "FraudEventStatus",
     "MatchSeverity",
+    # Policy
     "Policy",
     "PolicyRule",
     "PolicyVersion",
+    # Queue
     "Queue",
     "QueueAssignment",
+    # User
     "User",
     "Role",
     "Permission",

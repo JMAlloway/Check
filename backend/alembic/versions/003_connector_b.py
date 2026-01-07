@@ -41,6 +41,15 @@ def upgrade() -> None:
     op.alter_column('users', 'tenant_id', nullable=False)
 
     # ==========================================================================
+    # ADD EVIDENCE_SNAPSHOT TO DECISIONS TABLE (for audit replay)
+    # ==========================================================================
+    # Evidence snapshot captures the exact state at decision time for:
+    # - Audit replay: recreate what reviewer saw
+    # - Vendor risk: prove decision was informed
+    # - Regulatory: demonstrate controls worked
+    op.add_column('decisions', sa.Column('evidence_snapshot', postgresql.JSONB(), nullable=True))
+
+    # ==========================================================================
     # BANK CONNECTOR CONFIGURATION
     # ==========================================================================
     op.create_table(
@@ -383,6 +392,9 @@ def downgrade() -> None:
     op.execute("DROP TYPE IF EXISTS batchstatus")
     op.execute("DROP TYPE IF EXISTS deliverymethod")
     op.execute("DROP TYPE IF EXISTS fileformat")
+
+    # Remove evidence_snapshot from decisions
+    op.drop_column('decisions', 'evidence_snapshot')
 
     # Remove tenant_id from users
     op.drop_index('ix_users_tenant_id', table_name='users')

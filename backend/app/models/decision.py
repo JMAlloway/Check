@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
 from sqlalchemy import (
     Boolean,
@@ -12,6 +13,7 @@ from sqlalchemy import (
     String,
     Text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -84,6 +86,15 @@ class Decision(Base, UUIDMixin, TimestampMixin):
     is_dual_control_required: Mapped[bool] = mapped_column(Boolean, default=False)
     dual_control_approver_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"))
     dual_control_approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Evidence Snapshot - CRITICAL for bank-grade audit replay
+    # Captures the exact state at decision time:
+    # - policy_evaluation: rules triggered, outputs, version
+    # - ai_context: model/version, features displayed, risk score
+    # - check_context: amount, balances, tenure, risk flags (frozen values)
+    # - image_refs: image IDs/hashes for reproducibility
+    # - displayed_flags: exact flags shown to reviewer
+    evidence_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
     check_item: Mapped["CheckItem"] = relationship(back_populates="decisions")
     user: Mapped["User"] = relationship(foreign_keys=[user_id])

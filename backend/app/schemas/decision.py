@@ -1,11 +1,95 @@
 """Decision and reason code schemas."""
 
 from datetime import datetime
+from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 from app.models.decision import DecisionAction, DecisionType
 from app.schemas.common import BaseSchema, TimestampSchema
+
+
+# =============================================================================
+# EVIDENCE SNAPSHOT SCHEMAS
+# =============================================================================
+
+class ImageReference(BaseModel):
+    """Reference to a check image at decision time."""
+
+    id: str
+    image_type: str  # "front", "back"
+    external_id: str | None = None
+    content_hash: str | None = None  # SHA-256 of image content
+
+
+class CheckContextSnapshot(BaseModel):
+    """Frozen check item context values at decision time."""
+
+    amount: str  # Decimal as string for precision
+    account_type: str | None = None
+    account_tenure_days: int | None = None
+    current_balance: str | None = None
+    average_balance_30d: str | None = None
+    avg_check_amount_30d: str | None = None
+    avg_check_amount_90d: str | None = None
+    avg_check_amount_365d: str | None = None
+    check_frequency_30d: int | None = None
+    returned_item_count_90d: int | None = None
+    exception_count_90d: int | None = None
+    risk_level: str | None = None
+    risk_flags: list[str] = []
+    upstream_flags: list[str] = []
+
+
+class PolicyEvaluationSnapshot(BaseModel):
+    """Policy evaluation results at decision time."""
+
+    policy_version_id: str | None = None
+    policy_name: str | None = None
+    rules_triggered: list[dict[str, Any]] = []  # {"rule_id": "...", "name": "...", "result": ...}
+    requires_dual_control: bool = False
+    risk_score: float | None = None
+    recommendation: str | None = None
+
+
+class AIContextSnapshot(BaseModel):
+    """AI/ML context at decision time."""
+
+    ai_assisted: bool = False
+    model_id: str | None = None  # e.g., "fraud-detection-v2.3"
+    model_version: str | None = None
+    ai_risk_score: str | None = None  # Decimal as string
+    features_displayed: list[dict[str, Any]] = []  # Features shown to reviewer
+    flags_displayed: list[dict[str, Any]] = []  # AI-generated flags shown
+    flags_reviewed: list[str] = []  # Flag IDs user explicitly reviewed
+    confidence_scores: dict[str, float] = {}  # Per-category confidence
+
+
+class EvidenceSnapshot(BaseModel):
+    """
+    Complete evidence snapshot for audit replay.
+
+    Captures the exact state at decision time to enable:
+    - Audit replay: recreate exactly what reviewer saw
+    - Vendor risk assessment: prove decision was informed
+    - Regulatory compliance: demonstrate controls worked
+    - Internal audit: verify consistency
+    """
+
+    snapshot_version: str = "1.0"
+    captured_at: datetime
+
+    # What the reviewer saw
+    check_context: CheckContextSnapshot
+    images: list[ImageReference] = []
+
+    # What drove the decision
+    policy_evaluation: PolicyEvaluationSnapshot
+    ai_context: AIContextSnapshot
+
+    # Decision details
+    decision_context: dict[str, Any] = {}  # Additional context
 
 
 class ReasonCodeBase(BaseModel):
@@ -83,6 +167,9 @@ class DecisionResponse(TimestampSchema):
     is_dual_control_required: bool
     dual_control_approver_id: str | None = None
     dual_control_approved_at: datetime | None = None
+
+    # Evidence snapshot for audit replay
+    evidence_snapshot: EvidenceSnapshot | None = None
 
 
 class DecisionSummaryResponse(BaseModel):

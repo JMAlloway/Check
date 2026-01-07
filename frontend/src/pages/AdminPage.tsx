@@ -775,6 +775,7 @@ interface Policy {
 
 function PoliciesAdmin() {
   const [selectedPolicy, setSelectedPolicy] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const { data: policies, isLoading } = useQuery({
     queryKey: ['policies'],
@@ -795,15 +796,32 @@ function PoliciesAdmin() {
     },
   });
 
+  const createPolicyMutation = useMutation({
+    mutationFn: policyApi.createPolicy,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['policies'] });
+      setShowCreateModal(false);
+    },
+  });
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Policy Management</h2>
-            <div className="text-sm text-gray-500">
-              Policies define routing, escalation, and approval rules
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Policy Management</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Policies define routing, escalation, and approval rules
+              </p>
             </div>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            >
+              <PlusIcon className="h-5 w-5 mr-2" />
+              Create Policy
+            </button>
           </div>
         </div>
 
@@ -867,11 +885,291 @@ function PoliciesAdmin() {
 
             {(!policies || policies.length === 0) && (
               <div className="p-8 text-center text-gray-500">
-                No policies configured yet.
+                No policies configured yet. Click "Create Policy" to add one.
               </div>
             )}
           </div>
         )}
+      </div>
+
+      {/* Create Policy Modal */}
+      {showCreateModal && (
+        <PolicyFormModal
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={(data) => createPolicyMutation.mutate(data)}
+          isLoading={createPolicyMutation.isPending}
+        />
+      )}
+    </div>
+  );
+}
+
+function PolicyFormModal({
+  onClose,
+  onSubmit,
+  isLoading,
+}: {
+  onClose: () => void;
+  onSubmit: (data: any) => void;
+  isLoading: boolean;
+}) {
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    applies_to_account_types: [] as string[],
+    applies_to_branches: [] as string[],
+  });
+
+  const [rules, setRules] = useState<Array<{
+    name: string;
+    description: string;
+    rule_type: string;
+    priority: number;
+    is_enabled: boolean;
+    amount_threshold?: number;
+    risk_level_threshold?: string;
+  }>>([]);
+
+  const [showAddRule, setShowAddRule] = useState(false);
+  const [newRule, setNewRule] = useState({
+    name: '',
+    description: '',
+    rule_type: 'routing',
+    priority: 1,
+    is_enabled: true,
+    amount_threshold: undefined as number | undefined,
+    risk_level_threshold: '',
+  });
+
+  const handleAddRule = () => {
+    setRules([...rules, { ...newRule }]);
+    setNewRule({
+      name: '',
+      description: '',
+      rule_type: 'routing',
+      priority: rules.length + 2,
+      is_enabled: true,
+      amount_threshold: undefined,
+      risk_level_threshold: '',
+    });
+    setShowAddRule(false);
+  };
+
+  const handleRemoveRule = (index: number) => {
+    setRules(rules.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const policyData: any = {
+      name: formData.name,
+      description: formData.description || undefined,
+      applies_to_account_types: formData.applies_to_account_types.length > 0 ? formData.applies_to_account_types : undefined,
+      applies_to_branches: formData.applies_to_branches.length > 0 ? formData.applies_to_branches : undefined,
+    };
+
+    if (rules.length > 0) {
+      policyData.initial_version = {
+        effective_date: new Date().toISOString().split('T')[0],
+        change_notes: 'Initial version',
+        rules: rules.map((rule) => ({
+          ...rule,
+          conditions: [],
+          actions: [{ type: 'route_to_queue', params: {} }],
+          amount_threshold: rule.amount_threshold || undefined,
+          risk_level_threshold: rule.risk_level_threshold || undefined,
+        })),
+      };
+    }
+
+    onSubmit(policyData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">Create Policy</h3>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Basic Info */}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Policy Name</label>
+              <input
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="e.g., High Value Check Policy"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={2}
+                placeholder="Describe what this policy does..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+          </div>
+
+          {/* Rules Section */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-medium text-gray-700">Policy Rules</label>
+              <button
+                type="button"
+                onClick={() => setShowAddRule(true)}
+                className="text-sm text-primary-600 hover:text-primary-700"
+              >
+                + Add Rule
+              </button>
+            </div>
+
+            {rules.length === 0 ? (
+              <div className="text-sm text-gray-500 bg-gray-50 rounded-lg p-4 text-center">
+                No rules added yet. Add rules to define how checks are routed and processed.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {rules.map((rule, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                    <div>
+                      <span className="font-medium text-gray-900">{rule.name}</span>
+                      <div className="flex gap-2 mt-1">
+                        <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">{rule.rule_type}</span>
+                        <span className="text-xs text-gray-500">Priority: {rule.priority}</span>
+                        {rule.amount_threshold && (
+                          <span className="text-xs text-gray-500">${rule.amount_threshold.toLocaleString()}+</span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRule(idx)}
+                      className="text-red-600 hover:text-red-700 text-sm"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add Rule Form */}
+            {showAddRule && (
+              <div className="mt-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <h4 className="text-sm font-medium text-gray-900 mb-3">Add Rule</h4>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Rule Name</label>
+                      <input
+                        type="text"
+                        value={newRule.name}
+                        onChange={(e) => setNewRule({ ...newRule, name: e.target.value })}
+                        placeholder="e.g., Route High Value"
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Type</label>
+                      <select
+                        value={newRule.rule_type}
+                        onChange={(e) => setNewRule({ ...newRule, rule_type: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                      >
+                        <option value="routing">Routing</option>
+                        <option value="escalation">Escalation</option>
+                        <option value="dual_control">Dual Control</option>
+                        <option value="auto_approve">Auto Approve</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Priority</label>
+                      <input
+                        type="number"
+                        value={newRule.priority}
+                        onChange={(e) => setNewRule({ ...newRule, priority: parseInt(e.target.value) || 1 })}
+                        min={1}
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Amount Threshold ($)</label>
+                      <input
+                        type="number"
+                        value={newRule.amount_threshold || ''}
+                        onChange={(e) => setNewRule({ ...newRule, amount_threshold: e.target.value ? parseInt(e.target.value) : undefined })}
+                        placeholder="e.g., 10000"
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Risk Level Threshold</label>
+                    <select
+                      value={newRule.risk_level_threshold}
+                      onChange={(e) => setNewRule({ ...newRule, risk_level_threshold: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                    >
+                      <option value="">Any risk level</option>
+                      <option value="low">Low and above</option>
+                      <option value="medium">Medium and above</option>
+                      <option value="high">High and above</option>
+                      <option value="critical">Critical only</option>
+                    </select>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddRule(false)}
+                      className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddRule}
+                      disabled={!newRule.name}
+                      className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
+                    >
+                      Add Rule
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading || !formData.name}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            >
+              {isLoading ? 'Creating...' : 'Create Policy'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

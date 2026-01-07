@@ -186,11 +186,11 @@ class FraudSharedArtifact(Base, UUIDMixin, TimestampMixin):
 
     # Source tracking (tenant_id stored but never exposed to other tenants)
     tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
-    fraud_event_id: Mapped[str] = mapped_column(
+    fraud_event_id: Mapped[str | None] = mapped_column(
         String(36),
         ForeignKey("fraud_events.id", ondelete="CASCADE"),
         unique=True,
-        nullable=False
+        nullable=True  # Nullable for artifacts from external institutions
     )
 
     # Sharing level determines how this artifact can be used

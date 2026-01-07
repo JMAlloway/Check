@@ -802,6 +802,10 @@ function PoliciesAdmin() {
       queryClient.invalidateQueries({ queryKey: ['policies'] });
       setShowCreateModal(false);
     },
+    onError: (error: any) => {
+      console.error('Failed to create policy:', error);
+      alert(`Failed to create policy: ${error.response?.data?.detail || error.message}`);
+    },
   });
 
   return (

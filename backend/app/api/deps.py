@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.security import decode_token
 from app.db.session import AsyncSessionLocal
-from app.models.user import User
+from app.models.user import User, Role
 
 
 security = HTTPBearer()
@@ -56,7 +56,7 @@ async def get_current_user(
 
     result = await db.execute(
         select(User)
-        .options(selectinload(User.roles))
+        .options(selectinload(User.roles).selectinload(Role.permissions))
         .where(User.id == user_id, User.is_active == True)
     )
     user = result.scalar_one_or_none()

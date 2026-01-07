@@ -21,11 +21,18 @@ async def lifespan(app: FastAPI):
     """Application lifespan management."""
     # Startup
     print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    print(f"Environment: {settings.ENVIRONMENT}")
 
-    # Create database tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    print("Database tables created/verified")
+    # IMPORTANT: Only auto-create tables in development/local environments
+    # In production, use Alembic migrations: alembic upgrade head
+    if settings.ENVIRONMENT in ("local", "development", "dev"):
+        print("WARNING: Auto-creating database tables (development mode)")
+        print("In production, use 'alembic upgrade head' instead")
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        print("Database tables created/verified")
+    else:
+        print("Production mode: Skipping auto-create. Use Alembic migrations.")
 
     yield
     # Shutdown

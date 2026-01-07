@@ -168,7 +168,7 @@ async def seed_database():
                 "indicator_hash": hash_indicator("021000021"),  # Sample routing number
                 "fraud_type": FraudType.COUNTERFEIT_CHECK,
                 "channel": FraudChannel.MOBILE,
-                "amount_bucket": AmountBucket.BUCKET_1000_5000,
+                "amount_bucket": AmountBucket.FROM_1000_TO_5000,
             },
             {
                 "contributing_tenant_id": "bank-b",
@@ -176,7 +176,7 @@ async def seed_database():
                 "indicator_hash": hash_indicator("021000021"),
                 "fraud_type": FraudType.FORGED_SIGNATURE,
                 "channel": FraudChannel.RDC,
-                "amount_bucket": AmountBucket.BUCKET_5000_10000,
+                "amount_bucket": AmountBucket.FROM_5000_TO_10000,
             },
             # Payee name associated with fraud
             {
@@ -185,7 +185,7 @@ async def seed_database():
                 "indicator_hash": hash_indicator("ACME CORP"),  # Normalized payee name
                 "fraud_type": FraudType.FICTITIOUS_PAYEE,
                 "channel": FraudChannel.BRANCH,
-                "amount_bucket": AmountBucket.BUCKET_10000_50000,
+                "amount_bucket": AmountBucket.FROM_10000_TO_50000,
             },
             {
                 "contributing_tenant_id": "bank-a",
@@ -193,7 +193,7 @@ async def seed_database():
                 "indicator_hash": hash_indicator("ACME CORP"),
                 "fraud_type": FraudType.FICTITIOUS_PAYEE,
                 "channel": FraudChannel.MOBILE,
-                "amount_bucket": AmountBucket.BUCKET_5000_10000,
+                "amount_bucket": AmountBucket.FROM_5000_TO_10000,
             },
             # Check fingerprint
             {
@@ -202,7 +202,7 @@ async def seed_database():
                 "indicator_hash": hash_indicator("021000021:1234567890:1001"),  # routing:account:check#
                 "fraud_type": FraudType.DUPLICATE_DEPOSIT,
                 "channel": FraudChannel.ATM,
-                "amount_bucket": AmountBucket.BUCKET_500_1000,
+                "amount_bucket": AmountBucket.FROM_500_TO_1000,
             },
         ]
 

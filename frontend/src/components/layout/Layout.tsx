@@ -14,6 +14,7 @@ import {
   ShieldExclamationIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../stores/authStore';
+import { authApi } from '../../services/api';
 import clsx from 'clsx';
 
 const navigation = [
@@ -37,7 +38,14 @@ export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const { user, logout, hasPermission } = useAuthStore();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // Call server to revoke token and clear httpOnly cookie
+      await authApi.logout();
+    } catch {
+      // Continue with logout even if server call fails
+    }
+    // Clear client-side state
     logout();
     navigate('/login');
   };

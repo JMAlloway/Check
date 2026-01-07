@@ -28,9 +28,15 @@ class Settings(BaseSettings):
 
     # Security
     SECRET_KEY: str = "change-this-in-production-use-secure-random-key"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15  # Shortened for security (was 30)
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ALGORITHM: str = "HS256"
+
+    # Cookie Security (for refresh tokens)
+    COOKIE_SECURE: bool = True  # Set to False for local dev without HTTPS
+    COOKIE_SAMESITE: str = "lax"  # "strict" breaks OAuth flows, "lax" is good balance
+    COOKIE_DOMAIN: str | None = None  # None = current domain only
+    CSRF_SECRET_KEY: str = "change-this-csrf-secret-in-production"
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/check_review"

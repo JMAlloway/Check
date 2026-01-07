@@ -25,7 +25,7 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true);
     try {
-      // Login - returns tokens AND user info
+      // Login - returns access token in body, refresh token set as httpOnly cookie
       const response = await authApi.login(data.username, data.password);
 
       // Build user object from response
@@ -39,8 +39,8 @@ export default function LoginPage() {
         permissions: response.user.permissions,
       };
 
-      // Store auth state
-      setAuth(user, response.access_token, response.refresh_token);
+      // Store auth state (access token in memory only, refresh token in httpOnly cookie)
+      setAuth(user, response.access_token);
 
       toast.success('Login successful');
       navigate('/dashboard');

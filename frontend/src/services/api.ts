@@ -1,62 +1,113 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { useAuthStore } from '../stores/authStore';
+import { useAuthStore, getCsrfToken } from '../stores/authStore';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api/v1`
   : 'http://localhost:8000/api/v1';
 
+/**
+ * API Client - Security-hardened for bank-grade auth
+ *
+ * SECURITY NOTES:
+ * - Access token: Sent in Authorization header (from memory, not localStorage)
+ * - Refresh token: Sent automatically via httpOnly cookie (withCredentials: true)
+ * - CSRF protection: X-CSRF-Token header sent for auth endpoints
+ */
 export const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // CRITICAL: Send cookies with requests
 });
 
-// Request interceptor - add auth token
+// Track if we're currently refreshing to prevent multiple refresh attempts
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+function subscribeTokenRefresh(cb: (token: string) => void) {
+  refreshSubscribers.push(cb);
+}
+
+function onTokenRefreshed(token: string) {
+  refreshSubscribers.forEach((cb) => cb(token));
+  refreshSubscribers = [];
+}
+
+// Request interceptor - add auth token and CSRF token
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const { accessToken } = useAuthStore.getState();
     if (accessToken && config.headers) {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
+
+    // Add CSRF token for auth endpoints (cookie-based operations)
+    if (config.url?.includes('/auth/')) {
+      const csrfToken = getCsrfToken();
+      if (csrfToken && config.headers) {
+        config.headers['X-CSRF-Token'] = csrfToken;
+      }
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Response interceptor - handle 401
+// Response interceptor - handle 401 with cookie-based refresh
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      const { refreshToken, logout } = useAuthStore.getState();
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-      if (refreshToken) {
-        try {
-          const response = await api.post('/auth/refresh', {
-            refresh_token: refreshToken,
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      // Check if we have a user (indicating we were logged in)
+      const { user, logout, setAccessToken } = useAuthStore.getState();
+
+      if (!user) {
+        // Never logged in, just reject
+        return Promise.reject(error);
+      }
+
+      if (isRefreshing) {
+        // Wait for the refresh to complete
+        return new Promise((resolve) => {
+          subscribeTokenRefresh((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            resolve(api(originalRequest));
           });
+        });
+      }
 
-          const { access_token, refresh_token } = response.data;
-          const { user, setAuth } = useAuthStore.getState();
+      originalRequest._retry = true;
+      isRefreshing = true;
 
-          if (user) {
-            setAuth(user, access_token, refresh_token);
+      try {
+        // Refresh using httpOnly cookie (no body needed)
+        // The refresh token is automatically sent via the cookie
+        const response = await api.post('/auth/refresh', {});
 
-            // Retry original request
-            const originalRequest = error.config;
-            if (originalRequest && originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${access_token}`;
-              return api(originalRequest);
-            }
-          }
-        } catch {
-          logout();
-        }
-      } else {
+        const { access_token } = response.data;
+
+        // Update access token in memory
+        setAccessToken(access_token);
+
+        // Notify subscribers and retry original request
+        onTokenRefreshed(access_token);
+        originalRequest.headers.Authorization = `Bearer ${access_token}`;
+
+        return api(originalRequest);
+      } catch {
+        // Refresh failed, logout user
         logout();
+        refreshSubscribers = [];
+        // Redirect to login (handled by auth guard in router)
+      } finally {
+        isRefreshing = false;
       }
     }
+
     return Promise.reject(error);
   }
 );
@@ -64,18 +115,28 @@ api.interceptors.response.use(
 // Auth API
 export const authApi = {
   login: async (username: string, password: string) => {
+    // Login sets refresh token in httpOnly cookie automatically
     const response = await api.post('/auth/login', { username, password });
     return response.data;
   },
 
-  logout: async (refreshToken: string) => {
-    const response = await api.post('/auth/logout', { refresh_token: refreshToken });
+  logout: async () => {
+    // Logout reads refresh token from httpOnly cookie
+    // No need to pass it in body anymore
+    const response = await api.post('/auth/logout', {});
     return response.data;
   },
 
   getCurrentUser: async (token?: string) => {
     const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
     const response = await api.get('/auth/me', { headers });
+    return response.data;
+  },
+
+  // Attempt to restore session using httpOnly cookie
+  // Called on app init when user info exists but access token is missing
+  refreshSession: async () => {
+    const response = await api.post('/auth/refresh', {});
     return response.data;
   },
 };

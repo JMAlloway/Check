@@ -58,6 +58,9 @@ class AuditAction(str, Enum):
     AI_ASSIST_VIEWED = "ai_assist_viewed"
     AI_ASSIST_FEEDBACK = "ai_assist_feedback"
 
+    # Security
+    UNAUTHORIZED_ACCESS = "unauthorized_access"
+
     # Fraud Intelligence
     FRAUD_EVENT_CREATED = "fraud_event_created"
     FRAUD_EVENT_SUBMITTED = "fraud_event_submitted"

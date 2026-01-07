@@ -59,8 +59,17 @@ def decode_token(token: str) -> dict[str, Any] | None:
         return None
 
 
-def generate_signed_url(resource_id: str, expires_in: int | None = None) -> str:
-    """Generate a short-lived signed URL for secure resource access."""
+def generate_signed_url(
+    resource_id: str,
+    user_id: str,
+    expires_in: int | None = None,
+) -> str:
+    """Generate a short-lived, user-bound signed URL for secure resource access.
+
+    Security: The token is bound to a specific user to prevent URL sharing.
+    If the URL leaks (logs, referrers, etc.), it can only be used by the
+    original user who was issued the URL.
+    """
     if expires_in is None:
         expires_in = settings.IMAGE_SIGNED_URL_TTL_SECONDS
 
@@ -68,15 +77,30 @@ def generate_signed_url(resource_id: str, expires_in: int | None = None) -> str:
     to_encode = {
         "exp": expire,
         "resource": resource_id,
+        "sub": user_id,  # Bind to user
         "type": "signed_url",
     }
     token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return f"/api/v1/images/secure/{token}"
 
 
-def verify_signed_url(token: str) -> str | None:
-    """Verify a signed URL and return the resource ID if valid."""
+class SignedUrlPayload:
+    """Payload from a verified signed URL."""
+    def __init__(self, resource_id: str, user_id: str):
+        self.resource_id = resource_id
+        self.user_id = user_id
+
+
+def verify_signed_url(token: str) -> SignedUrlPayload | None:
+    """Verify a signed URL and return the payload if valid.
+
+    Returns:
+        SignedUrlPayload with resource_id and user_id, or None if invalid.
+    """
     payload = decode_token(token)
     if payload and payload.get("type") == "signed_url":
-        return payload.get("resource")
+        resource_id = payload.get("resource")
+        user_id = payload.get("sub")
+        if resource_id and user_id:
+            return SignedUrlPayload(resource_id=resource_id, user_id=user_id)
     return None

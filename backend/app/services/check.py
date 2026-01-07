@@ -226,8 +226,13 @@ class CheckService:
 
         return priority
 
-    async def get_check_item(self, item_id: str) -> CheckItemResponse | None:
-        """Get a check item by ID with full details."""
+    async def get_check_item(self, item_id: str, user_id: str) -> CheckItemResponse | None:
+        """Get a check item by ID with full details.
+
+        Args:
+            item_id: The check item ID
+            user_id: The requesting user's ID (for user-bound signed URLs)
+        """
         result = await self.db.execute(
             select(CheckItem)
             .options(selectinload(CheckItem.images))
@@ -238,11 +243,16 @@ class CheckService:
         if not item:
             return None
 
-        return await self._build_check_response(item)
+        return await self._build_check_response(item, user_id)
 
-    async def _build_check_response(self, item: CheckItem) -> CheckItemResponse:
-        """Build a complete check item response with context and flags."""
-        # Build image responses with signed URLs
+    async def _build_check_response(self, item: CheckItem, user_id: str) -> CheckItemResponse:
+        """Build a complete check item response with context and flags.
+
+        Args:
+            item: The check item
+            user_id: The requesting user's ID (for user-bound signed URLs)
+        """
+        # Build image responses with user-bound signed URLs
         images = []
         for img in item.images:
             from app.core.security import generate_signed_url
@@ -255,8 +265,8 @@ class CheckService:
                     file_size=img.file_size,
                     width=img.width,
                     height=img.height,
-                    image_url=generate_signed_url(img.external_image_id or img.id),
-                    thumbnail_url=generate_signed_url(f"thumb_{img.external_image_id or img.id}"),
+                    image_url=generate_signed_url(img.external_image_id or img.id, user_id),
+                    thumbnail_url=generate_signed_url(f"thumb_{img.external_image_id or img.id}", user_id),
                 )
             )
 
@@ -417,10 +427,18 @@ class CheckService:
     async def search_items(
         self,
         search: CheckSearchRequest,
+        user_id: str,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[CheckItemListResponse], int]:
-        """Search check items with filters."""
+        """Search check items with filters.
+
+        Args:
+            search: Search criteria
+            user_id: The requesting user's ID (for user-bound signed URLs)
+            page: Page number
+            page_size: Items per page
+        """
         query = select(CheckItem).options(selectinload(CheckItem.images))
 
         # Apply filters
@@ -493,13 +511,13 @@ class CheckService:
         # Build response
         responses = []
         for item in items:
-            # Get thumbnail URL for first front image
+            # Get thumbnail URL for first front image (user-bound)
             thumbnail_url = None
             for img in item.images:
                 if img.image_type == "front":
                     from app.core.security import generate_signed_url
 
-                    thumbnail_url = generate_signed_url(f"thumb_{img.external_image_id or img.id}")
+                    thumbnail_url = generate_signed_url(f"thumb_{img.external_image_id or img.id}", user_id)
                     break
 
             responses.append(
@@ -529,9 +547,16 @@ class CheckService:
     async def get_check_history(
         self,
         account_id: str,
+        user_id: str,
         limit: int = 10,
     ) -> list[CheckHistoryResponse]:
-        """Get check history for an account."""
+        """Get check history for an account.
+
+        Args:
+            account_id: The account ID
+            user_id: The requesting user's ID (for user-bound signed URLs)
+            limit: Maximum number of history items
+        """
         history = await self.adapter.get_check_history(account_id, limit=limit)
 
         from app.core.security import generate_signed_url
@@ -546,8 +571,8 @@ class CheckService:
                 payee_name=h.payee_name,
                 status=h.status,
                 return_reason=h.return_reason,
-                front_image_url=generate_signed_url(h.front_image_id) if h.front_image_id else None,
-                back_image_url=generate_signed_url(h.back_image_id) if h.back_image_id else None,
+                front_image_url=generate_signed_url(h.front_image_id, user_id) if h.front_image_id else None,
+                back_image_url=generate_signed_url(h.back_image_id, user_id) if h.back_image_id else None,
             )
             for h in history
         ]

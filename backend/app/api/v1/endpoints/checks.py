@@ -55,7 +55,7 @@ async def list_check_items(
         date_to=date_to,
     )
 
-    items, total = await check_service.search_items(search, page, page_size)
+    items, total = await check_service.search_items(search, current_user.id, page, page_size)
 
     total_pages = (total + page_size - 1) // page_size
 
@@ -85,7 +85,7 @@ async def get_my_queue(
         status=[CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL],
     )
 
-    items, total = await check_service.search_items(search, page, page_size)
+    items, total = await check_service.search_items(search, current_user.id, page, page_size)
     total_pages = (total + page_size - 1) // page_size
 
     return PaginatedResponse(
@@ -110,7 +110,7 @@ async def get_check_item(
     check_service = CheckService(db)
     audit_service = AuditService(db)
 
-    item = await check_service.get_check_item(item_id)
+    item = await check_service.get_check_item(item_id, current_user.id)
 
     if not item:
         raise HTTPException(
@@ -139,14 +139,14 @@ async def get_check_history(
     """Get check history for the account associated with a check item."""
     check_service = CheckService(db)
 
-    item = await check_service.get_check_item(item_id)
+    item = await check_service.get_check_item(item_id, current_user.id)
     if not item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Check item not found",
         )
 
-    history = await check_service.get_check_history(item.account_id, limit=limit)
+    history = await check_service.get_check_history(item.account_id, current_user.id, limit=limit)
     return history
 
 
@@ -205,7 +205,7 @@ async def assign_check_item(
     )
 
     check_service = CheckService(db)
-    return await check_service.get_check_item(item_id)
+    return await check_service.get_check_item(item_id, current_user.id)
 
 
 @router.post("/{item_id}/status", response_model=CheckItemResponse)
@@ -247,7 +247,7 @@ async def update_check_status(
     )
 
     check_service = CheckService(db)
-    return await check_service.get_check_item(item_id)
+    return await check_service.get_check_item(item_id, current_user.id)
 
 
 @router.post("/sync")

@@ -1,7 +1,6 @@
 """Policy engine for evaluating business rules."""
 
 from datetime import datetime, timezone
-from decimal import Decimal
 import json
 from typing import Any
 
@@ -193,15 +192,19 @@ class PolicyEngine:
         return False
 
     def _get_field_value(self, field: str, item: CheckItem) -> Any:
-        """Get a field value from a check item by field name."""
+        """Get a field value from a check item by field name.
+
+        Note: Numeric fields are converted to float for consistent comparisons.
+        """
+        # Convert Decimal/numeric fields to float for consistent comparisons
         field_mapping = {
-            "amount": item.amount,
+            "amount": float(item.amount) if item.amount is not None else None,
             "account_type": item.account_type.value if item.account_type else None,
             "risk_level": item.risk_level.value if item.risk_level else None,
             "account_tenure_days": item.account_tenure_days,
-            "current_balance": item.current_balance,
-            "avg_check_amount_30d": item.avg_check_amount_30d,
-            "avg_check_amount_90d": item.avg_check_amount_90d,
+            "current_balance": float(item.current_balance) if item.current_balance is not None else None,
+            "avg_check_amount_30d": float(item.avg_check_amount_30d) if item.avg_check_amount_30d is not None else None,
+            "avg_check_amount_90d": float(item.avg_check_amount_90d) if item.avg_check_amount_90d is not None else None,
             "returned_item_count_90d": item.returned_item_count_90d,
             "exception_count_90d": item.exception_count_90d,
             "check_frequency_30d": item.check_frequency_30d,
@@ -223,14 +226,19 @@ class PolicyEngine:
         return field_mapping.get(field)
 
     def _convert_value(self, value: Any, value_type: str) -> Any:
-        """Convert a value to the appropriate type."""
+        """Convert a value to the appropriate type.
+
+        Note: We use float for numeric comparisons to ensure consistency
+        with computed fields (like ratios) which return float values.
+        Using Decimal would cause TypeError when comparing float >= Decimal.
+        """
         if value is None:
             return None
 
         if value_type == "number":
             if isinstance(value, list):
-                return [Decimal(str(v)) for v in value]
-            return Decimal(str(value))
+                return [float(v) for v in value]
+            return float(value)
 
         if value_type == "boolean":
             return bool(value)
@@ -277,7 +285,7 @@ async def create_default_policy(db: AsyncSession) -> Policy:
         actions=json.dumps([
             {"action": "require_dual_control", "params": None}
         ]),
-        amount_threshold=Decimal("10000"),
+        amount_threshold=10000.0,
     )
     db.add(dual_control_rule)
 

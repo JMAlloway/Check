@@ -58,19 +58,38 @@ async def seed_database():
             Permission(name="check_item:view", resource="check_item", action="view", description="View check items"),
             Permission(name="check_item:review", resource="check_item", action="review", description="Review check items"),
             Permission(name="check_item:approve", resource="check_item", action="approve", description="Approve check items"),
+            # Queue permissions
             Permission(name="queue:view", resource="queue", action="view", description="View queues"),
+            Permission(name="queue:create", resource="queue", action="create", description="Create queues"),
+            Permission(name="queue:update", resource="queue", action="update", description="Update queues"),
+            Permission(name="queue:assign", resource="queue", action="assign", description="Assign users to queues"),
             Permission(name="queue:manage", resource="queue", action="manage", description="Manage queues"),
+            # User permissions
             Permission(name="user:view", resource="user", action="view", description="View users"),
+            Permission(name="user:create", resource="user", action="create", description="Create users"),
+            Permission(name="user:update", resource="user", action="update", description="Update users"),
             Permission(name="user:manage", resource="user", action="manage", description="Manage users"),
+            # Role permissions
+            Permission(name="role:view", resource="role", action="view", description="View roles"),
+            Permission(name="role:create", resource="role", action="create", description="Create roles"),
+            # Permission permissions
+            Permission(name="permission:view", resource="permission", action="view", description="View permissions"),
+            # Audit permissions
             Permission(name="audit:view", resource="audit", action="view", description="View audit logs"),
             Permission(name="audit:export", resource="audit", action="export", description="Export audit data"),
+            # Policy permissions
             Permission(name="policy:view", resource="policy", action="view", description="View policies"),
+            Permission(name="policy:create", resource="policy", action="create", description="Create policies"),
+            Permission(name="policy:update", resource="policy", action="update", description="Update policies"),
+            Permission(name="policy:activate", resource="policy", action="activate", description="Activate policies"),
             Permission(name="policy:manage", resource="policy", action="manage", description="Manage policies"),
+            # Report permissions
             Permission(name="report:view", resource="report", action="view", description="View reports"),
             # Fraud Intelligence permissions
             Permission(name="fraud:view", resource="fraud", action="view", description="View fraud events and alerts"),
             Permission(name="fraud:create", resource="fraud", action="create", description="Create fraud events"),
             Permission(name="fraud:submit", resource="fraud", action="submit", description="Submit fraud events to network"),
+            Permission(name="fraud:withdraw", resource="fraud", action="withdraw", description="Withdraw fraud events"),
             Permission(name="fraud:config", resource="fraud", action="config", description="Configure fraud settings"),
         ]
 

@@ -354,3 +354,213 @@ export const fraudApi = {
     return response.data;
   },
 };
+
+// User Management API
+export const userApi = {
+  getUsers: async (params: {
+    page?: number;
+    page_size?: number;
+    is_active?: boolean;
+    search?: string;
+  }) => {
+    const response = await api.get('/users', { params });
+    return response.data;
+  },
+
+  getUser: async (userId: string) => {
+    const response = await api.get(`/users/${userId}`);
+    return response.data;
+  },
+
+  createUser: async (data: {
+    email: string;
+    username: string;
+    full_name: string;
+    password: string;
+    department?: string;
+    branch?: string;
+    employee_id?: string;
+    is_active?: boolean;
+    role_ids?: string[];
+  }) => {
+    const response = await api.post('/users', data);
+    return response.data;
+  },
+
+  updateUser: async (userId: string, data: {
+    email?: string;
+    full_name?: string;
+    department?: string;
+    branch?: string;
+    is_active?: boolean;
+    role_ids?: string[];
+  }) => {
+    const response = await api.patch(`/users/${userId}`, data);
+    return response.data;
+  },
+
+  getRoles: async () => {
+    const response = await api.get('/users/roles/');
+    return response.data;
+  },
+
+  createRole: async (data: {
+    name: string;
+    description?: string;
+    permission_ids?: string[];
+  }) => {
+    const response = await api.post('/users/roles/', data);
+    return response.data;
+  },
+
+  getPermissions: async () => {
+    const response = await api.get('/users/permissions/');
+    return response.data;
+  },
+};
+
+// Queue Management API (extended)
+export const queueAdminApi = {
+  ...queueApi,
+
+  createQueue: async (data: {
+    name: string;
+    description?: string;
+    queue_type?: string;
+    sla_hours?: number;
+    warning_threshold_minutes?: number;
+    routing_criteria?: Record<string, unknown>;
+    allowed_role_ids?: string[];
+    allowed_user_ids?: string[];
+  }) => {
+    const response = await api.post('/queues', data);
+    return response.data;
+  },
+
+  updateQueue: async (queueId: string, data: {
+    name?: string;
+    description?: string;
+    queue_type?: string;
+    is_active?: boolean;
+    sla_hours?: number;
+    display_order?: number;
+  }) => {
+    const response = await api.patch(`/queues/${queueId}`, data);
+    return response.data;
+  },
+
+  getAssignments: async (queueId: string) => {
+    const response = await api.get(`/queues/${queueId}/assignments`);
+    return response.data;
+  },
+
+  createAssignment: async (queueId: string, data: {
+    user_id: string;
+    can_review?: boolean;
+    can_approve?: boolean;
+    max_concurrent_items?: number;
+  }) => {
+    const response = await api.post(`/queues/${queueId}/assignments`, data);
+    return response.data;
+  },
+};
+
+// Policy Management API
+export const policyApi = {
+  getPolicies: async (status?: string) => {
+    const response = await api.get('/policies', { params: { status_filter: status } });
+    return response.data;
+  },
+
+  getPolicy: async (policyId: string) => {
+    const response = await api.get(`/policies/${policyId}`);
+    return response.data;
+  },
+
+  createPolicy: async (data: {
+    name: string;
+    description?: string;
+    applies_to_account_types?: string[];
+    applies_to_branches?: string[];
+    applies_to_markets?: string[];
+    initial_version?: {
+      effective_date: string;
+      expiry_date?: string;
+      change_notes?: string;
+      rules: Array<{
+        name: string;
+        description?: string;
+        rule_type: string;
+        priority: number;
+        is_enabled: boolean;
+        conditions: Array<{ field: string; operator: string; value: unknown }>;
+        actions: Array<{ type: string; params?: Record<string, unknown> }>;
+        amount_threshold?: number;
+        risk_level_threshold?: string;
+      }>;
+    };
+  }) => {
+    const response = await api.post('/policies', data);
+    return response.data;
+  },
+
+  createVersion: async (policyId: string, data: {
+    effective_date: string;
+    expiry_date?: string;
+    change_notes?: string;
+    rules: Array<{
+      name: string;
+      description?: string;
+      rule_type: string;
+      priority: number;
+      is_enabled: boolean;
+      conditions: Array<{ field: string; operator: string; value: unknown }>;
+      actions: Array<{ type: string; params?: Record<string, unknown> }>;
+      amount_threshold?: number;
+      risk_level_threshold?: string;
+    }>;
+  }) => {
+    const response = await api.post(`/policies/${policyId}/versions`, data);
+    return response.data;
+  },
+
+  activatePolicy: async (policyId: string, versionId?: string) => {
+    const response = await api.post(`/policies/${policyId}/activate`, null, {
+      params: versionId ? { version_id: versionId } : undefined,
+    });
+    return response.data;
+  },
+};
+
+// Audit Log API (extended)
+export const auditLogApi = {
+  ...auditApi,
+
+  searchLogs: async (params: {
+    page?: number;
+    page_size?: number;
+    action?: string;
+    resource_type?: string;
+    resource_id?: string;
+    user_id?: string;
+    date_from?: string;
+    date_to?: string;
+  }) => {
+    const response = await api.get('/audit/logs', { params });
+    return response.data;
+  },
+
+  getUserActivity: async (userId: string, params: {
+    date_from?: string;
+    date_to?: string;
+    limit?: number;
+  }) => {
+    const response = await api.get(`/audit/users/${userId}`, { params });
+    return response.data;
+  },
+
+  getItemViews: async (itemId: string) => {
+    const response = await api.get(`/audit/items/${itemId}/views`);
+    return response.data;
+  },
+};

@@ -8,7 +8,7 @@ This module provides the core business logic for:
 - Computing network trends and statistics
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
@@ -439,6 +439,9 @@ class FraudService:
         different pepper versions. For each pepper version, we match against
         artifacts that were created with that version.
 
+        Also enforces retention policy - artifacts older than
+        FRAUD_ARTIFACT_RETENTION_MONTHS are excluded from matching.
+
         Args:
             tenant_id: Current tenant (excluded from matches)
             indicators_by_version: Dict mapping pepper_version -> indicators dict
@@ -479,11 +482,16 @@ class FraudService:
         if not all_conditions:
             return []
 
-        # Query for matching artifacts
+        # Calculate retention cutoff date
+        retention_months = settings.FRAUD_ARTIFACT_RETENTION_MONTHS
+        retention_cutoff = datetime.now(timezone.utc) - timedelta(days=retention_months * 30)
+
+        # Query for matching artifacts with retention filter
         query = select(FraudSharedArtifact).where(
             FraudSharedArtifact.is_active == True,
             FraudSharedArtifact.sharing_level == SharingLevel.NETWORK_MATCH,
             FraudSharedArtifact.tenant_id != tenant_id,  # Exclude same tenant
+            FraudSharedArtifact.created_at >= retention_cutoff,  # Enforce retention policy
             or_(*all_conditions),
         )
 
@@ -619,7 +627,9 @@ class FraudService:
         }.get(severity, 0)
 
     async def _build_alert_response(self, alert: NetworkMatchAlert) -> NetworkAlertResponse:
-        """Build alert response with match reason details."""
+        """Build alert response with match reason details and privacy suppression."""
+        threshold = settings.FRAUD_PRIVACY_THRESHOLD
+
         match_reasons = []
         for ind_type, data in alert.match_reasons.items():
             match_reasons.append(MatchReasonDetail(
@@ -631,13 +641,19 @@ class FraudService:
                 channels=data.get("channels", []),
             ))
 
+        # Apply privacy suppression to counts
+        total_display = f"<{threshold}" if alert.total_matches < threshold else str(alert.total_matches)
+        institutions_display = f"<{threshold}" if alert.distinct_institutions < threshold else str(alert.distinct_institutions)
+
         return NetworkAlertResponse(
             id=alert.id,
             check_item_id=alert.check_item_id,
             case_id=alert.case_id,
             severity=alert.severity,
             total_matches=alert.total_matches,
+            total_matches_display=total_display,
             distinct_institutions=alert.distinct_institutions,
+            distinct_institutions_display=institutions_display,
             earliest_match_date=alert.earliest_match_date,
             latest_match_date=alert.latest_match_date,
             match_reasons=match_reasons,

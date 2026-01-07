@@ -145,7 +145,9 @@ class NetworkAlertResponse(BaseModel):
     case_id: str | None
     severity: MatchSeverity
     total_matches: int
+    total_matches_display: str  # Suppressed if below threshold
     distinct_institutions: int
+    distinct_institutions_display: str  # Suppressed if below threshold
     earliest_match_date: datetime | None
     latest_match_date: datetime | None
     match_reasons: list[MatchReasonDetail]

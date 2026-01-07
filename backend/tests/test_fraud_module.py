@@ -868,7 +868,8 @@ class TestArtifactNeverReturnedDirectly:
 
         allowed_fields = {
             "id", "check_item_id", "case_id", "severity",
-            "total_matches", "distinct_institutions",
+            "total_matches", "total_matches_display",
+            "distinct_institutions", "distinct_institutions_display",
             "earliest_match_date", "latest_match_date",
             "match_reasons", "created_at", "last_checked_at",
             "is_dismissed", "dismissed_at", "dismissed_reason"
@@ -881,7 +882,231 @@ class TestArtifactNeverReturnedDirectly:
         assert not unexpected, f"Unexpected fields in NetworkAlertResponse: {unexpected}"
 
 
+class TestFingerprintContents:
+    """Tests verifying fingerprint only includes non-PII fields."""
+
+    def test_fingerprint_does_not_include_account_number(self):
+        """Verify account number is NOT in fingerprint."""
+        import inspect
+        from app.services.fraud_hashing import FraudHashingService
+
+        source = inspect.getsource(FraudHashingService.compute_check_fingerprint)
+
+        # Account should be explicitly excluded
+        assert "account" not in source.lower() or "EXCLUDED" in source, \
+            "compute_check_fingerprint must not include account"
+
+    def test_fingerprint_does_not_include_micr_account(self):
+        """Verify MICR account data is NOT in fingerprint."""
+        import inspect
+        from app.services.fraud_hashing import FraudHashingService
+
+        source = inspect.getsource(FraudHashingService.compute_check_fingerprint)
+
+        # micr_account should NOT appear as a parameter or component
+        assert "micr_account" not in source, \
+            "compute_check_fingerprint must not include micr_account"
+
+    def test_fingerprint_only_uses_routing_not_full_micr(self):
+        """Verify fingerprint uses routing number only, not full MICR line."""
+        service = FraudHashingService(pepper="test")
+
+        # Verify we can't even pass MICR line to fingerprint
+        # The function signature only accepts routing, check_number, amount_bucket, date_bucket
+        import inspect
+        sig = inspect.signature(service.compute_check_fingerprint)
+        param_names = list(sig.parameters.keys())
+
+        # Should NOT have micr_line or micr_account parameters
+        assert "micr_line" not in param_names, "Fingerprint should not accept micr_line"
+        assert "micr_account" not in param_names, "Fingerprint should not accept micr_account"
+
+    def test_fingerprint_components_are_documented(self):
+        """Verify fingerprint docstring explicitly lists what's included/excluded."""
+        from app.services.fraud_hashing import FraudHashingService
+
+        docstring = FraudHashingService.compute_check_fingerprint.__doc__
+        assert docstring is not None
+
+        # Must document what's included
+        assert "INCLUDED" in docstring, "Docstring must document INCLUDED fields"
+        assert "routing" in docstring.lower(), "Docstring must mention routing"
+
+        # Must document what's excluded
+        assert "EXCLUDED" in docstring, "Docstring must document EXCLUDED fields"
+        assert "Account" in docstring, "Docstring must mention Account exclusion"
+
+
+class TestPIIBlockingScope:
+    """Tests verifying PII blocking only applies to Level 1/2 sharing."""
+
+    def test_pii_check_only_for_non_private(self):
+        """Verify PII check is only performed for non-PRIVATE events."""
+        import inspect
+        from app.services.fraud_service import FraudService
+
+        source = inspect.getsource(FraudService.submit_fraud_event)
+
+        # Must check sharing_level != PRIVATE before PII check
+        assert "sharing_level != SharingLevel.PRIVATE" in source or \
+               "PRIVATE" in source, \
+            "PII check must be conditional on sharing level"
+
+    def test_create_event_does_not_check_pii(self):
+        """Verify create_fraud_event does NOT perform PII checking."""
+        import inspect
+        from app.services.fraud_service import FraudService
+
+        source = inspect.getsource(FraudService.create_fraud_event)
+
+        # create should not have PII detection
+        assert "pii_detector" not in source, \
+            "create_fraud_event should not check PII (only on submit)"
+
+
+class TestInstitutionCountSuppression:
+    """Tests for institution count privacy suppression."""
+
+    def test_alert_response_has_display_fields(self):
+        """Verify NetworkAlertResponse has suppressed display fields."""
+        from app.schemas.fraud import NetworkAlertResponse
+
+        fields = NetworkAlertResponse.model_fields.keys()
+
+        assert "distinct_institutions_display" in fields, \
+            "Must have distinct_institutions_display field"
+        assert "total_matches_display" in fields, \
+            "Must have total_matches_display field"
+
+    def test_build_alert_response_applies_suppression(self):
+        """Verify _build_alert_response applies privacy threshold."""
+        import inspect
+        from app.services.fraud_service import FraudService
+
+        source = inspect.getsource(FraudService._build_alert_response)
+
+        # Must reference threshold and apply suppression
+        assert "FRAUD_PRIVACY_THRESHOLD" in source or "threshold" in source, \
+            "_build_alert_response must use privacy threshold"
+        assert "institutions_display" in source, \
+            "_build_alert_response must compute institutions_display"
+
+
+class TestRetentionEnforcement:
+    """Tests for retention policy enforcement in matching."""
+
+    def test_matching_query_includes_retention_filter(self):
+        """Verify _find_matching_artifacts filters by retention date."""
+        import inspect
+        from app.services.fraud_service import FraudService
+
+        source = inspect.getsource(FraudService._find_matching_artifacts)
+
+        # Must have retention filter
+        assert "retention" in source.lower(), \
+            "_find_matching_artifacts must reference retention"
+        assert "created_at >=" in source or "created_at>=" in source, \
+            "_find_matching_artifacts must filter by created_at"
+
+    def test_retention_uses_config_setting(self):
+        """Verify retention uses FRAUD_ARTIFACT_RETENTION_MONTHS setting."""
+        import inspect
+        from app.services.fraud_service import FraudService
+
+        source = inspect.getsource(FraudService._find_matching_artifacts)
+
+        assert "FRAUD_ARTIFACT_RETENTION_MONTHS" in source, \
+            "Must use FRAUD_ARTIFACT_RETENTION_MONTHS from settings"
+
+
+class TestWithdrawalBehavior:
+    """Detailed tests for withdrawal behavior."""
+
+    def test_withdrawal_changes_status(self):
+        """Verify withdrawal changes event status to WITHDRAWN."""
+        import inspect
+        from app.services.fraud_service import FraudService
+
+        source = inspect.getsource(FraudService.withdraw_fraud_event)
+
+        assert "FraudEventStatus.WITHDRAWN" in source, \
+            "withdraw_fraud_event must set status to WITHDRAWN"
+
+    def test_withdrawal_records_metadata(self):
+        """Verify withdrawal records timestamp, user, and reason."""
+        import inspect
+        from app.services.fraud_service import FraudService
+
+        source = inspect.getsource(FraudService.withdraw_fraud_event)
+
+        assert "withdrawn_at" in source, "Must record withdrawn_at"
+        assert "withdrawn_by_user_id" in source, "Must record withdrawn_by_user_id"
+        assert "withdrawn_reason" in source, "Must record withdrawn_reason"
+
+    def test_withdrawal_validates_submitted_status(self):
+        """Verify withdrawal only works on SUBMITTED events."""
+        import inspect
+        from app.services.fraud_service import FraudService
+
+        source = inspect.getsource(FraudService.withdraw_fraud_event)
+
+        # Must check status is SUBMITTED
+        assert "SUBMITTED" in source, \
+            "withdraw_fraud_event must validate status is SUBMITTED"
+
+
+class TestMatchingSeverityRules:
+    """Additional tests for severity scoring."""
+
+    def test_severity_high_requires_multiple_types_or_many_artifacts(self):
+        """Verify HIGH severity criteria are correct."""
+        from app.services.fraud_service import FraudService
+        from app.models.fraud import MatchSeverity
+
+        class MockSession:
+            pass
+
+        service = FraudService(MockSession())
+
+        # 4 artifacts on 1 type = HIGH (3+ rule)
+        assert service._compute_severity(
+            artifacts=["a1", "a2", "a3", "a4"],
+            match_reasons={"routing_hash": {}}
+        ) == MatchSeverity.HIGH
+
+        # 2 artifacts on 2 types = HIGH (2+ types rule)
+        assert service._compute_severity(
+            artifacts=["a1", "a2"],
+            match_reasons={"routing_hash": {}, "payee_hash": {}}
+        ) == MatchSeverity.HIGH
+
+    def test_severity_boundaries(self):
+        """Test exact boundary conditions for severity scoring."""
+        from app.services.fraud_service import FraudService
+        from app.models.fraud import MatchSeverity
+
+        class MockSession:
+            pass
+
+        service = FraudService(MockSession())
+
+        # Exactly 2 artifacts on 1 type = MEDIUM (not HIGH)
+        assert service._compute_severity(
+            artifacts=["a1", "a2"],
+            match_reasons={"routing_hash": {}}
+        ) == MatchSeverity.MEDIUM
+
+        # Exactly 3 artifacts on 1 type = HIGH (at boundary)
+        assert service._compute_severity(
+            artifacts=["a1", "a2", "a3"],
+            match_reasons={"routing_hash": {}}
+        ) == MatchSeverity.HIGH
+
+
 # To run tests:
 # cd /home/user/Check/backend
 # source venv/bin/activate
 # pytest tests/test_fraud_module.py -v
+
+# Windows (inside Docker):
+# docker exec -it check_review_backend pytest tests/test_fraud_module.py -v

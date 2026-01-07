@@ -326,14 +326,28 @@ class FraudHashingService:
         pepper: str | None = None,
     ) -> str | None:
         """
-        Compute a check fingerprint from available non-PII fields.
+        Compute a check fingerprint from NON-PII fields only.
 
-        This creates a composite fingerprint that can match similar
-        checks without exposing individual field values.
+        INCLUDED in fingerprint (hashed):
+        - routing: Bank routing number (9 digits, normalized)
+        - check_number: Check serial number (digits only, leading zeros removed)
+        - amount_bucket: Bucketed amount range (e.g., "1000_to_5000")
+        - date_bucket: Month only (YYYY-MM format)
+
+        EXPLICITLY EXCLUDED (never in fingerprint):
+        - Account number (PII)
+        - MICR line raw data (contains account number)
+        - Payee name (separate indicator, not in fingerprint)
+        - Exact amount (only bucket)
+        - Exact date (only month)
+        - Any narrative text
+
+        The fingerprint is HMAC-hashed, so the raw components cannot be
+        reverse-engineered from the stored hash.
 
         Args:
-            routing: Routing number
-            check_number: Check number
+            routing: Routing number (NOT MICR account, NOT full MICR line)
+            check_number: Check serial number only
             amount_bucket: Amount bucket (e.g., "1000_to_5000")
             date_bucket: Date bucket in YYYY-MM format
             pepper: Optional pepper override

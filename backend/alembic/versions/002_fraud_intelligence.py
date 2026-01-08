@@ -26,44 +26,50 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Create fraud intelligence tables."""
 
-    # Enum types
+    # Enum types - use create_type=False since we create them explicitly with checkfirst
     fraud_type_enum = postgresql.ENUM(
         'check_kiting', 'counterfeit_check', 'forged_signature', 'altered_check',
         'account_takeover', 'identity_theft', 'first_party_fraud', 'synthetic_identity',
         'duplicate_deposit', 'unauthorized_endorsement', 'payee_alteration',
         'amount_alteration', 'fictitious_payee', 'other',
-        name='fraud_type'
+        name='fraud_type',
+        create_type=False
     )
     fraud_type_enum.create(op.get_bind(), checkfirst=True)
 
     fraud_channel_enum = postgresql.ENUM(
         'branch', 'atm', 'mobile', 'rdc', 'mail', 'online', 'other',
-        name='fraud_channel'
+        name='fraud_channel',
+        create_type=False
     )
     fraud_channel_enum.create(op.get_bind(), checkfirst=True)
 
     amount_bucket_enum = postgresql.ENUM(
         'under_100', '100_to_500', '500_to_1000', '1000_to_5000',
         '5000_to_10000', '10000_to_50000', 'over_50000',
-        name='amount_bucket'
+        name='amount_bucket',
+        create_type=False
     )
     amount_bucket_enum.create(op.get_bind(), checkfirst=True)
 
     sharing_level_enum = postgresql.ENUM(
         '0', '1', '2',  # PRIVATE, AGGREGATE, NETWORK_MATCH
-        name='sharing_level'
+        name='sharing_level',
+        create_type=False
     )
     sharing_level_enum.create(op.get_bind(), checkfirst=True)
 
     fraud_event_status_enum = postgresql.ENUM(
         'draft', 'submitted', 'withdrawn',
-        name='fraud_event_status'
+        name='fraud_event_status',
+        create_type=False
     )
     fraud_event_status_enum.create(op.get_bind(), checkfirst=True)
 
     match_severity_enum = postgresql.ENUM(
         'low', 'medium', 'high',
-        name='match_severity'
+        name='match_severity',
+        create_type=False
     )
     match_severity_enum.create(op.get_bind(), checkfirst=True)
 

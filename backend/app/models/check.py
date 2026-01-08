@@ -138,6 +138,17 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     risk_flags: Mapped[str | None] = mapped_column(Text)  # JSON array of flag codes
     upstream_flags: Mapped[str | None] = mapped_column(Text)  # Flags from source system
 
+    # AI Analysis Tracking - ADVISORY ONLY
+    # CRITICAL: AI output is NEVER authoritative. These fields track AI analysis
+    # for audit purposes. Decisions are always made by humans.
+    ai_model_id: Mapped[str | None] = mapped_column(String(100))  # e.g., "check-risk-analyzer"
+    ai_model_version: Mapped[str | None] = mapped_column(String(50))  # e.g., "1.0.0"
+    ai_analyzed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ai_recommendation: Mapped[str | None] = mapped_column(String(50))  # ADVISORY: "likely_legitimate", "needs_review", etc.
+    ai_confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))  # 0.0000 to 1.0000
+    ai_explanation: Mapped[str | None] = mapped_column(Text)  # Human-readable explanation
+    ai_risk_factors: Mapped[str | None] = mapped_column(Text)  # JSON array of risk factors
+
     # Account context (denormalized for performance)
     account_tenure_days: Mapped[int | None] = mapped_column(Integer)
     current_balance: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))

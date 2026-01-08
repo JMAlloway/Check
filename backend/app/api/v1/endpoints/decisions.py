@@ -275,6 +275,42 @@ async def create_decision(
                     detail="Cannot approve your own recommendation (dual control)",
                 )
 
+    # GUARDRAIL: Validate AI acknowledgment if AI analysis was performed
+    # AI output is ADVISORY ONLY - but if it was shown, human must acknowledge
+    if item.ai_analyzed_at and item.ai_recommendation:
+        if not decision_data.ai_assisted:
+            await audit_service.log_decision_failure(
+                check_item_id=item.id,
+                user_id=current_user.id,
+                username=current_user.username,
+                failure_type="validation",
+                attempted_action=decision_data.action.value,
+                reason="AI analysis exists but not acknowledged. Set ai_assisted=True.",
+                ip_address=ip_address,
+            )
+            await db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This item has AI analysis that must be acknowledged. Set ai_assisted=True to confirm you reviewed the AI advisory.",
+            )
+
+        # If AI has flags, they should be reviewed
+        if item.has_ai_flags and not decision_data.ai_flags_reviewed:
+            await audit_service.log_decision_failure(
+                check_item_id=item.id,
+                user_id=current_user.id,
+                username=current_user.username,
+                failure_type="validation",
+                attempted_action=decision_data.action.value,
+                reason="AI flags exist but not reviewed",
+                ip_address=ip_address,
+            )
+            await db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This item has AI-generated flags that must be reviewed before making a decision.",
+            )
+
     # Get policy evaluation
     policy_engine = PolicyEngine(db)
     policy_result = await policy_engine.evaluate(item)

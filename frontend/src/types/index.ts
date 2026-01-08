@@ -4,6 +4,7 @@ export type CheckStatus =
   | 'in_review'
   | 'escalated'
   | 'pending_approval'
+  | 'pending_dual_control'
   | 'approved'
   | 'rejected'
   | 'returned'
@@ -41,6 +42,7 @@ export interface AccountContext {
 
 export interface AIFlag {
   code: string;
+  type?: string; // Alternative identifier
   description: string;
   category: string;
   severity: 'info' | 'warning' | 'alert';

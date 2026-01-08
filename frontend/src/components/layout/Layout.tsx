@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Dialog, Transition, Menu } from '@headlessui/react';
 import {
@@ -14,7 +14,9 @@ import {
   ShieldExclamationIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../stores/authStore';
+import { useDemoStore } from '../../stores/demoStore';
 import { authApi } from '../../services/api';
+import DemoBanner, { DemoIndicator } from '../common/DemoBanner';
 import clsx from 'clsx';
 
 const navigation = [
@@ -37,6 +39,12 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, hasPermission } = useAuthStore();
+  const { fetchDemoStatus, isDemoMode } = useDemoStore();
+
+  // Fetch demo status on mount
+  useEffect(() => {
+    fetchDemoStatus();
+  }, [fetchDemoStatus]);
 
   const handleLogout = async () => {
     try {
@@ -84,11 +92,14 @@ export default function Layout({ children }: LayoutProps) {
             >
               <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1">
                 <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-bank-navy px-6 pb-4">
-                  <div className="flex h-16 shrink-0 items-center">
-                    <DocumentCheckIcon className="h-8 w-8 text-bank-gold" />
-                    <span className="ml-2 text-xl font-semibold text-white">
-                      Check Review
-                    </span>
+                  <div className="flex h-16 shrink-0 items-center justify-between">
+                    <div className="flex items-center">
+                      <DocumentCheckIcon className="h-8 w-8 text-bank-gold" />
+                      <span className="ml-2 text-xl font-semibold text-white">
+                        Check Review
+                      </span>
+                    </div>
+                    <DemoIndicator />
                   </div>
                   <nav className="flex flex-1 flex-col">
                     <ul className="flex flex-1 flex-col gap-y-7">
@@ -125,9 +136,12 @@ export default function Layout({ children }: LayoutProps) {
       {/* Desktop sidebar */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
         <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-bank-navy px-6 pb-4">
-          <div className="flex h-16 shrink-0 items-center">
-            <DocumentCheckIcon className="h-8 w-8 text-bank-gold" />
-            <span className="ml-2 text-xl font-semibold text-white">Check Review</span>
+          <div className="flex h-16 shrink-0 items-center justify-between">
+            <div className="flex items-center">
+              <DocumentCheckIcon className="h-8 w-8 text-bank-gold" />
+              <span className="ml-2 text-xl font-semibold text-white">Check Review</span>
+            </div>
+            <DemoIndicator />
           </div>
           <nav className="flex flex-1 flex-col">
             <ul className="flex flex-1 flex-col gap-y-7">
@@ -166,6 +180,9 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Main content */}
       <div className="lg:pl-72">
+        {/* Demo mode banner */}
+        <DemoBanner variant="compact" dismissible={false} />
+
         {/* Top bar */}
         <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
           <button

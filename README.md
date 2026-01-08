@@ -110,7 +110,8 @@ Check/
 │   │   ├── services/      # Business logic
 │   │   ├── integrations/  # External system adapters
 │   │   ├── policy/        # Policy engine
-│   │   └── audit/         # Audit logging
+│   │   ├── audit/         # Audit logging
+│   │   └── demo/          # Demo mode (synthetic data, mock providers)
 │   ├── alembic/           # Database migrations
 │   └── tests/             # Test suites
 ├── frontend/
@@ -139,6 +140,62 @@ The API documentation is available at `/api/v1/docs` when the backend is running
 - `GET /api/v1/queues` - List queues
 - `GET /api/v1/reports/dashboard` - Dashboard statistics
 
+## Demo Mode
+
+The application includes a comprehensive Demo Mode for demonstrations, training, and sales purposes. Demo mode uses synthetic data and never connects to external systems.
+
+### Enabling Demo Mode
+
+```bash
+# Set environment variables
+export DEMO_MODE=true
+export ENVIRONMENT=development  # Required - Demo mode is blocked in production
+
+# Or in docker/.env
+DEMO_MODE=true
+ENVIRONMENT=development
+```
+
+### Demo Credentials
+
+When demo mode is enabled, the following credentials are available:
+
+| Username | Password | Role | Description |
+|----------|----------|------|-------------|
+| `reviewer_demo` | `DemoReviewer123!` | Reviewer | Can view and review check items |
+| `approver_demo` | `DemoApprover123!` | Approver | Can approve dual-control decisions |
+| `admin_demo` | `DemoAdmin123!` | Admin | Full system access |
+
+### Seeding Demo Data
+
+```bash
+# Seed demo data via API (requires admin auth)
+POST /api/v1/system/demo/seed
+{
+  "count": 60,
+  "reset_existing": false
+}
+
+# Or via CLI
+cd backend
+python -m app.demo.seed --reset --count 60
+```
+
+### Demo Features
+
+- **Synthetic Check Items**: 60+ check items with various scenarios (routine, suspicious, fraud)
+- **Mock AI Analysis**: Deterministic AI recommendations based on scenarios
+- **Demo Images**: Watermarked check images clearly marked as "DEMO - NOT A REAL CHECK"
+- **Sample Workflows**: Items in various workflow states for demonstration
+- **Visual Indicators**: Banner and badges clearly indicate demo mode
+
+### Safety Requirements
+
+- Demo mode **cannot** be enabled in production (`ENVIRONMENT=production`)
+- All demo data is marked with `is_demo=true` in the database
+- Demo data can be cleared without affecting real data
+- No real PII or external system connections
+
 ## Configuration
 
 ### Environment Variables
@@ -152,6 +209,8 @@ The API documentation is available at `/api/v1/docs` when the backend is running
 | `CORS_ORIGINS` | Allowed CORS origins | `["http://localhost:3000"]` |
 | `DUAL_CONTROL_THRESHOLD` | Amount requiring dual control | `5000.0` |
 | `AI_ENABLED` | Enable AI features | `false` |
+| `DEMO_MODE` | Enable demo mode with synthetic data | `false` |
+| `DEMO_DATA_COUNT` | Number of demo items to seed | `60` |
 
 ## Integration Adapters
 

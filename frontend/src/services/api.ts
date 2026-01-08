@@ -625,3 +625,34 @@ export const auditLogApi = {
     return response.data;
   },
 };
+
+// System API - Demo mode and system status
+export const systemApi = {
+  getStatus: async () => {
+    const response = await api.get('/system/status');
+    return response.data;
+  },
+
+  getDemoMode: async () => {
+    const response = await api.get('/system/demo-mode');
+    return response.data;
+  },
+
+  getDemoCredentials: async () => {
+    const response = await api.get('/system/demo/credentials');
+    return response.data;
+  },
+
+  seedDemoData: async (count = 60, resetExisting = false) => {
+    const response = await api.post('/system/demo/seed', {
+      count,
+      reset_existing: resetExisting,
+    });
+    return response.data;
+  },
+
+  resetDemoData: async () => {
+    const response = await api.post('/system/demo/reset');
+    return response.data;
+  },
+};

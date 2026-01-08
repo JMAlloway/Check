@@ -169,6 +169,9 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     # Policy tracking
     policy_version_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("policy_versions.id"))
 
+    # Demo mode flag - marks synthetic demo data
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+
     # Relationships
     images: Mapped[list["CheckImage"]] = relationship(back_populates="check_item", cascade="all, delete-orphan")
     decisions: Mapped[list["Decision"]] = relationship(
@@ -208,6 +211,9 @@ class CheckImage(Base, UUIDMixin, TimestampMixin):
     dpi: Mapped[int | None] = mapped_column(Integer)
     thumbnail_path: Mapped[str | None] = mapped_column(String(500))
 
+    # Demo mode flag
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
+
     check_item: Mapped[CheckItem] = relationship(back_populates="images")
 
 
@@ -228,6 +234,9 @@ class CheckHistory(Base, UUIDMixin, TimestampMixin):
     back_image_ref: Mapped[str | None] = mapped_column(String(255))
     signature_hash: Mapped[str | None] = mapped_column(String(64))  # For similarity comparison
     check_stock_hash: Mapped[str | None] = mapped_column(String(64))  # For stock comparison
+
+    # Demo mode flag
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
 
     __table_args__ = (
         Index("ix_check_history_account_date", "account_id", "check_date"),

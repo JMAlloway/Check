@@ -94,6 +94,9 @@ class User(Base, UUIDMixin, TimestampMixin):
     # IP restrictions - JSONB array of allowed IP addresses/CIDRs
     allowed_ips: Mapped[list[str] | None] = mapped_column(JSONB)
 
+    # Demo mode flag - marks synthetic demo users
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
+
     roles: Mapped[list[Role]] = relationship(
         secondary=user_roles,
         back_populates="users",

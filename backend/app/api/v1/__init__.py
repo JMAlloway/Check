@@ -14,6 +14,7 @@ from app.api.v1.endpoints import (
     audit,
     reports,
     fraud,
+    system,
 )
 
 api_router = APIRouter()
@@ -29,3 +30,4 @@ api_router.include_router(audit.router, prefix="/audit", tags=["Audit"])
 api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
 api_router.include_router(fraud.router, prefix="/fraud", tags=["Fraud Intelligence"])
 api_router.include_router(connector.router, prefix="/connector", tags=["Connector B - Batch Commit"])
+api_router.include_router(system.router, prefix="/system", tags=["System"])

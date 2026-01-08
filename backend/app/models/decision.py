@@ -102,6 +102,9 @@ class Decision(Base, UUIDMixin, TimestampMixin):
     # - displayed_flags: exact flags shown to reviewer
     evidence_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
+    # Demo mode flag - marks synthetic demo decisions
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
+
     # Explicit foreign_keys needed due to bidirectional FK with check_items.pending_dual_control_decision_id
     check_item: Mapped["CheckItem"] = relationship(
         back_populates="decisions",

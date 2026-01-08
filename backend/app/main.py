@@ -23,6 +23,20 @@ async def lifespan(app: FastAPI):
     print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     print(f"Environment: {settings.ENVIRONMENT}")
 
+    # CRITICAL SAFETY CHECK: Demo mode must NEVER run in production
+    if settings.DEMO_MODE and settings.ENVIRONMENT == "production":
+        raise RuntimeError(
+            "FATAL: DEMO_MODE=true is not allowed in production environment! "
+            "Demo mode contains synthetic data and should only be used for demonstrations. "
+            "Set ENVIRONMENT to 'development' or 'local' to enable demo mode."
+        )
+
+    if settings.DEMO_MODE:
+        print("=" * 60)
+        print("⚠️  DEMO MODE ENABLED - Using synthetic data only")
+        print("⚠️  No real PII or production data will be used")
+        print("=" * 60)
+
     # IMPORTANT: Only auto-create tables in development/local environments
     # In production, use Alembic migrations: alembic upgrade head
     if settings.ENVIRONMENT in ("local", "development", "dev"):

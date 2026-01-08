@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from sqlalchemy import DateTime, Enum as SQLEnum, ForeignKey, Index, String, Text
+from sqlalchemy import Boolean, DateTime, Enum as SQLEnum, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -172,6 +172,9 @@ class AuditLog(Base, UUIDMixin):
     # Session context
     session_id: Mapped[str | None] = mapped_column(String(36))
 
+    # Demo mode flag - marks synthetic demo audit entries
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
+
     __table_args__ = (
         Index("ix_audit_logs_resource", "resource_type", "resource_id"),
         Index("ix_audit_logs_user_action", "user_id", "action"),
@@ -210,6 +213,9 @@ class ItemView(Base, UUIDMixin, TimestampMixin):
 
     # Interaction counts - JSONB for structured data
     interaction_summary: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+    # Demo mode flag - marks synthetic demo views
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
 
     __table_args__ = (
         Index("ix_item_views_check_user", "check_item_id", "user_id"),

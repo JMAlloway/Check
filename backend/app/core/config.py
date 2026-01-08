@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ENVIRONMENT: str = "production"
 
+    # Demo Mode - NEVER enable in production
+    # Demo mode provides synthetic data for demonstrations without real PII
+    DEMO_MODE: bool = False
+    DEMO_DATA_COUNT: int = 60  # Number of demo check items to seed
+
     # API
     API_V1_PREFIX: str = "/api/v1"
 

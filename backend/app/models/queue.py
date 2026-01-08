@@ -61,6 +61,9 @@ class Queue(Base, UUIDMixin, TimestampMixin):
     current_item_count: Mapped[int] = mapped_column(Integer, default=0)
     items_processed_today: Mapped[int] = mapped_column(Integer, default=0)
 
+    # Demo mode flag - marks synthetic demo queues
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
+
     assignments: Mapped[list["QueueAssignment"]] = relationship(
         back_populates="queue",
         cascade="all, delete-orphan",

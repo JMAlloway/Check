@@ -1,13 +1,13 @@
 """Script to create admin user."""
 import asyncio
-from app.db.session import async_session
+from app.db.session import AsyncSessionLocal
 from app.models.user import User
 from app.core.security import get_password_hash
 import uuid
 
 
 async def create_user():
-    async with async_session() as db:
+    async with AsyncSessionLocal() as db:
         # Check if user already exists
         from sqlalchemy import select
         result = await db.execute(select(User).where(User.username == 'admin'))

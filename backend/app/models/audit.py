@@ -154,8 +154,12 @@ class AuditLog(Base, UUIDMixin):
     ip_address: Mapped[str | None] = mapped_column(String(45))
     user_agent: Mapped[str | None] = mapped_column(Text)
 
-    # Action
-    action: Mapped[AuditAction] = mapped_column(SQLEnum(AuditAction), nullable=False, index=True)
+    # Action - use values_callable to store lowercase enum values (login_failed not LOGIN_FAILED)
+    action: Mapped[AuditAction] = mapped_column(
+        SQLEnum(AuditAction, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        index=True
+    )
     resource_type: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g., "check_item", "user"
     resource_id: Mapped[str | None] = mapped_column(String(36), index=True)
 

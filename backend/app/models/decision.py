@@ -96,7 +96,11 @@ class Decision(Base, UUIDMixin, TimestampMixin):
     # - displayed_flags: exact flags shown to reviewer
     evidence_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
-    check_item: Mapped["CheckItem"] = relationship(back_populates="decisions")
+    # Explicit foreign_keys needed due to bidirectional FK with check_items.pending_dual_control_decision_id
+    check_item: Mapped["CheckItem"] = relationship(
+        back_populates="decisions",
+        foreign_keys=[check_item_id],
+    )
     user: Mapped["User"] = relationship(foreign_keys=[user_id])
     dual_control_approver: Mapped["User"] = relationship(foreign_keys=[dual_control_approver_id])
 

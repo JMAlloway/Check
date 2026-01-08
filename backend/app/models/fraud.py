@@ -154,7 +154,7 @@ class FraudEvent(Base, UUIDMixin, TimestampMixin):
 
     # Sharing configuration
     sharing_level: Mapped[SharingLevel] = mapped_column(
-        SQLEnum(SharingLevel, values_callable=lambda x: [e.value for e in x]),
+        SQLEnum(SharingLevel),
         nullable=False,
         default=SharingLevel.PRIVATE
     )
@@ -204,7 +204,7 @@ class FraudSharedArtifact(Base, UUIDMixin, TimestampMixin):
 
     # Sharing level determines how this artifact can be used
     sharing_level: Mapped[SharingLevel] = mapped_column(
-        SQLEnum(SharingLevel, values_callable=lambda x: [e.value for e in x]),
+        SQLEnum(SharingLevel),
         nullable=False,
     )
 
@@ -314,7 +314,7 @@ class TenantFraudConfig(Base, UUIDMixin, TimestampMixin):
 
     # Default sharing level for new fraud event submissions
     default_sharing_level: Mapped[SharingLevel] = mapped_column(
-        SQLEnum(SharingLevel, values_callable=lambda x: [e.value for e in x]),
+        SQLEnum(SharingLevel),
         nullable=False,
         default=SharingLevel.PRIVATE
     )

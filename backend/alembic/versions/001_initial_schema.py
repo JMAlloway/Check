@@ -237,31 +237,45 @@ def upgrade() -> None:
     op.create_table(
         'audit_logs',
         sa.Column('id', sa.String(36), primary_key=True),
-        sa.Column('tenant_id', sa.String(36)),
-        sa.Column('user_id', sa.String(36)),
-        sa.Column('username', sa.String(100)),
-        sa.Column('action', sa.String(100), nullable=False),
-        sa.Column('resource_type', sa.String(50)),
-        sa.Column('resource_id', sa.String(36)),
-        sa.Column('description', sa.Text),
-        sa.Column('metadata_json', postgresql.JSONB),
+        sa.Column('timestamp', sa.DateTime(timezone=True), nullable=False, index=True),
+        sa.Column('user_id', sa.String(36), sa.ForeignKey('users.id'), index=True),
+        sa.Column('username', sa.String(50)),
         sa.Column('ip_address', sa.String(45)),
-        sa.Column('user_agent', sa.String(500)),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column('user_agent', sa.Text),
+        sa.Column('action', sa.String(100), nullable=False, index=True),
+        sa.Column('resource_type', sa.String(50), nullable=False),
+        sa.Column('resource_id', sa.String(36), index=True),
+        sa.Column('description', sa.Text),
+        sa.Column('before_value', postgresql.JSONB),
+        sa.Column('after_value', postgresql.JSONB),
+        sa.Column('extra_data', postgresql.JSONB),
+        sa.Column('session_id', sa.String(36)),
     )
-    op.create_index('ix_audit_logs_tenant_id', 'audit_logs', ['tenant_id'])
-    op.create_index('ix_audit_logs_user_id', 'audit_logs', ['user_id'])
     op.create_index('ix_audit_logs_resource', 'audit_logs', ['resource_type', 'resource_id'])
-    op.create_index('ix_audit_logs_created_at', 'audit_logs', ['created_at'])
+    op.create_index('ix_audit_logs_user_action', 'audit_logs', ['user_id', 'action'])
+    op.create_index('ix_audit_logs_timestamp_action', 'audit_logs', ['timestamp', 'action'])
 
     op.create_table(
         'item_views',
         sa.Column('id', sa.String(36), primary_key=True),
-        sa.Column('check_item_id', sa.String(36), sa.ForeignKey('check_items.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('user_id', sa.String(36), sa.ForeignKey('users.id', ondelete='SET NULL')),
-        sa.Column('view_duration_seconds', sa.Integer),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
+        sa.Column('check_item_id', sa.String(36), sa.ForeignKey('check_items.id'), nullable=False),
+        sa.Column('user_id', sa.String(36), sa.ForeignKey('users.id'), nullable=False),
+        sa.Column('session_id', sa.String(36)),
+        sa.Column('view_started_at', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('view_ended_at', sa.DateTime(timezone=True)),
+        sa.Column('duration_seconds', sa.Integer),
+        sa.Column('front_image_viewed', sa.Boolean, default=False),
+        sa.Column('back_image_viewed', sa.Boolean, default=False),
+        sa.Column('zoom_used', sa.Boolean, default=False),
+        sa.Column('magnifier_used', sa.Boolean, default=False),
+        sa.Column('history_compared', sa.Boolean, default=False),
+        sa.Column('ai_assists_viewed', sa.Boolean, default=False),
+        sa.Column('context_panel_viewed', sa.Boolean, default=False),
+        sa.Column('interaction_summary', postgresql.JSONB),
     )
+    op.create_index('ix_item_views_check_user', 'item_views', ['check_item_id', 'user_id'])
 
     # Queue Assignments
     op.create_table(

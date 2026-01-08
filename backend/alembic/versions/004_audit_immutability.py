@@ -6,13 +6,14 @@ Create Date: 2024-01-16
 
 This migration enforces audit log immutability at the database level:
 
-1. Converts Text columns to JSONB for structured data:
-   - audit_logs: before_value, after_value, extra_data
-   - item_views: interaction_summary
-
-2. Creates PostgreSQL triggers to block UPDATE and DELETE operations:
+1. Creates PostgreSQL triggers to block UPDATE and DELETE operations:
    - audit_logs table: trigger blocks UPDATE/DELETE
    - item_views table: trigger blocks UPDATE/DELETE
+
+2. Adds GIN indexes for efficient JSONB querying
+
+NOTE: JSONB columns (before_value, after_value, extra_data, interaction_summary)
+are created in 001_initial_schema.
 
 SECURITY NOTE: These triggers provide defense-in-depth. Production deployments
 should also configure the application database role with INSERT/SELECT only
@@ -32,57 +33,9 @@ depends_on = None
 
 def upgrade() -> None:
     # ==========================================================================
-    # CONVERT AUDIT_LOGS TEXT COLUMNS TO JSONB
+    # NOTE: JSONB columns are already created in 001_initial_schema
+    # This migration only adds immutability enforcement via triggers
     # ==========================================================================
-    # Convert existing JSON text to JSONB, handling NULLs and invalid JSON
-
-    # before_value: Text -> JSONB
-    op.execute("""
-        ALTER TABLE audit_logs
-        ALTER COLUMN before_value TYPE JSONB
-        USING CASE
-            WHEN before_value IS NULL THEN NULL
-            WHEN before_value = '' THEN NULL
-            ELSE before_value::JSONB
-        END
-    """)
-
-    # after_value: Text -> JSONB
-    op.execute("""
-        ALTER TABLE audit_logs
-        ALTER COLUMN after_value TYPE JSONB
-        USING CASE
-            WHEN after_value IS NULL THEN NULL
-            WHEN after_value = '' THEN NULL
-            ELSE after_value::JSONB
-        END
-    """)
-
-    # extra_data: Text -> JSONB
-    op.execute("""
-        ALTER TABLE audit_logs
-        ALTER COLUMN extra_data TYPE JSONB
-        USING CASE
-            WHEN extra_data IS NULL THEN NULL
-            WHEN extra_data = '' THEN NULL
-            ELSE extra_data::JSONB
-        END
-    """)
-
-    # ==========================================================================
-    # CONVERT ITEM_VIEWS TEXT COLUMN TO JSONB
-    # ==========================================================================
-
-    # interaction_summary: Text -> JSONB
-    op.execute("""
-        ALTER TABLE item_views
-        ALTER COLUMN interaction_summary TYPE JSONB
-        USING CASE
-            WHEN interaction_summary IS NULL THEN NULL
-            WHEN interaction_summary = '' THEN NULL
-            ELSE interaction_summary::JSONB
-        END
-    """)
 
     # ==========================================================================
     # CREATE IMMUTABILITY TRIGGER FUNCTION
@@ -187,30 +140,4 @@ def downgrade() -> None:
     # ==========================================================================
     op.execute("DROP FUNCTION IF EXISTS prevent_audit_modification()")
 
-    # ==========================================================================
-    # CONVERT JSONB COLUMNS BACK TO TEXT
-    # ==========================================================================
-
-    op.execute("""
-        ALTER TABLE item_views
-        ALTER COLUMN interaction_summary TYPE TEXT
-        USING interaction_summary::TEXT
-    """)
-
-    op.execute("""
-        ALTER TABLE audit_logs
-        ALTER COLUMN extra_data TYPE TEXT
-        USING extra_data::TEXT
-    """)
-
-    op.execute("""
-        ALTER TABLE audit_logs
-        ALTER COLUMN after_value TYPE TEXT
-        USING after_value::TEXT
-    """)
-
-    op.execute("""
-        ALTER TABLE audit_logs
-        ALTER COLUMN before_value TYPE TEXT
-        USING before_value::TEXT
-    """)
+    # NOTE: JSONB columns stay as JSONB - they are managed by 001_initial_schema

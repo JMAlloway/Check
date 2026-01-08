@@ -29,14 +29,11 @@ depends_on = None
 
 def upgrade() -> None:
     # ==========================================================================
-    # ADD EVIDENCE_SNAPSHOT TO DECISIONS TABLE (for audit replay)
+    # EVIDENCE_SNAPSHOT NOTE
     # ==========================================================================
-    # Note: tenant_id on users is already created in 001_initial_schema
-    # Evidence snapshot captures the exact state at decision time for:
-    # - Audit replay: recreate what reviewer saw
-    # - Vendor risk: prove decision was informed
-    # - Regulatory: demonstrate controls worked
-    op.add_column('decisions', sa.Column('evidence_snapshot', postgresql.JSONB(), nullable=True))
+    # Note: decisions.evidence_snapshot is now created in 001_initial_schema
+    # No need to add it here.
+    # ==========================================================================
 
     # ==========================================================================
     # BANK CONNECTOR CONFIGURATION
@@ -382,7 +379,5 @@ def downgrade() -> None:
     op.execute("DROP TYPE IF EXISTS deliverymethod")
     op.execute("DROP TYPE IF EXISTS fileformat")
 
-    # Remove evidence_snapshot from decisions
-    op.drop_column('decisions', 'evidence_snapshot')
-
-    # Note: tenant_id on users is managed by 001_initial_schema, not dropped here
+    # Note: decisions.evidence_snapshot is managed by 001_initial_schema, not dropped here
+    # Note: users.tenant_id is managed by 001_initial_schema, not dropped here

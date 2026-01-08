@@ -26,6 +26,7 @@ from app.schemas.policy import PolicyEvaluationResult
 from app.audit.service import AuditService
 from app.models.audit import AuditAction
 from app.policy.engine import PolicyEngine
+from app.services.entitlement_service import EntitlementService
 
 router = APIRouter()
 
@@ -173,26 +174,65 @@ async def create_decision(
             detail="Check item not found",
         )
 
-    # Check permissions based on decision type
+    # Initialize entitlement service
+    entitlement_service = EntitlementService(db)
+
+    # Check entitlements based on decision type
     if decision_data.decision_type == DecisionType.REVIEW_RECOMMENDATION:
-        if not current_user.has_permission("check_item", "review"):
+        # Check review entitlement (includes amount/queue limits)
+        entitlement_result = await entitlement_service.check_review_entitlement(
+            current_user, item
+        )
+        if not entitlement_result.allowed:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Permission denied: cannot review items",
+                detail=f"Not entitled to review this item: {entitlement_result.denial_reason}",
             )
+
     elif decision_data.decision_type == DecisionType.APPROVAL_DECISION:
-        if not current_user.has_permission("check_item", "approve"):
+        # Check approval entitlement (stricter - includes amount thresholds)
+        entitlement_result = await entitlement_service.check_approval_entitlement(
+            current_user, item
+        )
+        if not entitlement_result.allowed:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Permission denied: cannot approve items",
+                detail=f"Not entitled to approve this item: {entitlement_result.denial_reason}",
             )
+
+        # Approval decisions require the item to be in PENDING_DUAL_CONTROL state
+        if item.status != CheckStatus.PENDING_DUAL_CONTROL:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Item must be in PENDING_DUAL_CONTROL status for approval decision (current: {item.status.value})",
+            )
+
+        # Cannot approve your own recommendation
+        if item.pending_dual_control_decision_id:
+            pending_decision_result = await db.execute(
+                select(Decision).where(Decision.id == item.pending_dual_control_decision_id)
+            )
+            pending_decision = pending_decision_result.scalar_one_or_none()
+            if pending_decision and pending_decision.user_id == current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot approve your own recommendation (dual control)",
+                )
 
     # Get policy evaluation
     policy_engine = PolicyEngine(db)
     policy_result = await policy_engine.evaluate(item)
 
-    # Check if dual control is required
-    requires_dual_control = policy_result.requires_dual_control or item.requires_dual_control
+    # Determine if dual control is required and why
+    requires_dual_control = False
+    dual_control_reason = None
+
+    if policy_result.requires_dual_control:
+        requires_dual_control = True
+        dual_control_reason = "policy_rule"
+    elif item.requires_dual_control:
+        requires_dual_control = True
+        dual_control_reason = "item_flag"
 
     # Validate reason codes
     reason_code_ids = []
@@ -216,24 +256,29 @@ async def create_decision(
     new_status = old_status
 
     if decision_data.decision_type == DecisionType.REVIEW_RECOMMENDATION:
+        # Review recommendation - may trigger dual control
         if decision_data.action == DecisionAction.APPROVE:
-            new_status = CheckStatus.PENDING_APPROVAL if requires_dual_control else CheckStatus.APPROVED
+            new_status = CheckStatus.PENDING_DUAL_CONTROL if requires_dual_control else CheckStatus.APPROVED
         elif decision_data.action == DecisionAction.RETURN:
-            new_status = CheckStatus.PENDING_APPROVAL if requires_dual_control else CheckStatus.RETURNED
+            new_status = CheckStatus.PENDING_DUAL_CONTROL if requires_dual_control else CheckStatus.RETURNED
         elif decision_data.action == DecisionAction.REJECT:
-            new_status = CheckStatus.PENDING_APPROVAL if requires_dual_control else CheckStatus.REJECTED
+            new_status = CheckStatus.PENDING_DUAL_CONTROL if requires_dual_control else CheckStatus.REJECTED
         elif decision_data.action == DecisionAction.ESCALATE:
             new_status = CheckStatus.ESCALATED
         elif decision_data.action == DecisionAction.HOLD:
             new_status = CheckStatus.IN_REVIEW
 
     elif decision_data.decision_type == DecisionType.APPROVAL_DECISION:
+        # Approval decision - final state
         if decision_data.action == DecisionAction.APPROVE:
             new_status = CheckStatus.APPROVED
         elif decision_data.action == DecisionAction.RETURN:
             new_status = CheckStatus.RETURNED
         elif decision_data.action == DecisionAction.REJECT:
             new_status = CheckStatus.REJECTED
+        elif decision_data.action == DecisionAction.ESCALATE:
+            # Approver can escalate instead of approving
+            new_status = CheckStatus.ESCALATED
 
     # Build evidence snapshot - CRITICAL for audit replay
     evidence_snapshot = build_evidence_snapshot(
@@ -262,11 +307,21 @@ async def create_decision(
     )
 
     db.add(decision)
+    await db.flush()  # Flush to get decision.id
 
-    # Update item status
+    # Update item status and dual control tracking
     item.status = new_status
     if policy_result.policy_version_id:
         item.policy_version_id = policy_result.policy_version_id
+
+    # Track pending dual control decision for easy lookup
+    if new_status == CheckStatus.PENDING_DUAL_CONTROL:
+        item.pending_dual_control_decision_id = decision.id
+        item.dual_control_reason = dual_control_reason
+    elif decision_data.decision_type == DecisionType.APPROVAL_DECISION:
+        # Clear pending dual control after approval decision
+        item.pending_dual_control_decision_id = None
+        item.dual_control_reason = None
 
     await db.flush()
 
@@ -341,14 +396,19 @@ async def approve_dual_control(
     request: Request,
     approval: DualControlApprovalRequest,
     db: DBSession,
-    current_user: Annotated[object, Depends(require_permission("check_item", "approve"))],
+    current_user: CurrentUser,
 ):
-    """Approve or reject a dual control decision."""
-    from datetime import datetime, timezone
+    """
+    Approve or reject a dual control decision.
 
+    This is the second-level approval in the dual control workflow.
+    The approver must:
+    - Have appropriate approval entitlement for this item
+    - Not be the same user who made the original recommendation
+    """
     result = await db.execute(
         select(Decision)
-        .options(selectinload(Decision.check_item))
+        .options(selectinload(Decision.check_item).selectinload(CheckItem.images))
         .where(Decision.id == approval.decision_id)
     )
     decision = result.scalar_one_or_none()
@@ -377,12 +437,31 @@ async def approve_dual_control(
             detail="Cannot approve your own decision (dual control)",
         )
 
+    item = decision.check_item
+
+    # Verify item is in PENDING_DUAL_CONTROL status
+    if item.status != CheckStatus.PENDING_DUAL_CONTROL:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Item must be in PENDING_DUAL_CONTROL status (current: {item.status.value})",
+        )
+
+    # Check approval entitlement
+    entitlement_service = EntitlementService(db)
+    entitlement_result = await entitlement_service.check_approval_entitlement(
+        current_user, item
+    )
+    if not entitlement_result.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Not entitled to approve this item: {entitlement_result.denial_reason}",
+        )
+
     # Update decision
     decision.dual_control_approver_id = current_user.id
     decision.dual_control_approved_at = datetime.now(timezone.utc)
 
     # Update item status based on original decision action
-    item = decision.check_item
     if approval.approve:
         if decision.action == DecisionAction.APPROVE:
             item.status = CheckStatus.APPROVED
@@ -394,6 +473,10 @@ async def approve_dual_control(
         # Dual control rejected - return to review
         item.status = CheckStatus.IN_REVIEW
 
+    # Clear pending dual control tracking
+    item.pending_dual_control_decision_id = None
+    item.dual_control_reason = None
+
     # Audit
     audit_service = AuditService(db)
     await audit_service.log(
@@ -404,7 +487,11 @@ async def approve_dual_control(
         username=current_user.username,
         ip_address=request.client.host if request.client else None,
         description=f"Dual control {'approved' if approval.approve else 'rejected'}",
-        metadata={"notes": approval.notes},
+        metadata={
+            "notes": approval.notes,
+            "entitlement_id": entitlement_result.entitlement_id,
+            "entitlement_details": entitlement_result.entitlement_details,
+        },
     )
 
     return DecisionResponse(

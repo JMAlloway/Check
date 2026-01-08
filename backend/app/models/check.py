@@ -22,12 +22,25 @@ from app.models.base import TimestampMixin, UUIDMixin
 
 
 class CheckStatus(str, Enum):
-    """Check item workflow status."""
+    """
+    Check item workflow status.
+
+    Workflow:
+    1. NEW -> IN_REVIEW (assigned to reviewer)
+    2. IN_REVIEW -> PENDING_DUAL_CONTROL (reviewer makes recommendation, awaits approval)
+                 -> APPROVED/REJECTED/RETURNED (if no dual control required)
+                 -> ESCALATED (needs senior review)
+    3. PENDING_DUAL_CONTROL -> APPROVED/REJECTED/RETURNED (approver decides)
+                            -> ESCALATED (approver escalates)
+    4. ESCALATED -> PENDING_DUAL_CONTROL or terminal state
+    5. Terminal states: APPROVED, REJECTED, RETURNED, CLOSED
+    """
 
     NEW = "new"
     IN_REVIEW = "in_review"
     ESCALATED = "escalated"
-    PENDING_APPROVAL = "pending_approval"
+    PENDING_DUAL_CONTROL = "pending_dual_control"  # Awaiting second-level approval
+    PENDING_APPROVAL = "pending_approval"  # Legacy: use PENDING_DUAL_CONTROL
     APPROVED = "approved"
     REJECTED = "rejected"
     RETURNED = "returned"
@@ -109,8 +122,17 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     sla_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sla_breached: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    # Flags and context
+    # Dual control tracking
     requires_dual_control: Mapped[bool] = mapped_column(Boolean, default=False)
+    pending_dual_control_decision_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("decisions.id"),
+        nullable=True,
+        index=True,
+    )
+    dual_control_reason: Mapped[str | None] = mapped_column(String(100))  # e.g., "amount_threshold", "policy_rule"
+
+    # Flags and context
     has_ai_flags: Mapped[bool] = mapped_column(Boolean, default=False)
     ai_risk_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
     risk_flags: Mapped[str | None] = mapped_column(Text)  # JSON array of flag codes
@@ -135,7 +157,15 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
 
     # Relationships
     images: Mapped[list["CheckImage"]] = relationship(back_populates="check_item", cascade="all, delete-orphan")
-    decisions: Mapped[list["Decision"]] = relationship(back_populates="check_item", cascade="all, delete-orphan")
+    decisions: Mapped[list["Decision"]] = relationship(
+        back_populates="check_item",
+        cascade="all, delete-orphan",
+        foreign_keys="[Decision.check_item_id]",
+    )
+    pending_dual_control_decision: Mapped["Decision | None"] = relationship(
+        foreign_keys=[pending_dual_control_decision_id],
+        post_update=True,  # Avoids circular dependency on insert
+    )
     assigned_reviewer: Mapped["User"] = relationship(foreign_keys=[assigned_reviewer_id])
     assigned_approver: Mapped["User"] = relationship(foreign_keys=[assigned_approver_id])
     fraud_events: Mapped[list["FraudEvent"]] = relationship(back_populates="check_item")

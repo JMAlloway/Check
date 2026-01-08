@@ -1,7 +1,9 @@
 """Queue and assignment models."""
 
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
+from typing import Any
 
 from sqlalchemy import (
     Boolean,
@@ -9,9 +11,11 @@ from sqlalchemy import (
     Enum as SQLEnum,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -81,5 +85,71 @@ class QueueAssignment(Base, UUIDMixin, TimestampMixin):
     user: Mapped["User"] = relationship(foreign_keys=[user_id])
 
 
+class ApprovalEntitlementType(str, Enum):
+    """Type of approval entitlement."""
+
+    REVIEW = "review"  # Can make review recommendations
+    APPROVE = "approve"  # Can approve (dual control second level)
+    OVERRIDE = "override"  # Can override policy (requires justification)
+
+
+class ApprovalEntitlement(Base, UUIDMixin, TimestampMixin):
+    """
+    Approval entitlement defining what a user/role can approve.
+
+    This enables fine-grained control over who can approve what:
+    - Amount thresholds (min/max)
+    - Account types
+    - Queue restrictions
+    - Business lines
+
+    AUDIT: All entitlement changes should be logged. Entitlements are
+    checked at decision time and recorded in evidence_snapshot.
+    """
+
+    __tablename__ = "approval_entitlements"
+
+    # Who has this entitlement
+    user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+    role_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("roles.id"), index=True)
+
+    # Type of entitlement
+    entitlement_type: Mapped[ApprovalEntitlementType] = mapped_column(
+        SQLEnum(ApprovalEntitlementType),
+        nullable=False,
+    )
+
+    # Amount limits (NULL = no limit)
+    min_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    max_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+
+    # Scope restrictions (NULL = all allowed)
+    # JSON arrays for flexible filtering
+    allowed_account_types: Mapped[list[str] | None] = mapped_column(JSONB)  # ["consumer", "business"]
+    allowed_queue_ids: Mapped[list[str] | None] = mapped_column(JSONB)  # Specific queues
+    allowed_risk_levels: Mapped[list[str] | None] = mapped_column(JSONB)  # ["low", "medium", "high"]
+
+    # Business line / tenant restrictions
+    allowed_business_lines: Mapped[list[str] | None] = mapped_column(JSONB)
+    tenant_id: Mapped[str | None] = mapped_column(String(36), index=True)
+
+    # Additional conditions (flexible rules)
+    conditions: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+    # Status
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    effective_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Audit
+    granted_by_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"))
+    grant_reason: Mapped[str | None] = mapped_column(Text)
+
+    # Relationships
+    user: Mapped["User | None"] = relationship(foreign_keys=[user_id])
+    role: Mapped["Role | None"] = relationship()
+    granted_by: Mapped["User | None"] = relationship(foreign_keys=[granted_by_id])
+
+
 # Import for type hints
-from app.models.user import User  # noqa: E402
+from app.models.user import User, Role  # noqa: E402

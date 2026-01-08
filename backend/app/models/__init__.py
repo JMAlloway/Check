@@ -31,7 +31,7 @@ from app.models.fraud import (
     MatchSeverity,
 )
 from app.models.policy import Policy, PolicyRule, PolicyVersion
-from app.models.queue import Queue, QueueAssignment
+from app.models.queue import Queue, QueueAssignment, ApprovalEntitlement, ApprovalEntitlementType
 from app.models.user import User, Role, Permission, UserSession
 
 __all__ = [
@@ -75,6 +75,8 @@ __all__ = [
     # Queue
     "Queue",
     "QueueAssignment",
+    "ApprovalEntitlement",
+    "ApprovalEntitlementType",
     # User
     "User",
     "Role",

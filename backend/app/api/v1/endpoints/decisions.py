@@ -8,7 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import DBSession, CurrentUser, require_permission
+from app.api.deps import (
+    DBSession,
+    CurrentUser,
+    require_permission,
+    RequireCheckReview,
+    RequireCheckApprove,
+)
 from app.models.check import CheckItem, CheckImage, CheckStatus
 from app.models.decision import Decision, DecisionAction, DecisionType, ReasonCode
 from app.schemas.decision import (
@@ -118,11 +124,11 @@ def build_evidence_snapshot(
 @router.get("/reason-codes", response_model=list[ReasonCodeResponse])
 async def list_reason_codes(
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: Annotated[object, Depends(require_permission("check_item", "view"))],
     category: str | None = None,
     decision_type: str | None = None,
 ):
-    """List available reason codes."""
+    """List available reason codes. Requires check_item:view permission."""
     query = select(ReasonCode).where(ReasonCode.is_active == True)
 
     if category:
@@ -157,9 +163,15 @@ async def create_decision(
     request: Request,
     decision_data: DecisionCreate,
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: RequireCheckReview,
 ):
-    """Create a decision for a check item."""
+    """
+    Create a decision for a check item.
+
+    Requires check_item:review permission as baseline.
+    Additional entitlement checks are performed based on decision type
+    and item characteristics (amount thresholds, account types, etc.).
+    """
     # Get the check item with images for evidence snapshot
     result = await db.execute(
         select(CheckItem)
@@ -399,10 +411,12 @@ async def approve_dual_control(
     request: Request,
     approval: DualControlApprovalRequest,
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: RequireCheckApprove,
 ):
     """
     Approve or reject a dual control decision.
+
+    Requires check_item:approve permission.
 
     This is the second-level approval in the dual control workflow.
     The approver must:

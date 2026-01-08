@@ -6,7 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import and_, func, select
 
-from app.api.deps import DBSession, CurrentUser, require_permission
+from app.api.deps import DBSession, require_permission
 from app.models.audit import AuditAction, AuditLog
 from app.models.check import CheckItem, CheckStatus, RiskLevel
 from app.models.decision import Decision, DecisionAction
@@ -17,7 +17,7 @@ router = APIRouter()
 @router.get("/dashboard")
 async def get_dashboard_stats(
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: Annotated[object, Depends(require_permission("report", "view"))],
 ):
     """Get dashboard statistics."""
     now = datetime.now(timezone.utc)

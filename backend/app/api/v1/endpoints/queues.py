@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import DBSession, CurrentUser, require_permission
+from app.api.deps import DBSession, require_permission
 from app.models.queue import Queue, QueueAssignment
 from app.models.check import CheckItem, CheckStatus
 from app.schemas.queue import (
@@ -27,7 +27,7 @@ router = APIRouter()
 @router.get("", response_model=list[QueueResponse])
 async def list_queues(
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: Annotated[object, Depends(require_permission("queue", "view"))],
     include_inactive: bool = Query(False),
 ):
     """List all queues."""
@@ -116,7 +116,7 @@ async def create_queue(
 async def get_queue(
     queue_id: str,
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: Annotated[object, Depends(require_permission("queue", "view"))],
 ):
     """Get a specific queue."""
     result = await db.execute(select(Queue).where(Queue.id == queue_id))
@@ -206,7 +206,7 @@ async def update_queue(
 async def get_queue_stats(
     queue_id: str,
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: Annotated[object, Depends(require_permission("queue", "view"))],
 ):
     """Get statistics for a queue."""
     result = await db.execute(select(Queue).where(Queue.id == queue_id))

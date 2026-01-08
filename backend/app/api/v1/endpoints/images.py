@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 
-from app.api.deps import DBSession, CurrentUser, require_permission
+from app.api.deps import DBSession, require_permission
 from app.core.security import verify_signed_url
 from app.integrations.adapters.factory import get_adapter
 from app.audit.service import AuditService
@@ -34,7 +34,7 @@ async def get_secure_image(
     request: Request,
     token: str,
     db: DBSession,
-    current_user: CurrentUser,  # Require authentication
+    current_user: Annotated[object, Depends(require_permission("check_image", "view"))],
     thumbnail: bool = Query(False),
 ):
     """
@@ -183,7 +183,7 @@ async def log_image_zoom(
     request: Request,
     image_id: str,
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: Annotated[object, Depends(require_permission("check_image", "view"))],
     view_id: str | None = None,
     zoom_level: int = Query(..., ge=50, le=800),
 ):

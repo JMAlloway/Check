@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
-from app.api.deps import DBSession, CurrentUser, require_permission
+from app.api.deps import DBSession, RequireCheckView, require_permission
 from app.models.check import CheckStatus, RiskLevel
 from app.schemas.check import (
     CheckItemResponse,
@@ -73,7 +73,7 @@ async def list_check_items(
 @router.get("/my-queue", response_model=PaginatedResponse[CheckItemListResponse])
 async def get_my_queue(
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: RequireCheckView,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ):

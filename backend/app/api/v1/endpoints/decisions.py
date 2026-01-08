@@ -340,6 +340,9 @@ async def create_decision(
         after_status=new_status.value,
     )
 
+    # Explicit commit for write operation
+    await db.commit()
+
     # Get reason codes for response
     reason_codes_response = []
     if reason_code_ids:
@@ -494,6 +497,9 @@ async def approve_dual_control(
         },
     )
 
+    # Explicit commit for write operation
+    await db.commit()
+
     return DecisionResponse(
         id=decision.id,
         check_item_id=decision.check_item_id,
@@ -523,8 +529,10 @@ async def get_decision_history(
     current_user: Annotated[object, Depends(require_permission("check_item", "view"))],
 ):
     """Get decision history for a check item."""
+    # Eager load user relationship to avoid N+1 query
     result = await db.execute(
         select(Decision)
+        .options(selectinload(Decision.user))
         .where(Decision.check_item_id == item_id)
         .order_by(Decision.created_at.desc())
     )
@@ -532,10 +540,8 @@ async def get_decision_history(
 
     responses = []
     for d in decisions:
-        # Get username
-        from app.models.user import User
-        user_result = await db.execute(select(User.username).where(User.id == d.user_id))
-        username = user_result.scalar_one_or_none()
+        # Username from eager-loaded relationship
+        username = d.user.username if d.user else None
 
         # Parse evidence snapshot if present
         evidence_response = None

@@ -3,6 +3,7 @@
 from datetime import datetime
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -90,8 +91,8 @@ class User(Base, UUIDMixin, TimestampMixin):
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    # IP restrictions
-    allowed_ips: Mapped[str | None] = mapped_column(Text)  # JSON array of allowed IPs
+    # IP restrictions - JSONB array of allowed IP addresses/CIDRs
+    allowed_ips: Mapped[list[str] | None] = mapped_column(JSONB)
 
     roles: Mapped[list[Role]] = relationship(
         secondary=user_roles,

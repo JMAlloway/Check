@@ -121,6 +121,9 @@ async def create_policy(
         description=f"Created policy {policy.name}",
     )
 
+    # Explicit commit for write operation
+    await db.commit()
+
     return PolicyResponse(
         id=policy.id,
         name=policy.name,
@@ -271,6 +274,9 @@ async def create_policy_version(
         rules.append(rule)
 
     await db.flush()
+
+    # Explicit commit for write operation
+    await db.commit()
 
     return PolicyVersionResponse(
         id=version.id,

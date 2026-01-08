@@ -18,11 +18,20 @@ security = HTTPBearer()
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency to get database session."""
+    """
+    Dependency to get database session.
+
+    NOTE: This does NOT auto-commit. Each write path must explicitly call
+    `await db.commit()` to persist changes. This prevents:
+    - Accidental partial commits
+    - Read-only endpoints modifying state
+    - Surprise side effects in complex transactions
+
+    On exception, the session is rolled back automatically.
+    """
     async with AsyncSessionLocal() as session:
         try:
             yield session
-            await session.commit()
         except Exception:
             await session.rollback()
             raise

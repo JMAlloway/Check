@@ -93,6 +93,9 @@ async def create_queue(
         description=f"Created queue {queue.name}",
     )
 
+    # Explicit commit for write operation
+    await db.commit()
+
     return QueueResponse(
         id=queue.id,
         name=queue.name,
@@ -359,6 +362,9 @@ async def create_queue_assignment(
         db.add(assignment)
 
     await db.flush()
+
+    # Explicit commit for write operation
+    await db.commit()
 
     return QueueAssignmentResponse(
         id=assignment.id,

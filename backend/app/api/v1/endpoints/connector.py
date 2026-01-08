@@ -179,6 +179,9 @@ async def create_bank_config(
         metadata={"bank_id": config.bank_id},
     )
 
+    # Explicit commit for write operation
+    await db.commit()
+
     return BankConnectorConfigResponse(
         id=config.id,
         tenant_id=config.tenant_id,

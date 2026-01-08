@@ -138,6 +138,9 @@ async def create_user(
         after_value={"username": user.username, "email": user.email},
     )
 
+    # Explicit commit for write operation
+    await db.commit()
+
     return UserResponse(
         id=user.id,
         email=user.email,
@@ -366,6 +369,9 @@ async def create_role(
 
     db.add(role)
     await db.flush()
+
+    # Explicit commit for write operation
+    await db.commit()
 
     return RoleResponse(
         id=role.id,

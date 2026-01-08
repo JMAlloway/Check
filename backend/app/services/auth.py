@@ -69,10 +69,9 @@ class AuthService:
         if not user.is_active:
             return None, "Account is deactivated"
 
-        # Check IP restrictions
+        # Check IP restrictions (allowed_ips is JSONB array)
         if user.allowed_ips:
-            allowed = user.allowed_ips.split(",")
-            if ip_address and ip_address not in allowed:
+            if ip_address and ip_address not in user.allowed_ips:
                 return None, "Access denied from this IP address"
 
         # Reset failed attempts and update last login

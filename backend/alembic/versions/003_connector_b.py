@@ -29,20 +29,9 @@ depends_on = None
 
 def upgrade() -> None:
     # ==========================================================================
-    # ADD TENANT_ID TO USERS TABLE (for multi-tenant support)
-    # ==========================================================================
-    op.add_column('users', sa.Column('tenant_id', sa.String(36), nullable=True))
-    op.create_index('ix_users_tenant_id', 'users', ['tenant_id'])
-
-    # Set default tenant_id for existing users
-    op.execute("UPDATE users SET tenant_id = 'default-tenant' WHERE tenant_id IS NULL")
-
-    # Make tenant_id NOT NULL after setting defaults
-    op.alter_column('users', 'tenant_id', nullable=False)
-
-    # ==========================================================================
     # ADD EVIDENCE_SNAPSHOT TO DECISIONS TABLE (for audit replay)
     # ==========================================================================
+    # Note: tenant_id on users is already created in 001_initial_schema
     # Evidence snapshot captures the exact state at decision time for:
     # - Audit replay: recreate what reviewer saw
     # - Vendor risk: prove decision was informed
@@ -396,6 +385,4 @@ def downgrade() -> None:
     # Remove evidence_snapshot from decisions
     op.drop_column('decisions', 'evidence_snapshot')
 
-    # Remove tenant_id from users
-    op.drop_index('ix_users_tenant_id', table_name='users')
-    op.drop_column('users', 'tenant_id')
+    # Note: tenant_id on users is managed by 001_initial_schema, not dropped here

@@ -62,7 +62,7 @@ class EntitlementService:
         role_ids = [role.id for role in user.roles] if user.roles else []
 
         # Build query for user's entitlements (direct or via role)
-        query = select(ApprovalEntitlement).where(
+        conditions = [
             ApprovalEntitlement.entitlement_type == entitlement_type,
             ApprovalEntitlement.is_active == True,
             ApprovalEntitlement.effective_from <= now,
@@ -70,11 +70,20 @@ class EntitlementService:
                 ApprovalEntitlement.effective_until.is_(None),
                 ApprovalEntitlement.effective_until > now,
             ),
-            or_(
-                ApprovalEntitlement.user_id == user.id,
-                ApprovalEntitlement.role_id.in_(role_ids) if role_ids else False,
-            ),
-        )
+        ]
+
+        # Add user/role filter
+        if role_ids:
+            conditions.append(
+                or_(
+                    ApprovalEntitlement.user_id == user.id,
+                    ApprovalEntitlement.role_id.in_(role_ids),
+                )
+            )
+        else:
+            conditions.append(ApprovalEntitlement.user_id == user.id)
+
+        query = select(ApprovalEntitlement).where(*conditions)
 
         result = await self.db.execute(query)
         return list(result.scalars().all())
@@ -158,12 +167,14 @@ class EntitlementService:
                         "allowed_risk_levels": entitlement.allowed_risk_levels,
                     },
                 )
-            denial_reasons.append(result.denial_reason)
+            if result.denial_reason:
+                denial_reasons.append(result.denial_reason)
 
         # No entitlement allowed this item
+        unique_reasons = set(denial_reasons) if denial_reasons else {"no matching entitlement"}
         return EntitlementCheckResult(
             allowed=False,
-            denial_reason=f"No {action_type} entitlement covers this item: {'; '.join(set(denial_reasons))}",
+            denial_reason=f"No {action_type} entitlement covers this item: {'; '.join(unique_reasons)}",
         )
 
     def _check_single_entitlement(

@@ -2,8 +2,10 @@
 
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
 from sqlalchemy import DateTime, Enum as SQLEnum, ForeignKey, Index, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -70,7 +72,15 @@ class AuditAction(str, Enum):
 
 
 class AuditLog(Base, UUIDMixin):
-    """Immutable audit log entry."""
+    """
+    Immutable audit log entry.
+
+    IMMUTABILITY ENFORCEMENT:
+    - DB-level trigger blocks UPDATE and DELETE operations (see migration 004)
+    - Application role should have INSERT/SELECT only permissions
+    - No updated_at column - entries are write-once
+    - Partitioning by timestamp recommended for retention management
+    """
 
     __tablename__ = "audit_logs"
 
@@ -92,11 +102,11 @@ class AuditLog(Base, UUIDMixin):
     resource_type: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g., "check_item", "user"
     resource_id: Mapped[str | None] = mapped_column(String(36), index=True)
 
-    # Details
+    # Details - JSONB for structured data and efficient querying
     description: Mapped[str | None] = mapped_column(Text)
-    before_value: Mapped[str | None] = mapped_column(Text)  # JSON
-    after_value: Mapped[str | None] = mapped_column(Text)  # JSON
-    extra_data: Mapped[str | None] = mapped_column(Text)  # JSON for additional context
+    before_value: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    after_value: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    extra_data: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
     # Session context
     session_id: Mapped[str | None] = mapped_column(String(36))
@@ -109,7 +119,13 @@ class AuditLog(Base, UUIDMixin):
 
 
 class ItemView(Base, UUIDMixin, TimestampMixin):
-    """Track detailed item viewing activity."""
+    """
+    Track detailed item viewing activity.
+
+    IMMUTABILITY ENFORCEMENT:
+    - DB-level trigger blocks UPDATE and DELETE operations (see migration 004)
+    - View records are append-only for audit compliance
+    """
 
     __tablename__ = "item_views"
 
@@ -131,8 +147,8 @@ class ItemView(Base, UUIDMixin, TimestampMixin):
     ai_assists_viewed: Mapped[bool] = mapped_column(default=False)
     context_panel_viewed: Mapped[bool] = mapped_column(default=False)
 
-    # Interaction counts (JSON)
-    interaction_summary: Mapped[str | None] = mapped_column(Text)
+    # Interaction counts - JSONB for structured data
+    interaction_summary: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
     __table_args__ = (
         Index("ix_item_views_check_user", "check_item_id", "user_id"),

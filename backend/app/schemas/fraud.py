@@ -143,7 +143,7 @@ class NetworkAlertResponse(BaseModel):
     id: str
     check_item_id: str | None
     case_id: str | None
-    severity: MatchSeverity
+    severity: str  # 'low', 'medium', 'high'
     total_matches: int
     total_matches_display: str  # Suppressed if below threshold
     distinct_institutions: int
@@ -166,7 +166,7 @@ class NetworkAlertSummary(BaseModel):
 
     has_alerts: bool
     total_alerts: int
-    highest_severity: MatchSeverity | None
+    highest_severity: str | None  # 'low', 'medium', 'high'
     alerts: list[NetworkAlertResponse]
 
 
@@ -258,7 +258,7 @@ class TenantFraudConfigResponse(BaseModel):
     allow_account_indicator_sharing: bool
     shared_artifact_retention_months: int
     receive_network_alerts: bool
-    minimum_alert_severity: MatchSeverity
+    minimum_alert_severity: str  # 'low', 'medium', 'high'
     updated_at: datetime
 
     class Config:
@@ -273,7 +273,7 @@ class TenantFraudConfigUpdate(BaseModel):
     allow_account_indicator_sharing: bool | None = None
     shared_artifact_retention_months: int | None = Field(default=None, ge=6, le=84)
     receive_network_alerts: bool | None = None
-    minimum_alert_severity: MatchSeverity | None = None
+    minimum_alert_severity: str | None = None  # 'low', 'medium', 'high'
 
 
 # ============================================================================

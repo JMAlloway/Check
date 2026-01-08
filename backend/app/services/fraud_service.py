@@ -74,7 +74,7 @@ class FraudService:
                 allow_account_indicator_sharing=False,
                 shared_artifact_retention_months=24,
                 receive_network_alerts=True,
-                minimum_alert_severity=MatchSeverity.LOW,
+                minimum_alert_severity='low',  # Store as string
             )
             self.db.add(config)
             await self.db.flush()
@@ -603,28 +603,31 @@ class FraudService:
         self,
         artifacts: list[FraudSharedArtifact],
         match_reasons: dict[str, Any],
-    ) -> MatchSeverity:
+    ) -> str:
         """Compute alert severity based on matches."""
         total_matches = len(artifacts)
         indicator_types_matched = len(match_reasons)
 
         # High: 2+ distinct indicator types OR 3+ artifacts
         if indicator_types_matched >= 2 or total_matches >= 3:
-            return MatchSeverity.HIGH
+            return 'high'
 
         # Medium: 2 artifacts on 1 indicator type
         if total_matches >= 2:
-            return MatchSeverity.MEDIUM
+            return 'medium'
 
         # Low: 1 artifact matched
-        return MatchSeverity.LOW
+        return 'low'
 
-    def _severity_rank(self, severity: MatchSeverity) -> int:
+    def _severity_rank(self, severity: str | MatchSeverity) -> int:
         """Get numeric rank for severity comparison."""
+        # Handle both string and enum values
+        if isinstance(severity, MatchSeverity):
+            severity = severity.value
         return {
-            MatchSeverity.LOW: 1,
-            MatchSeverity.MEDIUM: 2,
-            MatchSeverity.HIGH: 3,
+            'low': 1,
+            'medium': 2,
+            'high': 3,
         }.get(severity, 0)
 
     async def _build_alert_response(self, alert: NetworkMatchAlert) -> NetworkAlertResponse:

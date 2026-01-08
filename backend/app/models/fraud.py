@@ -306,9 +306,9 @@ class NetworkMatchAlert(Base, UUIDMixin, TimestampMixin):
     # JSON structure: {"routing_hash": {"count": 3, "first_seen": "2024-01", "last_seen": "2024-06"}, ...}
     match_reasons: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
 
-    # Severity based on match strength
-    severity: Mapped[MatchSeverity] = mapped_column(
-        match_severity_db,
+    # Severity based on match strength (stored as string, DB uses match_severity enum)
+    severity: Mapped[str] = mapped_column(
+        String(10),
         nullable=False,
     )
 
@@ -363,10 +363,10 @@ class TenantFraudConfig(Base, UUIDMixin, TimestampMixin):
     # Whether this tenant wants to receive network match alerts
     receive_network_alerts: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    # Minimum match severity to alert on
-    minimum_alert_severity: Mapped[MatchSeverity] = mapped_column(
-        match_severity_db,
-        default=MatchSeverity.LOW,
+    # Minimum match severity to alert on (stored as string, DB uses match_severity enum)
+    minimum_alert_severity: Mapped[str] = mapped_column(
+        String(10),
+        default='low',
         nullable=False
     )
 

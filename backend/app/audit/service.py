@@ -289,3 +289,297 @@ class AuditService:
         logs = list(result.scalars().all())
 
         return logs, total
+
+    # =========================================================================
+    # Convenience methods for consistent audit logging
+    # =========================================================================
+
+    async def log_auth_failure(
+        self,
+        failure_type: str,
+        user_id: str,
+        username: str,
+        resource: str,
+        action: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+        reason: str | None = None,
+    ) -> AuditLog:
+        """
+        Log an authorization failure.
+
+        These are critical for security monitoring and should be:
+        - Shipped to SIEM in real-time
+        - Subject to anomaly detection rules
+        - Reviewed in security audits
+        """
+        action_map = {
+            "permission_denied": AuditAction.AUTH_PERMISSION_DENIED,
+            "role_denied": AuditAction.AUTH_ROLE_DENIED,
+            "entitlement_denied": AuditAction.AUTH_ENTITLEMENT_DENIED,
+            "ip_denied": AuditAction.AUTH_IP_DENIED,
+        }
+        audit_action = action_map.get(failure_type, AuditAction.UNAUTHORIZED_ACCESS)
+
+        return await self.log(
+            action=audit_action,
+            resource_type=resource,
+            user_id=user_id,
+            username=username,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            description=f"Authorization denied: {failure_type} for {action} on {resource}",
+            metadata={
+                "failure_type": failure_type,
+                "requested_action": action,
+                "reason": reason,
+            },
+        )
+
+    async def log_decision_failure(
+        self,
+        check_item_id: str,
+        user_id: str,
+        username: str,
+        failure_type: str,
+        attempted_action: str,
+        reason: str,
+        ip_address: str | None = None,
+    ) -> AuditLog:
+        """
+        Log a failed decision attempt.
+
+        This captures cases where a user tried to make a decision but was
+        blocked by validation, entitlements, or business rules.
+        """
+        action_map = {
+            "validation": AuditAction.DECISION_VALIDATION_FAILED,
+            "entitlement": AuditAction.DECISION_ENTITLEMENT_FAILED,
+            "general": AuditAction.DECISION_FAILED,
+        }
+        audit_action = action_map.get(failure_type, AuditAction.DECISION_FAILED)
+
+        return await self.log(
+            action=audit_action,
+            resource_type="check_item",
+            resource_id=check_item_id,
+            user_id=user_id,
+            username=username,
+            ip_address=ip_address,
+            description=f"Decision attempt failed: {reason}",
+            metadata={
+                "failure_type": failure_type,
+                "attempted_action": attempted_action,
+                "reason": reason,
+            },
+        )
+
+    async def log_decision_override(
+        self,
+        check_item_id: str,
+        decision_id: str,
+        user_id: str,
+        username: str,
+        override_type: str,
+        original_action: str,
+        new_action: str,
+        justification: str,
+        ip_address: str | None = None,
+        supervisor_id: str | None = None,
+    ) -> AuditLog:
+        """
+        Log a decision override or reversal.
+
+        Override types:
+        - "override": Supervisor overriding a reviewer's decision
+        - "reversal": Reversing a previously made decision
+        - "amendment": Modifying a decision (e.g., changing return reason)
+        """
+        action_map = {
+            "override": AuditAction.DECISION_OVERRIDDEN,
+            "reversal": AuditAction.DECISION_REVERSED,
+            "amendment": AuditAction.DECISION_AMENDED,
+        }
+        audit_action = action_map.get(override_type, AuditAction.DECISION_OVERRIDDEN)
+
+        return await self.log(
+            action=audit_action,
+            resource_type="decision",
+            resource_id=decision_id,
+            user_id=user_id,
+            username=username,
+            ip_address=ip_address,
+            description=f"Decision {override_type}: {original_action} → {new_action}",
+            before_value={"action": original_action},
+            after_value={"action": new_action},
+            metadata={
+                "check_item_id": check_item_id,
+                "override_type": override_type,
+                "justification": justification,
+                "supervisor_id": supervisor_id,
+            },
+        )
+
+    async def log_ai_inference(
+        self,
+        check_item_id: str,
+        user_id: str | None,
+        username: str | None,
+        inference_type: str,
+        model_id: str,
+        model_version: str,
+        result_summary: dict,
+        processing_time_ms: int | None = None,
+        success: bool = True,
+        error: str | None = None,
+    ) -> AuditLog:
+        """
+        Log AI inference usage.
+
+        This is critical for:
+        - Model explainability audits
+        - Tracking AI influence on decisions
+        - Performance monitoring
+        - Regulatory compliance (AI in financial decisions)
+        """
+        if success:
+            audit_action = AuditAction.AI_INFERENCE_COMPLETED
+            description = f"AI inference completed: {inference_type}"
+        else:
+            audit_action = AuditAction.AI_INFERENCE_FAILED
+            description = f"AI inference failed: {inference_type} - {error}"
+
+        return await self.log(
+            action=audit_action,
+            resource_type="check_item",
+            resource_id=check_item_id,
+            user_id=user_id,
+            username=username,
+            description=description,
+            metadata={
+                "inference_type": inference_type,
+                "model_id": model_id,
+                "model_version": model_version,
+                "result_summary": result_summary,
+                "processing_time_ms": processing_time_ms,
+                "success": success,
+                "error": error,
+            },
+        )
+
+    async def log_ai_recommendation_action(
+        self,
+        check_item_id: str,
+        user_id: str,
+        username: str,
+        recommendation_type: str,
+        ai_recommendation: str,
+        user_action: str,
+        override_reason: str | None = None,
+        ip_address: str | None = None,
+    ) -> AuditLog:
+        """
+        Log user action on AI recommendation.
+
+        Captures whether the user:
+        - Accepted the AI recommendation
+        - Rejected the AI recommendation
+        - Overrode the AI recommendation with a different action
+        """
+        if user_action == ai_recommendation:
+            audit_action = AuditAction.AI_RECOMMENDATION_ACCEPTED
+        elif user_action == "rejected":
+            audit_action = AuditAction.AI_RECOMMENDATION_REJECTED
+        else:
+            audit_action = AuditAction.AI_RECOMMENDATION_OVERRIDDEN
+
+        return await self.log(
+            action=audit_action,
+            resource_type="check_item",
+            resource_id=check_item_id,
+            user_id=user_id,
+            username=username,
+            ip_address=ip_address,
+            description=f"User {audit_action.value.replace('ai_recommendation_', '')}: AI recommended {ai_recommendation}, user chose {user_action}",
+            metadata={
+                "recommendation_type": recommendation_type,
+                "ai_recommendation": ai_recommendation,
+                "user_action": user_action,
+                "override_reason": override_reason,
+            },
+        )
+
+    async def log_dual_control(
+        self,
+        check_item_id: str,
+        decision_id: str,
+        event_type: str,
+        user_id: str,
+        username: str,
+        original_reviewer_id: str | None = None,
+        reason: str | None = None,
+        ip_address: str | None = None,
+    ) -> AuditLog:
+        """
+        Log dual control workflow events.
+
+        Event types:
+        - "required": Dual control was triggered
+        - "approved": Second approver approved
+        - "rejected": Second approver rejected
+        - "expired": Dual control request expired
+        """
+        action_map = {
+            "required": AuditAction.DUAL_CONTROL_REQUIRED,
+            "approved": AuditAction.DUAL_CONTROL_APPROVED,
+            "rejected": AuditAction.DUAL_CONTROL_REJECTED,
+            "expired": AuditAction.DUAL_CONTROL_EXPIRED,
+        }
+        audit_action = action_map.get(event_type, AuditAction.DUAL_CONTROL_REQUIRED)
+
+        return await self.log(
+            action=audit_action,
+            resource_type="decision",
+            resource_id=decision_id,
+            user_id=user_id,
+            username=username,
+            ip_address=ip_address,
+            description=f"Dual control {event_type} for decision",
+            metadata={
+                "check_item_id": check_item_id,
+                "original_reviewer_id": original_reviewer_id,
+                "reason": reason,
+            },
+        )
+
+    async def log_report_access(
+        self,
+        report_type: str,
+        user_id: str,
+        username: str,
+        parameters: dict | None = None,
+        exported: bool = False,
+        ip_address: str | None = None,
+    ) -> AuditLog:
+        """Log report viewing or export."""
+        if exported:
+            audit_action = AuditAction.REPORT_EXPORTED
+            description = f"User exported {report_type} report"
+        else:
+            audit_action = AuditAction.REPORT_VIEWED
+            description = f"User viewed {report_type} report"
+
+        return await self.log(
+            action=audit_action,
+            resource_type="report",
+            resource_id=report_type,
+            user_id=user_id,
+            username=username,
+            ip_address=ip_address,
+            description=description,
+            metadata={
+                "report_type": report_type,
+                "parameters": parameters,
+                "exported": exported,
+            },
+        )

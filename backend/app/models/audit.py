@@ -13,7 +13,14 @@ from app.models.base import TimestampMixin, UUIDMixin
 
 
 class AuditAction(str, Enum):
-    """Audit action types."""
+    """
+    Audit action types.
+
+    Naming convention:
+    - Past tense for completed actions (logged after success)
+    - _FAILED suffix for failed attempts
+    - _OVERRIDDEN suffix for supervisor overrides
+    """
 
     # Authentication
     LOGIN = "login"
@@ -22,6 +29,14 @@ class AuditAction(str, Enum):
     PASSWORD_CHANGE = "password_change"
     MFA_ENABLED = "mfa_enabled"
     MFA_DISABLED = "mfa_disabled"
+    SESSION_EXPIRED = "session_expired"
+    TOKEN_REFRESHED = "token_refreshed"
+
+    # Authorization failures (critical for security monitoring)
+    AUTH_PERMISSION_DENIED = "auth_permission_denied"
+    AUTH_ROLE_DENIED = "auth_role_denied"
+    AUTH_ENTITLEMENT_DENIED = "auth_entitlement_denied"
+    AUTH_IP_DENIED = "auth_ip_denied"
 
     # Check items
     ITEM_VIEWED = "item_viewed"
@@ -29,16 +44,35 @@ class AuditAction(str, Enum):
     ITEM_REASSIGNED = "item_reassigned"
     ITEM_ESCALATED = "item_escalated"
     ITEM_STATUS_CHANGED = "item_status_changed"
+    ITEM_LOCKED = "item_locked"
+    ITEM_UNLOCKED = "item_unlocked"
 
-    # Decisions
+    # Decisions - successes
     DECISION_MADE = "decision_made"
     DECISION_APPROVED = "decision_approved"
     DECISION_REJECTED = "decision_rejected"
+
+    # Decisions - failures (must be logged for audit completeness)
+    DECISION_FAILED = "decision_failed"
+    DECISION_VALIDATION_FAILED = "decision_validation_failed"
+    DECISION_ENTITLEMENT_FAILED = "decision_entitlement_failed"
+
+    # Decisions - overrides and reversals
+    DECISION_OVERRIDDEN = "decision_overridden"
+    DECISION_REVERSED = "decision_reversed"
+    DECISION_AMENDED = "decision_amended"
+
+    # Dual control
+    DUAL_CONTROL_REQUIRED = "dual_control_required"
+    DUAL_CONTROL_APPROVED = "dual_control_approved"
+    DUAL_CONTROL_REJECTED = "dual_control_rejected"
+    DUAL_CONTROL_EXPIRED = "dual_control_expired"
 
     # Images
     IMAGE_VIEWED = "image_viewed"
     IMAGE_ZOOMED = "image_zoomed"
     IMAGE_DOWNLOADED = "image_downloaded"
+    IMAGE_ACCESS_DENIED = "image_access_denied"
 
     # Admin
     USER_CREATED = "user_created"
@@ -51,17 +85,30 @@ class AuditAction(str, Enum):
     POLICY_ACTIVATED = "policy_activated"
     QUEUE_CREATED = "queue_created"
     QUEUE_UPDATED = "queue_updated"
+    ENTITLEMENT_CREATED = "entitlement_created"
+    ENTITLEMENT_UPDATED = "entitlement_updated"
+    ENTITLEMENT_REVOKED = "entitlement_revoked"
 
     # Export
     AUDIT_PACKET_GENERATED = "audit_packet_generated"
     REPORT_EXPORTED = "report_exported"
+    REPORT_VIEWED = "report_viewed"
+    DATA_EXPORTED = "data_exported"
 
-    # AI
+    # AI inference (critical for explainability)
+    AI_INFERENCE_REQUESTED = "ai_inference_requested"
+    AI_INFERENCE_COMPLETED = "ai_inference_completed"
+    AI_INFERENCE_FAILED = "ai_inference_failed"
     AI_ASSIST_VIEWED = "ai_assist_viewed"
     AI_ASSIST_FEEDBACK = "ai_assist_feedback"
+    AI_RECOMMENDATION_ACCEPTED = "ai_recommendation_accepted"
+    AI_RECOMMENDATION_REJECTED = "ai_recommendation_rejected"
+    AI_RECOMMENDATION_OVERRIDDEN = "ai_recommendation_overridden"
 
     # Security
     UNAUTHORIZED_ACCESS = "unauthorized_access"
+    SUSPICIOUS_ACTIVITY = "suspicious_activity"
+    RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
 
     # Fraud Intelligence
     FRAUD_EVENT_CREATED = "fraud_event_created"
@@ -69,6 +116,16 @@ class AuditAction(str, Enum):
     FRAUD_EVENT_WITHDRAWN = "fraud_event_withdrawn"
     FRAUD_CONFIG_UPDATED = "fraud_config_updated"
     NETWORK_ALERT_DISMISSED = "network_alert_dismissed"
+    FRAUD_MATCH_FOUND = "fraud_match_found"
+    FRAUD_MATCH_REVIEWED = "fraud_match_reviewed"
+
+    # System events
+    SYSTEM_CONFIG_CHANGED = "system_config_changed"
+    BATCH_OPERATION_STARTED = "batch_operation_started"
+    BATCH_OPERATION_COMPLETED = "batch_operation_completed"
+    INTEGRATION_SYNC_STARTED = "integration_sync_started"
+    INTEGRATION_SYNC_COMPLETED = "integration_sync_completed"
+    INTEGRATION_SYNC_FAILED = "integration_sync_failed"
 
 
 class AuditLog(Base, UUIDMixin):

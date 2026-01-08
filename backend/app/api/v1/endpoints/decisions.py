@@ -186,8 +186,10 @@ async def create_decision(
             detail="Check item not found",
         )
 
-    # Initialize entitlement service
+    # Initialize services
     entitlement_service = EntitlementService(db)
+    audit_service = AuditService(db)
+    ip_address = request.client.host if request.client else None
 
     # Check entitlements based on decision type
     if decision_data.decision_type == DecisionType.REVIEW_RECOMMENDATION:
@@ -196,6 +198,17 @@ async def create_decision(
             current_user, item
         )
         if not entitlement_result.allowed:
+            # Log entitlement failure
+            await audit_service.log_decision_failure(
+                check_item_id=item.id,
+                user_id=current_user.id,
+                username=current_user.username,
+                failure_type="entitlement",
+                attempted_action=decision_data.action.value,
+                reason=entitlement_result.denial_reason or "Review entitlement denied",
+                ip_address=ip_address,
+            )
+            await db.commit()  # Commit audit log before raising
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Not entitled to review this item: {entitlement_result.denial_reason}",
@@ -207,6 +220,17 @@ async def create_decision(
             current_user, item
         )
         if not entitlement_result.allowed:
+            # Log entitlement failure
+            await audit_service.log_decision_failure(
+                check_item_id=item.id,
+                user_id=current_user.id,
+                username=current_user.username,
+                failure_type="entitlement",
+                attempted_action=decision_data.action.value,
+                reason=entitlement_result.denial_reason or "Approval entitlement denied",
+                ip_address=ip_address,
+            )
+            await db.commit()
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Not entitled to approve this item: {entitlement_result.denial_reason}",
@@ -214,6 +238,16 @@ async def create_decision(
 
         # Approval decisions require the item to be in PENDING_DUAL_CONTROL state
         if item.status != CheckStatus.PENDING_DUAL_CONTROL:
+            await audit_service.log_decision_failure(
+                check_item_id=item.id,
+                user_id=current_user.id,
+                username=current_user.username,
+                failure_type="validation",
+                attempted_action=decision_data.action.value,
+                reason=f"Invalid status for approval: {item.status.value}",
+                ip_address=ip_address,
+            )
+            await db.commit()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Item must be in PENDING_DUAL_CONTROL status for approval decision (current: {item.status.value})",
@@ -226,6 +260,16 @@ async def create_decision(
             )
             pending_decision = pending_decision_result.scalar_one_or_none()
             if pending_decision and pending_decision.user_id == current_user.id:
+                await audit_service.log_decision_failure(
+                    check_item_id=item.id,
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    failure_type="validation",
+                    attempted_action=decision_data.action.value,
+                    reason="Self-approval attempted (dual control violation)",
+                    ip_address=ip_address,
+                )
+                await db.commit()
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Cannot approve your own recommendation (dual control)",
@@ -337,8 +381,7 @@ async def create_decision(
 
     await db.flush()
 
-    # Audit log
-    audit_service = AuditService(db)
+    # Audit log - decision made
     await audit_service.log_decision(
         check_item_id=item.id,
         user_id=current_user.id,
@@ -347,10 +390,35 @@ async def create_decision(
         action=decision_data.action.value,
         reason_codes=reason_code_ids,
         notes=decision_data.notes,
-        ip_address=request.client.host if request.client else None,
+        ip_address=ip_address,
         before_status=old_status.value,
         after_status=new_status.value,
     )
+
+    # Log dual control event if triggered
+    if new_status == CheckStatus.PENDING_DUAL_CONTROL:
+        await audit_service.log_dual_control(
+            check_item_id=item.id,
+            decision_id=decision.id,
+            event_type="required",
+            user_id=current_user.id,
+            username=current_user.username,
+            reason=dual_control_reason,
+            ip_address=ip_address,
+        )
+
+    # Log AI recommendation action if AI was involved
+    if decision_data.ai_assisted and item.ai_recommendation:
+        await audit_service.log_ai_recommendation_action(
+            check_item_id=item.id,
+            user_id=current_user.id,
+            username=current_user.username,
+            recommendation_type="risk_assessment",
+            ai_recommendation=item.ai_recommendation,
+            user_action=decision_data.action.value,
+            override_reason=decision_data.notes if decision_data.action.value != item.ai_recommendation else None,
+            ip_address=ip_address,
+        )
 
     # Explicit commit for write operation
     await db.commit()
@@ -423,6 +491,9 @@ async def approve_dual_control(
     - Have appropriate approval entitlement for this item
     - Not be the same user who made the original recommendation
     """
+    audit_service = AuditService(db)
+    ip_address = request.client.host if request.client else None
+
     result = await db.execute(
         select(Decision)
         .options(selectinload(Decision.check_item).selectinload(CheckItem.images))
@@ -437,18 +508,48 @@ async def approve_dual_control(
         )
 
     if not decision.is_dual_control_required:
+        await audit_service.log_decision_failure(
+            check_item_id=decision.check_item_id,
+            user_id=current_user.id,
+            username=current_user.username,
+            failure_type="validation",
+            attempted_action="dual_control_approve",
+            reason="Decision does not require dual control",
+            ip_address=ip_address,
+        )
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Decision does not require dual control",
         )
 
     if decision.dual_control_approved_at:
+        await audit_service.log_decision_failure(
+            check_item_id=decision.check_item_id,
+            user_id=current_user.id,
+            username=current_user.username,
+            failure_type="validation",
+            attempted_action="dual_control_approve",
+            reason="Decision already has dual control approval",
+            ip_address=ip_address,
+        )
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Decision already has dual control approval",
         )
 
     if decision.user_id == current_user.id:
+        await audit_service.log_decision_failure(
+            check_item_id=decision.check_item_id,
+            user_id=current_user.id,
+            username=current_user.username,
+            failure_type="validation",
+            attempted_action="dual_control_approve",
+            reason="Self-approval attempted (dual control violation)",
+            ip_address=ip_address,
+        )
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot approve your own decision (dual control)",
@@ -458,6 +559,16 @@ async def approve_dual_control(
 
     # Verify item is in PENDING_DUAL_CONTROL status
     if item.status != CheckStatus.PENDING_DUAL_CONTROL:
+        await audit_service.log_decision_failure(
+            check_item_id=item.id,
+            user_id=current_user.id,
+            username=current_user.username,
+            failure_type="validation",
+            attempted_action="dual_control_approve",
+            reason=f"Invalid status: {item.status.value}",
+            ip_address=ip_address,
+        )
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Item must be in PENDING_DUAL_CONTROL status (current: {item.status.value})",
@@ -469,6 +580,16 @@ async def approve_dual_control(
         current_user, item
     )
     if not entitlement_result.allowed:
+        await audit_service.log_decision_failure(
+            check_item_id=item.id,
+            user_id=current_user.id,
+            username=current_user.username,
+            failure_type="entitlement",
+            attempted_action="dual_control_approve",
+            reason=entitlement_result.denial_reason or "Approval entitlement denied",
+            ip_address=ip_address,
+        )
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Not entitled to approve this item: {entitlement_result.denial_reason}",
@@ -494,21 +615,16 @@ async def approve_dual_control(
     item.pending_dual_control_decision_id = None
     item.dual_control_reason = None
 
-    # Audit
-    audit_service = AuditService(db)
-    await audit_service.log(
-        action=AuditAction.DECISION_APPROVED if approval.approve else AuditAction.DECISION_REJECTED,
-        resource_type="decision",
-        resource_id=decision.id,
+    # Audit - use dedicated dual control logging
+    await audit_service.log_dual_control(
+        check_item_id=item.id,
+        decision_id=decision.id,
+        event_type="approved" if approval.approve else "rejected",
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
-        description=f"Dual control {'approved' if approval.approve else 'rejected'}",
-        metadata={
-            "notes": approval.notes,
-            "entitlement_id": entitlement_result.entitlement_id,
-            "entitlement_details": entitlement_result.entitlement_details,
-        },
+        original_reviewer_id=decision.user_id,
+        reason=approval.notes,
+        ip_address=ip_address,
     )
 
     # Explicit commit for write operation

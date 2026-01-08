@@ -3,10 +3,11 @@
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import and_, func, select
 
 from app.api.deps import DBSession, require_permission
+from app.audit.service import AuditService
 from app.models.audit import AuditAction, AuditLog
 from app.models.check import CheckItem, CheckStatus, RiskLevel
 from app.models.decision import Decision, DecisionAction
@@ -246,6 +247,7 @@ async def get_reviewer_performance(
 
 @router.get("/export/decisions")
 async def export_decisions_csv(
+    request: Request,
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("report", "export"))],
     date_from: datetime | None = None,
@@ -253,6 +255,20 @@ async def export_decisions_csv(
 ):
     """Export decisions to CSV."""
     from app.models.user import User
+
+    # Audit log the export - critical for data governance
+    audit_service = AuditService(db)
+    await audit_service.log_report_access(
+        report_type="decisions_csv",
+        user_id=current_user.id,
+        username=current_user.username,
+        parameters={
+            "date_from": date_from.isoformat() if date_from else None,
+            "date_to": date_to.isoformat() if date_to else None,
+        },
+        exported=True,
+        ip_address=request.client.host if request.client else None,
+    )
 
     query = (
         select(

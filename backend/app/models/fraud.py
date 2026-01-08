@@ -132,17 +132,17 @@ class FraudEvent(Base, UUIDMixin, TimestampMixin):
     event_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     amount_bucket: Mapped[AmountBucket] = mapped_column(
-        SQLEnum(AmountBucket, values_callable=lambda x: [e.value for e in x]),
+        SQLEnum(AmountBucket, name='amount_bucket', values_callable=lambda x: [e.value for e in x]),
         nullable=False,
     )
 
     # Classification
     fraud_type: Mapped[FraudType] = mapped_column(
-        SQLEnum(FraudType, values_callable=lambda x: [e.value for e in x]),
+        SQLEnum(FraudType, name='fraud_type', values_callable=lambda x: [e.value for e in x]),
         nullable=False,
     )
     channel: Mapped[FraudChannel] = mapped_column(
-        SQLEnum(FraudChannel, values_callable=lambda x: [e.value for e in x]),
+        SQLEnum(FraudChannel, name='fraud_channel', values_callable=lambda x: [e.value for e in x]),
         nullable=False,
     )
     confidence: Mapped[int] = mapped_column(Integer, nullable=False, default=3)  # 1-5 scale
@@ -159,7 +159,7 @@ class FraudEvent(Base, UUIDMixin, TimestampMixin):
         default=0
     )
     status: Mapped[FraudEventStatus] = mapped_column(
-        SQLEnum(FraudEventStatus, values_callable=lambda x: [e.value for e in x]),
+        SQLEnum(FraudEventStatus, name='fraud_event_status', values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=FraudEventStatus.DRAFT
     )
@@ -214,15 +214,15 @@ class FraudSharedArtifact(Base, UUIDMixin, TimestampMixin):
 
     # Categorization (safe to share)
     fraud_type: Mapped[FraudType] = mapped_column(
-        SQLEnum(FraudType, values_callable=lambda x: [e.value for e in x]),
+        SQLEnum(FraudType, name='fraud_type', values_callable=lambda x: [e.value for e in x]),
         nullable=False,
     )
     channel: Mapped[FraudChannel] = mapped_column(
-        SQLEnum(FraudChannel, values_callable=lambda x: [e.value for e in x]),
+        SQLEnum(FraudChannel, name='fraud_channel', values_callable=lambda x: [e.value for e in x]),
         nullable=False,
     )
     amount_bucket: Mapped[AmountBucket] = mapped_column(
-        SQLEnum(AmountBucket, values_callable=lambda x: [e.value for e in x]),
+        SQLEnum(AmountBucket, name='amount_bucket', values_callable=lambda x: [e.value for e in x]),
         nullable=False,
     )
 
@@ -276,7 +276,7 @@ class NetworkMatchAlert(Base, UUIDMixin, TimestampMixin):
 
     # Severity based on match strength
     severity: Mapped[MatchSeverity] = mapped_column(
-        SQLEnum(MatchSeverity, values_callable=lambda x: [e.value for e in x]),
+        SQLEnum(MatchSeverity, name='match_severity', values_callable=lambda x: [e.value for e in x]),
         nullable=False,
     )
 
@@ -333,7 +333,7 @@ class TenantFraudConfig(Base, UUIDMixin, TimestampMixin):
 
     # Minimum match severity to alert on
     minimum_alert_severity: Mapped[MatchSeverity] = mapped_column(
-        SQLEnum(MatchSeverity, values_callable=lambda x: [e.value for e in x]),
+        SQLEnum(MatchSeverity, name='match_severity', values_callable=lambda x: [e.value for e in x]),
         default=MatchSeverity.LOW,
         nullable=False
     )

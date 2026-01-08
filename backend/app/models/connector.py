@@ -153,7 +153,7 @@ class BankConnectorConfig(Base, UUIDMixin, TimestampMixin):
 
     # File format configuration
     file_format: Mapped[FileFormat] = mapped_column(
-        SQLEnum(FileFormat),
+        SQLEnum(FileFormat, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=FileFormat.CSV
     )
@@ -173,7 +173,7 @@ class BankConnectorConfig(Base, UUIDMixin, TimestampMixin):
 
     # Delivery configuration
     delivery_method: Mapped[DeliveryMethod] = mapped_column(
-        SQLEnum(DeliveryMethod),
+        SQLEnum(DeliveryMethod, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=DeliveryMethod.SFTP
     )
@@ -243,7 +243,7 @@ class CommitBatch(Base, UUIDMixin, TimestampMixin):
 
     # Status tracking
     status: Mapped[BatchStatus] = mapped_column(
-        SQLEnum(BatchStatus),
+        SQLEnum(BatchStatus, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=BatchStatus.PENDING
     )
@@ -290,7 +290,9 @@ class CommitBatch(Base, UUIDMixin, TimestampMixin):
 
     # Acknowledgement tracking
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    ack_status: Mapped[AcknowledgementStatus | None] = mapped_column(SQLEnum(AcknowledgementStatus))
+    ack_status: Mapped[AcknowledgementStatus | None] = mapped_column(
+        SQLEnum(AcknowledgementStatus, values_callable=lambda x: [e.value for e in x])
+    )
     ack_reference: Mapped[str | None] = mapped_column(String(100))
 
     # Reconciliation
@@ -361,14 +363,14 @@ class CommitRecord(Base, UUIDMixin, TimestampMixin):
 
     # Record status
     status: Mapped[RecordStatus] = mapped_column(
-        SQLEnum(RecordStatus),
+        SQLEnum(RecordStatus, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=RecordStatus.PENDING
     )
 
     # Decision details (frozen at time of batch creation)
     decision_type: Mapped[CommitDecisionType] = mapped_column(
-        SQLEnum(CommitDecisionType),
+        SQLEnum(CommitDecisionType, values_callable=lambda x: [e.value for e in x]),
         nullable=False
     )
 
@@ -388,7 +390,9 @@ class CommitRecord(Base, UUIDMixin, TimestampMixin):
     hold_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     hold_start_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     hold_expiration_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    hold_reason_code: Mapped[HoldReasonCode | None] = mapped_column(SQLEnum(HoldReasonCode))
+    hold_reason_code: Mapped[HoldReasonCode | None] = mapped_column(
+        SQLEnum(HoldReasonCode, values_callable=lambda x: [e.value for e in x])
+    )
     hold_reason_text: Mapped[str | None] = mapped_column(String(255))
 
     # Decision makers (frozen for audit)
@@ -408,7 +412,9 @@ class CommitRecord(Base, UUIDMixin, TimestampMixin):
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Error handling
-    error_category: Mapped[ErrorCategory | None] = mapped_column(SQLEnum(ErrorCategory))
+    error_category: Mapped[ErrorCategory | None] = mapped_column(
+        SQLEnum(ErrorCategory, values_callable=lambda x: [e.value for e in x])
+    )
     error_code: Mapped[str | None] = mapped_column(String(50))
     error_message: Mapped[str | None] = mapped_column(Text)
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -456,7 +462,7 @@ class BatchAcknowledgement(Base, UUIDMixin, TimestampMixin):
 
     # Overall status
     status: Mapped[AcknowledgementStatus] = mapped_column(
-        SQLEnum(AcknowledgementStatus),
+        SQLEnum(AcknowledgementStatus, values_callable=lambda x: [e.value for e in x]),
         nullable=False
     )
 

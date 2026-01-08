@@ -61,7 +61,7 @@ class Policy(Base, UUIDMixin, TimestampMixin):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     status: Mapped[PolicyStatus] = mapped_column(
-        SQLEnum(PolicyStatus),
+        SQLEnum(PolicyStatus, values_callable=lambda x: [e.value for e in x]),
         default=PolicyStatus.DRAFT,
         nullable=False,
     )
@@ -116,7 +116,10 @@ class PolicyRule(Base, UUIDMixin, TimestampMixin):
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    rule_type: Mapped[RuleType] = mapped_column(SQLEnum(RuleType), nullable=False)
+    rule_type: Mapped[RuleType] = mapped_column(
+        SQLEnum(RuleType, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+    )
     priority: Mapped[int] = mapped_column(Integer, default=0)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 

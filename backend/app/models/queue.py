@@ -39,7 +39,7 @@ class Queue(Base, UUIDMixin, TimestampMixin):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     queue_type: Mapped[QueueType] = mapped_column(
-        SQLEnum(QueueType),
+        SQLEnum(QueueType, values_callable=lambda x: [e.value for e in x]),
         default=QueueType.STANDARD,
         nullable=False,
     )
@@ -115,7 +115,7 @@ class ApprovalEntitlement(Base, UUIDMixin, TimestampMixin):
 
     # Type of entitlement
     entitlement_type: Mapped[ApprovalEntitlementType] = mapped_column(
-        SQLEnum(ApprovalEntitlementType),
+        SQLEnum(ApprovalEntitlementType, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
     )
 

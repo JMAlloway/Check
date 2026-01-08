@@ -77,7 +77,10 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     # Account information
     account_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     account_number_masked: Mapped[str] = mapped_column(String(20), nullable=False)  # e.g., "****1234"
-    account_type: Mapped[AccountType] = mapped_column(SQLEnum(AccountType), nullable=False)
+    account_type: Mapped[AccountType] = mapped_column(
+        SQLEnum(AccountType, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+    )
     routing_number: Mapped[str | None] = mapped_column(String(9))
 
     # Check details
@@ -100,13 +103,13 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
 
     # Workflow
     status: Mapped[CheckStatus] = mapped_column(
-        SQLEnum(CheckStatus),
+        SQLEnum(CheckStatus, values_callable=lambda x: [e.value for e in x]),
         default=CheckStatus.NEW,
         nullable=False,
         index=True,
     )
     risk_level: Mapped[RiskLevel] = mapped_column(
-        SQLEnum(RiskLevel),
+        SQLEnum(RiskLevel, values_callable=lambda x: [e.value for e in x]),
         default=RiskLevel.LOW,
         nullable=False,
         index=True,

@@ -131,11 +131,20 @@ class FraudEvent(Base, UUIDMixin, TimestampMixin):
     # Event details
     event_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    amount_bucket: Mapped[AmountBucket] = mapped_column(SQLEnum(AmountBucket), nullable=False)
+    amount_bucket: Mapped[AmountBucket] = mapped_column(
+        SQLEnum(AmountBucket, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+    )
 
     # Classification
-    fraud_type: Mapped[FraudType] = mapped_column(SQLEnum(FraudType), nullable=False)
-    channel: Mapped[FraudChannel] = mapped_column(SQLEnum(FraudChannel), nullable=False)
+    fraud_type: Mapped[FraudType] = mapped_column(
+        SQLEnum(FraudType, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+    )
+    channel: Mapped[FraudChannel] = mapped_column(
+        SQLEnum(FraudChannel, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+    )
     confidence: Mapped[int] = mapped_column(Integer, nullable=False, default=3)  # 1-5 scale
 
     # Narratives - private narrative is never shared
@@ -145,12 +154,12 @@ class FraudEvent(Base, UUIDMixin, TimestampMixin):
 
     # Sharing configuration
     sharing_level: Mapped[SharingLevel] = mapped_column(
-        SQLEnum(SharingLevel),
+        SQLEnum(SharingLevel, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=SharingLevel.PRIVATE
     )
     status: Mapped[FraudEventStatus] = mapped_column(
-        SQLEnum(FraudEventStatus),
+        SQLEnum(FraudEventStatus, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=FraudEventStatus.DRAFT
     )
@@ -194,16 +203,28 @@ class FraudSharedArtifact(Base, UUIDMixin, TimestampMixin):
     )
 
     # Sharing level determines how this artifact can be used
-    sharing_level: Mapped[SharingLevel] = mapped_column(SQLEnum(SharingLevel), nullable=False)
+    sharing_level: Mapped[SharingLevel] = mapped_column(
+        SQLEnum(SharingLevel, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+    )
 
     # Time-based (coarsened for privacy)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     occurred_month: Mapped[str] = mapped_column(String(7), nullable=False)  # YYYY-MM format
 
     # Categorization (safe to share)
-    fraud_type: Mapped[FraudType] = mapped_column(SQLEnum(FraudType), nullable=False)
-    channel: Mapped[FraudChannel] = mapped_column(SQLEnum(FraudChannel), nullable=False)
-    amount_bucket: Mapped[AmountBucket] = mapped_column(SQLEnum(AmountBucket), nullable=False)
+    fraud_type: Mapped[FraudType] = mapped_column(
+        SQLEnum(FraudType, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+    )
+    channel: Mapped[FraudChannel] = mapped_column(
+        SQLEnum(FraudChannel, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+    )
+    amount_bucket: Mapped[AmountBucket] = mapped_column(
+        SQLEnum(AmountBucket, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+    )
 
     # Hashed indicators for matching (only populated if sharing_level = 2)
     # JSON structure: {"routing_hash": "...", "payee_hash": "...", "check_fingerprint": "..."}
@@ -254,7 +275,10 @@ class NetworkMatchAlert(Base, UUIDMixin, TimestampMixin):
     match_reasons: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
 
     # Severity based on match strength
-    severity: Mapped[MatchSeverity] = mapped_column(SQLEnum(MatchSeverity), nullable=False)
+    severity: Mapped[MatchSeverity] = mapped_column(
+        SQLEnum(MatchSeverity, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+    )
 
     # Match statistics (aggregated, no PII)
     total_matches: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
@@ -290,7 +314,7 @@ class TenantFraudConfig(Base, UUIDMixin, TimestampMixin):
 
     # Default sharing level for new fraud event submissions
     default_sharing_level: Mapped[SharingLevel] = mapped_column(
-        SQLEnum(SharingLevel),
+        SQLEnum(SharingLevel, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=SharingLevel.PRIVATE
     )
@@ -309,7 +333,7 @@ class TenantFraudConfig(Base, UUIDMixin, TimestampMixin):
 
     # Minimum match severity to alert on
     minimum_alert_severity: Mapped[MatchSeverity] = mapped_column(
-        SQLEnum(MatchSeverity),
+        SQLEnum(MatchSeverity, values_callable=lambda x: [e.value for e in x]),
         default=MatchSeverity.LOW,
         nullable=False
     )

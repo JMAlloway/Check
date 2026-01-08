@@ -61,8 +61,14 @@ class Decision(Base, UUIDMixin, TimestampMixin):
     check_item_id: Mapped[str] = mapped_column(String(36), ForeignKey("check_items.id"), nullable=False)
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
 
-    decision_type: Mapped[DecisionType] = mapped_column(SQLEnum(DecisionType), nullable=False)
-    action: Mapped[DecisionAction] = mapped_column(SQLEnum(DecisionAction), nullable=False)
+    decision_type: Mapped[DecisionType] = mapped_column(
+        SQLEnum(DecisionType, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+    )
+    action: Mapped[DecisionAction] = mapped_column(
+        SQLEnum(DecisionAction, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+    )
 
     # Reason codes (can have multiple)
     reason_codes: Mapped[str | None] = mapped_column(Text)  # JSON array of reason code IDs

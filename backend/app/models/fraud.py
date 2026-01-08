@@ -152,11 +152,11 @@ class FraudEvent(Base, UUIDMixin, TimestampMixin):
     # Shareable narrative - only included if explicitly marked safe and admin allows
     narrative_shareable: Mapped[str | None] = mapped_column(Text)
 
-    # Sharing configuration
-    sharing_level: Mapped[SharingLevel] = mapped_column(
-        SQLEnum(SharingLevel),
+    # Sharing configuration - stored as Integer in DB (0=PRIVATE, 1=AGGREGATE, 2=NETWORK_MATCH)
+    sharing_level: Mapped[int] = mapped_column(
+        Integer,
         nullable=False,
-        default=SharingLevel.PRIVATE
+        default=0
     )
     status: Mapped[FraudEventStatus] = mapped_column(
         SQLEnum(FraudEventStatus, values_callable=lambda x: [e.value for e in x]),
@@ -202,9 +202,9 @@ class FraudSharedArtifact(Base, UUIDMixin, TimestampMixin):
         nullable=True  # Nullable for artifacts from external institutions
     )
 
-    # Sharing level determines how this artifact can be used
-    sharing_level: Mapped[SharingLevel] = mapped_column(
-        SQLEnum(SharingLevel),
+    # Sharing level determines how this artifact can be used (Integer: 0=PRIVATE, 1=AGGREGATE, 2=NETWORK_MATCH)
+    sharing_level: Mapped[int] = mapped_column(
+        Integer,
         nullable=False,
     )
 
@@ -312,11 +312,11 @@ class TenantFraudConfig(Base, UUIDMixin, TimestampMixin):
 
     tenant_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False, index=True)
 
-    # Default sharing level for new fraud event submissions
-    default_sharing_level: Mapped[SharingLevel] = mapped_column(
-        SQLEnum(SharingLevel),
+    # Default sharing level for new fraud event submissions (Integer: 0=PRIVATE, 1=AGGREGATE, 2=NETWORK_MATCH)
+    default_sharing_level: Mapped[int] = mapped_column(
+        Integer,
         nullable=False,
-        default=SharingLevel.PRIVATE
+        default=0
     )
 
     # Whether shareable narratives are allowed at all

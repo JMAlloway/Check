@@ -69,7 +69,7 @@ class FraudService:
             config = TenantFraudConfig(
                 id=str(uuid4()),
                 tenant_id=tenant_id,
-                default_sharing_level=SharingLevel.PRIVATE,
+                default_sharing_level=SharingLevel.PRIVATE.value,  # Store as int (0)
                 allow_narrative_sharing=False,
                 allow_account_indicator_sharing=False,
                 shared_artifact_retention_months=24,
@@ -116,9 +116,10 @@ class FraudService:
         amount_bucket = get_amount_bucket(data.amount)
 
         # Use default sharing level if not specified
-        sharing_level = data.sharing_level
-        if sharing_level == SharingLevel.PRIVATE:
-            sharing_level = config.default_sharing_level
+        # SharingLevel is stored as int (0=PRIVATE, 1=AGGREGATE, 2=NETWORK_MATCH)
+        sharing_level_val = data.sharing_level.value if isinstance(data.sharing_level, SharingLevel) else data.sharing_level
+        if sharing_level_val == SharingLevel.PRIVATE.value:
+            sharing_level_val = config.default_sharing_level
 
         event = FraudEvent(
             id=str(uuid4()),
@@ -133,7 +134,7 @@ class FraudService:
             confidence=data.confidence,
             narrative_private=data.narrative_private,
             narrative_shareable=data.narrative_shareable if config.allow_narrative_sharing else None,
-            sharing_level=sharing_level,
+            sharing_level=sharing_level_val,
             status=FraudEventStatus.DRAFT,
             created_by_user_id=user_id,
         )
@@ -233,10 +234,10 @@ class FraudService:
 
         # Override sharing level if specified
         if sharing_level is not None:
-            event.sharing_level = sharing_level
+            event.sharing_level = sharing_level.value if isinstance(sharing_level, SharingLevel) else sharing_level
 
         # Check for PII in shareable narrative
-        if event.sharing_level != SharingLevel.PRIVATE and event.narrative_shareable:
+        if event.sharing_level != SharingLevel.PRIVATE.value and event.narrative_shareable:
             pii_result = self.pii_detector.analyze(event.narrative_shareable)
             if pii_result["has_potential_pii"] and not confirm_no_pii:
                 raise ValueError(
@@ -251,7 +252,7 @@ class FraudService:
         event.submitted_by_user_id = user_id
 
         # Create shared artifact if sharing is enabled
-        if event.sharing_level != SharingLevel.PRIVATE:
+        if event.sharing_level != SharingLevel.PRIVATE.value:
             await self._create_shared_artifact(event)
 
         await self.db.flush()
@@ -300,7 +301,7 @@ class FraudService:
 
         # Generate indicators if network matching is enabled
         indicators = None
-        if event.sharing_level == SharingLevel.NETWORK_MATCH and check_item:
+        if event.sharing_level == SharingLevel.NETWORK_MATCH.value and check_item:
             config = await self.get_tenant_config(event.tenant_id)
 
             indicators = self.hashing.generate_indicators(
@@ -489,7 +490,7 @@ class FraudService:
         # Query for matching artifacts with retention filter
         query = select(FraudSharedArtifact).where(
             FraudSharedArtifact.is_active == True,
-            FraudSharedArtifact.sharing_level == SharingLevel.NETWORK_MATCH,
+            FraudSharedArtifact.sharing_level == SharingLevel.NETWORK_MATCH.value,
             FraudSharedArtifact.tenant_id != tenant_id,  # Exclude same tenant
             FraudSharedArtifact.created_at >= retention_cutoff,  # Enforce retention policy
             or_(*all_conditions),
@@ -719,7 +720,7 @@ class FraudService:
         config = await self.get_tenant_config(tenant_id)
 
         # Tenant must have sharing level >= 1 to see network trends
-        if config.default_sharing_level == SharingLevel.PRIVATE:
+        if config.default_sharing_level == SharingLevel.PRIVATE.value:
             raise ValueError("Network trends require sharing level >= 1")
 
         privacy_threshold = settings.FRAUD_PRIVACY_THRESHOLD
@@ -757,7 +758,7 @@ class FraudService:
         ).where(
             FraudSharedArtifact.tenant_id != tenant_id,
             FraudSharedArtifact.is_active == True,
-            FraudSharedArtifact.sharing_level >= SharingLevel.AGGREGATE,
+            FraudSharedArtifact.sharing_level >= SharingLevel.AGGREGATE.value,
             FraudSharedArtifact.occurred_at >= start_date,
         ).group_by(
             FraudSharedArtifact.fraud_type,

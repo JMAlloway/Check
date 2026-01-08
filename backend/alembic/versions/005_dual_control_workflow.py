@@ -6,15 +6,17 @@ Create Date: 2024-01-17
 
 This migration implements proper dual control workflow modeling:
 
-1. Adds PENDING_DUAL_CONTROL status to check_items status enum
-2. Adds pending_dual_control_decision_id to track which decision awaits approval
-3. Adds dual_control_reason to document why dual control was triggered
-4. Creates approval_entitlements table for fine-grained approval limits:
+1. Adds pending_dual_control_decision_id to track which decision awaits approval
+2. Adds dual_control_reason to document why dual control was triggered
+3. Creates approval_entitlements table for fine-grained approval limits:
    - Amount thresholds (min/max)
    - Account type restrictions
    - Queue restrictions
    - Risk level restrictions
    - Business line restrictions
+
+NOTE: status column is String(20) in 001_initial, so 'pending_dual_control'
+status value can be used directly without schema changes.
 
 This enables:
 - Clear separation of "review recommendation" vs "approval decision" states
@@ -35,10 +37,9 @@ depends_on = None
 
 def upgrade() -> None:
     # ==========================================================================
-    # ADD PENDING_DUAL_CONTROL TO CHECK STATUS ENUM
+    # NOTE: status column is String(20) in 001_initial, not an enum
+    # No ALTER TYPE needed - strings can hold 'pending_dual_control' directly
     # ==========================================================================
-    # PostgreSQL requires explicit ALTER TYPE to add enum values
-    op.execute("ALTER TYPE checkstatus ADD VALUE IF NOT EXISTS 'pending_dual_control'")
 
     # ==========================================================================
     # ADD DUAL CONTROL TRACKING COLUMNS TO CHECK_ITEMS
@@ -181,5 +182,4 @@ def downgrade() -> None:
     op.drop_column('check_items', 'dual_control_reason')
     op.drop_column('check_items', 'pending_dual_control_decision_id')
 
-    # Note: Cannot remove enum value from PostgreSQL enum type
-    # The 'pending_dual_control' value will remain in checkstatus enum
+    # Note: status column is String(20), so 'pending_dual_control' values are just data

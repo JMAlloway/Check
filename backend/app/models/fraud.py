@@ -16,11 +16,43 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, ENUM as PgEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
 from app.models.base import TimestampMixin, UUIDMixin
+
+
+# PostgreSQL enum types that match the migration-created types
+# These must use create_type=False since the types already exist in the database
+fraud_type_db = PgEnum(
+    'check_kiting', 'counterfeit_check', 'forged_signature', 'altered_check',
+    'account_takeover', 'identity_theft', 'first_party_fraud', 'synthetic_identity',
+    'duplicate_deposit', 'unauthorized_endorsement', 'payee_alteration',
+    'amount_alteration', 'fictitious_payee', 'other',
+    name='fraud_type', create_type=False
+)
+
+fraud_channel_db = PgEnum(
+    'branch', 'atm', 'mobile', 'rdc', 'mail', 'online', 'other',
+    name='fraud_channel', create_type=False
+)
+
+amount_bucket_db = PgEnum(
+    'under_100', '100_to_500', '500_to_1000', '1000_to_5000',
+    '5000_to_10000', '10000_to_50000', 'over_50000',
+    name='amount_bucket', create_type=False
+)
+
+fraud_event_status_db = PgEnum(
+    'draft', 'submitted', 'withdrawn',
+    name='fraud_event_status', create_type=False
+)
+
+match_severity_db = PgEnum(
+    'low', 'medium', 'high',
+    name='match_severity', create_type=False
+)
 
 
 class FraudType(str, Enum):
@@ -132,17 +164,17 @@ class FraudEvent(Base, UUIDMixin, TimestampMixin):
     event_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     amount_bucket: Mapped[AmountBucket] = mapped_column(
-        SQLEnum(AmountBucket, name='amount_bucket', values_callable=lambda x: [e.value for e in x]),
+        amount_bucket_db,
         nullable=False,
     )
 
     # Classification
     fraud_type: Mapped[FraudType] = mapped_column(
-        SQLEnum(FraudType, name='fraud_type', values_callable=lambda x: [e.value for e in x]),
+        fraud_type_db,
         nullable=False,
     )
     channel: Mapped[FraudChannel] = mapped_column(
-        SQLEnum(FraudChannel, name='fraud_channel', values_callable=lambda x: [e.value for e in x]),
+        fraud_channel_db,
         nullable=False,
     )
     confidence: Mapped[int] = mapped_column(Integer, nullable=False, default=3)  # 1-5 scale
@@ -159,7 +191,7 @@ class FraudEvent(Base, UUIDMixin, TimestampMixin):
         default=0
     )
     status: Mapped[FraudEventStatus] = mapped_column(
-        SQLEnum(FraudEventStatus, name='fraud_event_status', values_callable=lambda x: [e.value for e in x]),
+        fraud_event_status_db,
         nullable=False,
         default=FraudEventStatus.DRAFT
     )
@@ -214,15 +246,15 @@ class FraudSharedArtifact(Base, UUIDMixin, TimestampMixin):
 
     # Categorization (safe to share)
     fraud_type: Mapped[FraudType] = mapped_column(
-        SQLEnum(FraudType, name='fraud_type', values_callable=lambda x: [e.value for e in x]),
+        fraud_type_db,
         nullable=False,
     )
     channel: Mapped[FraudChannel] = mapped_column(
-        SQLEnum(FraudChannel, name='fraud_channel', values_callable=lambda x: [e.value for e in x]),
+        fraud_channel_db,
         nullable=False,
     )
     amount_bucket: Mapped[AmountBucket] = mapped_column(
-        SQLEnum(AmountBucket, name='amount_bucket', values_callable=lambda x: [e.value for e in x]),
+        amount_bucket_db,
         nullable=False,
     )
 
@@ -276,7 +308,7 @@ class NetworkMatchAlert(Base, UUIDMixin, TimestampMixin):
 
     # Severity based on match strength
     severity: Mapped[MatchSeverity] = mapped_column(
-        SQLEnum(MatchSeverity, name='match_severity', values_callable=lambda x: [e.value for e in x]),
+        match_severity_db,
         nullable=False,
     )
 
@@ -333,7 +365,7 @@ class TenantFraudConfig(Base, UUIDMixin, TimestampMixin):
 
     # Minimum match severity to alert on
     minimum_alert_severity: Mapped[MatchSeverity] = mapped_column(
-        SQLEnum(MatchSeverity, name='match_severity', values_callable=lambda x: [e.value for e in x]),
+        match_severity_db,
         default=MatchSeverity.LOW,
         nullable=False
     )

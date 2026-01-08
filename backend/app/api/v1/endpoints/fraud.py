@@ -228,7 +228,7 @@ async def submit_fraud_event(
         resource_id=event.id,
         user_id=current_user.id,
         username=current_user.username,
-        description=f"Submitted fraud event with sharing level {event.sharing_level.value}",
+        description=f"Submitted fraud event with sharing level {event.sharing_level}",
     )
 
     return FraudEventResponse(

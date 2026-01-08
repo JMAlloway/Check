@@ -85,7 +85,7 @@ class FraudEventResponse(BaseModel):
     confidence: int
     narrative_private: str | None
     narrative_shareable: str | None
-    sharing_level: SharingLevel
+    sharing_level: int  # Stored as integer (0=PRIVATE, 1=AGGREGATE, 2=NETWORK_MATCH)
     status: FraudEventStatus
     created_by_user_id: str
     created_at: datetime
@@ -114,7 +114,7 @@ class FraudEventListResponse(BaseModel):
     fraud_type: FraudType
     channel: FraudChannel
     confidence: int
-    sharing_level: SharingLevel
+    sharing_level: int  # Stored as integer (0=PRIVATE, 1=AGGREGATE, 2=NETWORK_MATCH)
     status: FraudEventStatus
     created_at: datetime
 
@@ -253,7 +253,7 @@ class TenantFraudConfigResponse(BaseModel):
     """Tenant fraud configuration response."""
 
     tenant_id: str
-    default_sharing_level: SharingLevel
+    default_sharing_level: int  # Stored as integer (0=PRIVATE, 1=AGGREGATE, 2=NETWORK_MATCH)
     allow_narrative_sharing: bool
     allow_account_indicator_sharing: bool
     shared_artifact_retention_months: int
@@ -314,7 +314,7 @@ class SharedArtifactResponse(BaseModel):
 
     id: str
     fraud_event_id: str
-    sharing_level: SharingLevel
+    sharing_level: int  # Stored as integer (0=PRIVATE, 1=AGGREGATE, 2=NETWORK_MATCH)
     occurred_at: datetime
     occurred_month: str
     fraud_type: FraudType

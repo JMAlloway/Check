@@ -64,11 +64,12 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
   const actions = isAwaitingApproval && canApprove ? approvalActions : reviewActions;
   const decisionType = isAwaitingApproval && canApprove ? 'approval_decision' : 'review_recommendation';
 
-  // Fetch reason codes
-  const { data: reasonCodes } = useQuery({
+  // Fetch reason codes - only needed for reject/return actions
+  const needsReasonCodes = selectedAction === 'reject' || selectedAction === 'return';
+  const { data: reasonCodes, isLoading: reasonCodesLoading } = useQuery({
     queryKey: ['reasonCodes', selectedAction],
     queryFn: () => decisionApi.getReasonCodes(undefined, selectedAction || undefined),
-    enabled: !!selectedAction && selectedAction !== 'approve',
+    enabled: needsReasonCodes,
   });
 
   // Create decision mutation
@@ -308,37 +309,45 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
         </div>
 
         {/* Reason Codes - only required for reject/return actions */}
-        {selectedAction && (selectedAction === 'reject' || selectedAction === 'return') && reasonCodes && (
+        {needsReasonCodes && (
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Reason Code(s) <span className="text-red-500">*</span>
             </label>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {reasonCodes.map((code: ReasonCode) => (
-                <label
-                  key={code.id}
-                  className={clsx(
-                    'flex items-start p-2 rounded cursor-pointer transition-colors',
-                    isSubmitting && 'opacity-50 pointer-events-none',
-                    selectedReasonCodes.includes(code.id)
-                      ? 'bg-primary-50 border border-primary-200'
-                      : 'hover:bg-gray-50 border border-transparent'
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedReasonCodes.includes(code.id)}
-                    onChange={() => toggleReasonCode(code.id)}
-                    disabled={isSubmitting}
-                    className="mt-1 rounded border-gray-300 text-primary-600"
-                  />
-                  <div className="ml-2">
-                    <div className="text-sm font-medium text-gray-900">{code.code}</div>
-                    <div className="text-xs text-gray-500">{code.description}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
+            {reasonCodesLoading ? (
+              <div className="text-sm text-gray-500 py-2">Loading reason codes...</div>
+            ) : reasonCodes && reasonCodes.length > 0 ? (
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {reasonCodes.map((code: ReasonCode) => (
+                  <label
+                    key={code.id}
+                    className={clsx(
+                      'flex items-start p-2 rounded cursor-pointer transition-colors',
+                      isSubmitting && 'opacity-50 pointer-events-none',
+                      selectedReasonCodes.includes(code.id)
+                        ? 'bg-primary-50 border border-primary-200'
+                        : 'hover:bg-gray-50 border border-transparent'
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedReasonCodes.includes(code.id)}
+                      onChange={() => toggleReasonCode(code.id)}
+                      disabled={isSubmitting}
+                      className="mt-1 rounded border-gray-300 text-primary-600"
+                    />
+                    <div className="ml-2">
+                      <div className="text-sm font-medium text-gray-900">{code.code}</div>
+                      <div className="text-xs text-gray-500">{code.description}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-amber-600 py-2">
+                No reason codes available. Please run demo seeder.
+              </div>
+            )}
           </div>
         )}
 

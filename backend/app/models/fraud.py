@@ -364,8 +364,9 @@ class TenantFraudConfig(Base, UUIDMixin, TimestampMixin):
     receive_network_alerts: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Minimum match severity to alert on
+    # Using String instead of PgEnum to avoid asyncpg type casting issues
     minimum_alert_severity: Mapped[str] = mapped_column(
-        match_severity_db,
+        String(10),
         default='low',
         nullable=False
     )

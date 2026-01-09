@@ -55,7 +55,9 @@ async def list_check_items(
         date_to=date_to,
     )
 
-    items, total = await check_service.search_items(search, current_user.id, page, page_size)
+    items, total = await check_service.search_items(
+        search, current_user.id, current_user.tenant_id, page, page_size
+    )
 
     total_pages = (total + page_size - 1) // page_size
 
@@ -85,7 +87,9 @@ async def get_my_queue(
         status=[CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL],
     )
 
-    items, total = await check_service.search_items(search, current_user.id, page, page_size)
+    items, total = await check_service.search_items(
+        search, current_user.id, current_user.tenant_id, page, page_size
+    )
     total_pages = (total + page_size - 1) // page_size
 
     return PaginatedResponse(
@@ -110,7 +114,7 @@ async def get_check_item(
     check_service = CheckService(db)
     audit_service = AuditService(db)
 
-    item = await check_service.get_check_item(item_id, current_user.id)
+    item = await check_service.get_check_item(item_id, current_user.id, current_user.tenant_id)
 
     if not item:
         raise HTTPException(
@@ -164,7 +168,13 @@ async def assign_check_item(
     from sqlalchemy import select
     from app.models.check import CheckItem
 
-    result = await db.execute(select(CheckItem).where(CheckItem.id == item_id))
+    # CRITICAL: Always filter by tenant_id for multi-tenant security
+    result = await db.execute(
+        select(CheckItem).where(
+            CheckItem.id == item_id,
+            CheckItem.tenant_id == current_user.tenant_id,
+        )
+    )
     item = result.scalar_one_or_none()
 
     if not item:
@@ -205,7 +215,7 @@ async def assign_check_item(
     )
 
     check_service = CheckService(db)
-    return await check_service.get_check_item(item_id, current_user.id)
+    return await check_service.get_check_item(item_id, current_user.id, current_user.tenant_id)
 
 
 @router.post("/{item_id}/status", response_model=CheckItemResponse)
@@ -220,7 +230,13 @@ async def update_check_status(
     from sqlalchemy import select
     from app.models.check import CheckItem
 
-    result = await db.execute(select(CheckItem).where(CheckItem.id == item_id))
+    # CRITICAL: Always filter by tenant_id for multi-tenant security
+    result = await db.execute(
+        select(CheckItem).where(
+            CheckItem.id == item_id,
+            CheckItem.tenant_id == current_user.tenant_id,
+        )
+    )
     item = result.scalar_one_or_none()
 
     if not item:
@@ -247,7 +263,7 @@ async def update_check_status(
     )
 
     check_service = CheckService(db)
-    return await check_service.get_check_item(item_id, current_user.id)
+    return await check_service.get_check_item(item_id, current_user.id, current_user.tenant_id)
 
 
 @router.post("/sync")
@@ -258,5 +274,8 @@ async def sync_presented_items(
 ):
     """Sync new presented items from external system."""
     check_service = CheckService(db)
-    count = await check_service.sync_presented_items(amount_min=amount_min)
+    count = await check_service.sync_presented_items(
+        tenant_id=current_user.tenant_id,
+        amount_min=amount_min,
+    )
     return {"message": f"Synced {count} new items", "count": count}

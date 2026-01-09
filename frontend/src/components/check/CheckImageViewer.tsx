@@ -40,11 +40,19 @@ export default function CheckImageViewer({
   const [contrast, setContrast] = useState(100);
   const [invert, setInvert] = useState(false);
   const [showControls, setShowControls] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
 
   const currentImage = images.find((img) => img.image_type === activeImage);
+
+  // Reset image state when image changes
+  useEffect(() => {
+    setImageError(null);
+    setImageLoaded(false);
+  }, [activeImage, currentImage?.image_url]);
 
   const handleZoomIn = useCallback(() => {
     const currentIndex = ZOOM_LEVELS.indexOf(zoom);
@@ -356,13 +364,39 @@ export default function CheckImageViewer({
       >
         {currentImage?.image_url ? (
           <>
+            {/* Loading indicator */}
+            {!imageLoaded && !imageError && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-gray-400">Loading image...</div>
+              </div>
+            )}
+
+            {/* Error message */}
+            {imageError && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center text-red-400">
+                  <p>Failed to load image</p>
+                  <p className="text-xs text-gray-500 mt-1">{imageError}</p>
+                </div>
+              </div>
+            )}
+
             <img
               ref={imageRef}
               src={resolveImageUrl(currentImage.image_url)}
               alt={`Check ${activeImage}`}
-              style={imageStyle}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-none"
+              style={{
+                ...imageStyle,
+                opacity: imageLoaded && !imageError ? 1 : 0,
+              }}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-none transition-opacity"
               draggable={false}
+              onLoad={() => setImageLoaded(true)}
+              onError={(e) => {
+                const img = e.target as HTMLImageElement;
+                setImageError(`URL: ${img.src.substring(0, 80)}...`);
+                console.error('Image load failed:', img.src);
+              }}
             />
 
             {/* ROI overlays */}

@@ -298,6 +298,7 @@ class DemoSeeder:
 
             check_item = CheckItem(
                 id=str(uuid.uuid4()),
+                tenant_id="DEMO-TENANT-000000000000000000000000",
                 external_item_id=f"DEMO-CHECK-{i+1:04d}-{uuid.uuid4().hex[:8]}",
                 source_system="demo",
                 account_id=account.account_id,

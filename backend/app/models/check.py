@@ -70,6 +70,9 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
 
     __tablename__ = "check_items"
 
+    # Tenant isolation
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+
     # External identifiers
     external_item_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     source_system: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g., "q2", "fiserv"

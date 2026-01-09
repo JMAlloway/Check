@@ -1,4 +1,4 @@
-import { CheckItem, AccountContext } from '../../types';
+import { CheckItem } from '../../types';
 import clsx from 'clsx';
 
 interface CheckContextPanelProps {

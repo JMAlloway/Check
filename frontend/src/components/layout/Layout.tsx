@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Dialog, Transition, Menu } from '@headlessui/react';
 import {
   Bars3Icon,
-  XMarkIcon,
   HomeIcon,
   QueueListIcon,
   DocumentCheckIcon,
@@ -39,7 +38,7 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, hasPermission } = useAuthStore();
-  const { fetchDemoStatus, isDemoMode } = useDemoStore();
+  const { fetchDemoStatus } = useDemoStore();
 
   // Fetch demo status on mount
   useEffect(() => {

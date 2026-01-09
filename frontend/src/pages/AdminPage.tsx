@@ -13,8 +13,6 @@ import {
   XCircleIcon,
   FunnelIcon,
   ArrowPathIcon,
-  ChevronDownIcon,
-  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { userApi, queueAdminApi, policyApi, auditLogApi } from '../services/api';

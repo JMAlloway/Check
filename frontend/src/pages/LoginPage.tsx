@@ -34,6 +34,7 @@ export default function LoginPage() {
         username: response.user.username,
         email: response.user.email,
         full_name: response.user.full_name,
+        is_active: response.user.is_active ?? true,
         is_superuser: response.user.is_superuser,
         roles: response.user.roles.map((name: string) => ({ name })),
         permissions: response.user.permissions,

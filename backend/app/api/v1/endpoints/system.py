@@ -244,12 +244,12 @@ async def get_demo_credentials() -> dict[str, Any]:
         "notice": "These are DEMO credentials for demonstration purposes only",
         "credentials": [
             {
-                "username": cred.username,
-                "password": cred.password,
-                "role": cred.role,
-                "description": cred.description,
+                "username": cred["username"],
+                "password": cred["password"],
+                "role": cred["role"],
+                "description": cred["description"],
             }
-            for cred in DEMO_CREDENTIALS
+            for cred in DEMO_CREDENTIALS.values()
         ],
         "warning": "Do NOT use these credentials in any real environment",
     }

@@ -123,7 +123,7 @@ export function DemoBadge({ className }: { className?: string }) {
 
 // Indicator for sidebar/header
 export function DemoIndicator() {
-  const { isDemoMode, status } = useDemoStore();
+  const { isDemoMode } = useDemoStore();
 
   if (!isDemoMode()) {
     return null;

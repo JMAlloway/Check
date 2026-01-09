@@ -90,14 +90,64 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Health check endpoint
 @app.get("/health", response_model=HealthResponse, tags=["Health"])
 async def health_check():
-    """Health check endpoint."""
-    return HealthResponse(
-        status="healthy",
+    """
+    Health check endpoint with real connectivity verification.
+
+    Checks:
+    - Database: Executes SELECT 1 to verify connection
+    - Redis: Executes PING to verify connection (if configured)
+
+    Returns 503 Service Unavailable if any critical dependency is down.
+    """
+    from sqlalchemy import text
+    from app.db.session import AsyncSessionLocal
+
+    db_status = "disconnected"
+    redis_status = "not_configured"
+    overall_status = "healthy"
+
+    # Check database connection
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+            db_status = "connected"
+    except Exception as e:
+        db_status = f"error: {str(e)[:50]}"
+        overall_status = "unhealthy"
+
+    # Check Redis connection (if configured)
+    if settings.REDIS_URL:
+        try:
+            import redis.asyncio as aioredis
+            redis_client = aioredis.from_url(settings.REDIS_URL)
+            pong = await redis_client.ping()
+            redis_status = "connected" if pong else "no_response"
+            await redis_client.close()
+        except ImportError:
+            redis_status = "redis_package_not_installed"
+        except Exception as e:
+            redis_status = f"error: {str(e)[:50]}"
+            # Redis failure is non-critical if not required
+            # Uncomment below to make Redis critical:
+            # overall_status = "unhealthy"
+
+    response = HealthResponse(
+        status=overall_status,
         version=settings.APP_VERSION,
-        database="connected",  # Would check actual connection
-        redis="connected",  # Would check actual connection
+        database=db_status,
+        redis=redis_status,
         timestamp=datetime.now(timezone.utc),
     )
+
+    # Return 503 if unhealthy so load balancers can detect
+    if overall_status == "unhealthy":
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=503,
+            content=response.model_dump(mode="json"),
+        )
+
+    return response
 
 
 # Include API router

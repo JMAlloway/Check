@@ -109,10 +109,45 @@ class Settings(BaseSettings):
     FRAUD_ARTIFACT_RETENTION_MONTHS: int = 24  # Default retention for shared artifacts
 
 
+def _validate_production_secrets(s: Settings) -> None:
+    """
+    CRITICAL: Fail hard if production uses default secrets.
+
+    This prevents accidental deployment with insecure defaults.
+    Called during settings initialization.
+    """
+    if s.ENVIRONMENT != "production":
+        return
+
+    # Known default/placeholder secrets that MUST be changed
+    insecure_defaults = {
+        "SECRET_KEY": "change-this-in-production-use-secure-random-key",
+        "CSRF_SECRET_KEY": "change-this-csrf-secret-in-production",
+        "NETWORK_PEPPER": "change-this-network-pepper-in-production",
+    }
+
+    violations = []
+    for key, default_value in insecure_defaults.items():
+        actual_value = getattr(s, key, None)
+        if actual_value == default_value:
+            violations.append(key)
+
+    if violations:
+        raise RuntimeError(
+            f"FATAL: Production deployment blocked - insecure default secrets detected!\n"
+            f"The following secrets MUST be changed before deploying to production:\n"
+            f"  {', '.join(violations)}\n\n"
+            f"Generate secure values with: python -c \"import secrets; print(secrets.token_urlsafe(32))\"\n"
+            f"Set these as environment variables or in your production .env file."
+        )
+
+
 @lru_cache
 def get_settings() -> Settings:
-    """Get cached settings instance."""
-    return Settings()
+    """Get cached settings instance with validation."""
+    s = Settings()
+    _validate_production_secrets(s)
+    return s
 
 
 settings = get_settings()

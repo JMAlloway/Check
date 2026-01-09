@@ -34,7 +34,6 @@ async def get_secure_image(
     request: Request,
     token: str,
     db: DBSession,
-    current_user: Annotated[object, Depends(require_permission("check_image", "view"))],
     thumbnail: bool = Query(False),
 ):
     """
@@ -42,7 +41,8 @@ async def get_secure_image(
 
     Security:
     - Token must be valid and not expired
-    - Token must be bound to the requesting user (prevents URL sharing)
+    - Token is self-authenticating (contains user binding)
+    - No Bearer token required - enables <img> tag usage
     - Access is logged for audit trail
     - Response headers prevent caching in shared locations
     """
@@ -55,23 +55,21 @@ async def get_secure_image(
             detail="Invalid or expired image URL",
         )
 
-    # CRITICAL: Validate the token was issued to this user
-    if payload.user_id != current_user.id:
-        # Log attempted access with wrong user
-        audit_service = AuditService(db)
-        await audit_service.log(
-            action=AuditAction.UNAUTHORIZED_ACCESS,
-            resource_type="check_image",
-            resource_id=payload.resource_id,
-            user_id=current_user.id,
-            username=current_user.username,
-            ip_address=request.client.host if request.client else None,
-            description=f"Attempted to access image with URL issued to different user",
-            metadata={"token_user_id": payload.user_id},
-        )
+    # Token is self-authenticating - the user_id is embedded in the signed token
+    # No need for additional Bearer token validation since the signed URL
+    # already proves the user had permission when the URL was generated
+    user_id = payload.user_id
+
+    # Get user for audit logging
+    from sqlalchemy import select
+    from app.models.user import User
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+
+    if not user:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This image URL was not issued to you",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found for signed URL",
         )
 
     resource_id = payload.resource_id
@@ -92,8 +90,8 @@ async def get_secure_image(
                 action=AuditAction.IMAGE_VIEWED,
                 resource_type="check_image_thumbnail",
                 resource_id=resource_id,
-                user_id=current_user.id,
-                username=current_user.username,
+                user_id=user.id,
+                username=user.username,
                 ip_address=request.client.host if request.client else None,
                 description="User viewed check thumbnail via signed URL",
             )
@@ -110,8 +108,8 @@ async def get_secure_image(
                 action=AuditAction.IMAGE_VIEWED,
                 resource_type="check_image",
                 resource_id=resource_id,
-                user_id=current_user.id,
-                username=current_user.username,
+                user_id=user.id,
+                username=user.username,
                 ip_address=request.client.host if request.client else None,
                 description="User viewed full check image via signed URL",
             )

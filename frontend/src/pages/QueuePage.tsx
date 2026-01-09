@@ -11,7 +11,7 @@ import {
   CheckCircleIcon,
   ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
-import { checkApi, queueApi } from '../services/api';
+import { checkApi, queueApi, resolveImageUrl } from '../services/api';
 import { CheckItemListItem, CheckStatus, RiskLevel, PaginatedResponse } from '../types';
 import { StatusBadge, RiskBadge, SLABadge } from '../components/common/StatusBadge';
 import clsx from 'clsx';
@@ -194,7 +194,7 @@ function QueueBucket({
                 <td className="px-4 py-3 whitespace-nowrap">
                   {item.thumbnail_url ? (
                     <img
-                      src={item.thumbnail_url}
+                      src={resolveImageUrl(item.thumbnail_url)}
                       alt="Check thumbnail"
                       className="h-10 w-16 object-cover rounded border border-gray-200"
                       onError={(e) => {

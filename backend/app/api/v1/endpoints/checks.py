@@ -126,6 +126,7 @@ async def get_check_item(
     await audit_service.log_item_viewed(
         check_item_id=item_id,
         user_id=current_user.id,
+        tenant_id=current_user.tenant_id,
         username=current_user.username,
         ip_address=request.client.host if request.client else None,
     )

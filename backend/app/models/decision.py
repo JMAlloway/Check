@@ -58,6 +58,9 @@ class Decision(Base, UUIDMixin, TimestampMixin):
 
     __tablename__ = "decisions"
 
+    # Tenant isolation - CRITICAL for multi-tenant security
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+
     check_item_id: Mapped[str] = mapped_column(String(36), ForeignKey("check_items.id"), nullable=False)
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
 

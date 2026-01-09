@@ -36,6 +36,9 @@ class Queue(Base, UUIDMixin, TimestampMixin):
 
     __tablename__ = "queues"
 
+    # Tenant isolation - CRITICAL for multi-tenant security
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     queue_type: Mapped[QueueType] = mapped_column(

@@ -141,6 +141,10 @@ class AuditLog(Base, UUIDMixin):
 
     __tablename__ = "audit_logs"
 
+    # Tenant isolation - CRITICAL for multi-tenant security
+    # NULL allowed for system-level events (startup, migrations, etc.)
+    tenant_id: Mapped[str | None] = mapped_column(String(36), index=True)
+
     # Timestamp (not using mixin for immutability)
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -192,6 +196,9 @@ class ItemView(Base, UUIDMixin, TimestampMixin):
     """
 
     __tablename__ = "item_views"
+
+    # Tenant isolation - CRITICAL for multi-tenant security
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
 
     check_item_id: Mapped[str] = mapped_column(String(36), ForeignKey("check_items.id"), nullable=False)
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)

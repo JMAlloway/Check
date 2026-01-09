@@ -32,6 +32,7 @@ class CheckService:
 
     async def sync_presented_items(
         self,
+        tenant_id: str,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
         amount_min: Decimal | None = None,
@@ -41,7 +42,16 @@ class CheckService:
 
         This fetches new items from the integration adapter and creates
         check items in the local database for review.
+
+        Args:
+            tenant_id: Required tenant ID for multi-tenant isolation
+            date_from: Start date for sync (default: last 24 hours)
+            date_to: End date for sync (default: now)
+            amount_min: Minimum amount threshold (default: dual control threshold)
         """
+        if not tenant_id:
+            raise ValueError("tenant_id is required for multi-tenant isolation")
+
         if date_from is None:
             date_from = datetime.now(timezone.utc) - timedelta(hours=24)
         if date_to is None:
@@ -58,9 +68,12 @@ class CheckService:
         created_count = 0
 
         for item in items:
-            # Check if item already exists
+            # Check if item already exists within this tenant
             existing = await self.db.execute(
-                select(CheckItem).where(CheckItem.external_item_id == item.external_item_id)
+                select(CheckItem).where(
+                    CheckItem.tenant_id == tenant_id,
+                    CheckItem.external_item_id == item.external_item_id
+                )
             )
             if existing.scalar_one_or_none():
                 continue
@@ -81,8 +94,9 @@ class CheckService:
                 sla_hours = 2
             sla_due_at = datetime.now(timezone.utc) + timedelta(hours=sla_hours)
 
-            # Create check item
+            # Create check item with tenant isolation
             check_item = CheckItem(
+                tenant_id=tenant_id,
                 external_item_id=item.external_item_id,
                 source_system=item.source_system,
                 account_id=item.account_id,
@@ -226,17 +240,21 @@ class CheckService:
 
         return priority
 
-    async def get_check_item(self, item_id: str, user_id: str) -> CheckItemResponse | None:
+    async def get_check_item(self, item_id: str, user_id: str, tenant_id: str) -> CheckItemResponse | None:
         """Get a check item by ID with full details.
 
         Args:
             item_id: The check item ID
             user_id: The requesting user's ID (for user-bound signed URLs)
+            tenant_id: Required for multi-tenant isolation
         """
         result = await self.db.execute(
             select(CheckItem)
             .options(selectinload(CheckItem.images))
-            .where(CheckItem.id == item_id)
+            .where(
+                CheckItem.id == item_id,
+                CheckItem.tenant_id == tenant_id,
+            )
         )
         item = result.scalar_one_or_none()
 
@@ -428,6 +446,7 @@ class CheckService:
         self,
         search: CheckSearchRequest,
         user_id: str,
+        tenant_id: str,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[CheckItemListResponse], int]:
@@ -436,13 +455,14 @@ class CheckService:
         Args:
             search: Search criteria
             user_id: The requesting user's ID (for user-bound signed URLs)
+            tenant_id: Required for multi-tenant isolation
             page: Page number
             page_size: Items per page
         """
         query = select(CheckItem).options(selectinload(CheckItem.images))
 
-        # Apply filters
-        conditions = []
+        # Apply filters - always filter by tenant_id first (CRITICAL for security)
+        conditions = [CheckItem.tenant_id == tenant_id]
 
         if search.account_number:
             conditions.append(CheckItem.account_number_masked.contains(search.account_number[-4:]))
@@ -490,8 +510,8 @@ class CheckService:
         if search.sla_breached is not None:
             conditions.append(CheckItem.sla_breached == search.sla_breached)
 
-        if conditions:
-            query = query.where(and_(*conditions))
+        # Always apply conditions (tenant_id is always included)
+        query = query.where(and_(*conditions))
 
         # Get total count
         count_query = select(func.count()).select_from(query.subquery())
@@ -582,9 +602,22 @@ class CheckService:
         item_id: str,
         status: CheckStatus,
         user_id: str,
+        tenant_id: str,
     ) -> CheckItem | None:
-        """Update check item status."""
-        result = await self.db.execute(select(CheckItem).where(CheckItem.id == item_id))
+        """Update check item status.
+
+        Args:
+            item_id: The check item ID
+            status: The new status
+            user_id: The user making the change
+            tenant_id: Required for multi-tenant isolation
+        """
+        result = await self.db.execute(
+            select(CheckItem).where(
+                CheckItem.id == item_id,
+                CheckItem.tenant_id == tenant_id,
+            )
+        )
         item = result.scalar_one_or_none()
 
         if not item:

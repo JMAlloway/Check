@@ -123,7 +123,7 @@ class DemoSeeder:
 
             user = User(
                 id=f"DEMO-USER-{role.upper()}-{uuid.uuid4().hex[:8]}",
-                tenant_id="demo",
+                tenant_id="DEMO-TENANT-000000000000000000000000",
                 email=f"{creds['username']}@demo.example.com",
                 username=creds["username"],
                 hashed_password=get_password_hash(creds["password"]),
@@ -184,6 +184,7 @@ class DemoSeeder:
 
             queue = Queue(
                 id=str(uuid.uuid4()),
+                tenant_id="DEMO-TENANT-000000000000000000000000",
                 name=config["name"],
                 queue_type=config["queue_type"],
                 description=config["description"],
@@ -595,6 +596,7 @@ class DemoSeeder:
                 reviewer = self.demo_users.get("reviewer", self.demo_users.get("admin"))
                 decision = Decision(
                     id=str(uuid.uuid4()),
+                    tenant_id="DEMO-TENANT-000000000000000000000000",
                     check_item_id=check.id,
                     user_id=reviewer.id,
                     decision_type=DecisionType.REVIEW_RECOMMENDATION if check.requires_dual_control else DecisionType.APPROVAL_DECISION,
@@ -613,6 +615,7 @@ class DemoSeeder:
                     approver = self.demo_users.get("approver", self.demo_users.get("admin"))
                     approval_decision = Decision(
                         id=str(uuid.uuid4()),
+                        tenant_id="DEMO-TENANT-000000000000000000000000",
                         check_item_id=check.id,
                         user_id=approver.id,
                         decision_type=DecisionType.APPROVAL_DECISION,
@@ -641,6 +644,7 @@ class DemoSeeder:
 
             audit_log = AuditLog(
                 id=str(uuid.uuid4()),
+                tenant_id="DEMO-TENANT-000000000000000000000000",
                 timestamp=login_time,
                 user_id=reviewer.id,
                 username=reviewer.username,
@@ -658,6 +662,7 @@ class DemoSeeder:
             view_time = login_time + timedelta(minutes=random.randint(1, 30))
             view_log = AuditLog(
                 id=str(uuid.uuid4()),
+                tenant_id="DEMO-TENANT-000000000000000000000000",
                 timestamp=view_time,
                 user_id=reviewer.id,
                 username=reviewer.username,

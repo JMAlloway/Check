@@ -89,6 +89,18 @@ async def get_current_active_user(
     return current_user
 
 
+async def get_current_active_superuser(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> User:
+    """Get current user if active and superuser."""
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Superuser access required",
+        )
+    return current_user
+
+
 def _log_auth_failure(
     event_type: str,
     user: User,

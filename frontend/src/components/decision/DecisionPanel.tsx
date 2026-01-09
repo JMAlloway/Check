@@ -105,8 +105,8 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
       errors.push('Please select an action');
     }
 
-    // Check if reason codes are required
-    if (selectedAction && selectedAction !== 'approve' && selectedReasonCodes.length === 0) {
+    // Check if reason codes are required (only for reject/return)
+    if (selectedAction && (selectedAction === 'reject' || selectedAction === 'return') && selectedReasonCodes.length === 0) {
       errors.push('Please select at least one reason code');
     }
 
@@ -307,8 +307,8 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
           </div>
         </div>
 
-        {/* Reason Codes */}
-        {selectedAction && selectedAction !== 'approve' && reasonCodes && (
+        {/* Reason Codes - only required for reject/return actions */}
+        {selectedAction && (selectedAction === 'reject' || selectedAction === 'return') && reasonCodes && (
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Reason Code(s) <span className="text-red-500">*</span>

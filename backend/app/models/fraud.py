@@ -363,9 +363,9 @@ class TenantFraudConfig(Base, UUIDMixin, TimestampMixin):
     # Whether this tenant wants to receive network match alerts
     receive_network_alerts: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    # Minimum match severity to alert on (stored as string, DB uses match_severity enum)
+    # Minimum match severity to alert on
     minimum_alert_severity: Mapped[str] = mapped_column(
-        String(10),
+        match_severity_db,
         default='low',
         nullable=False
     )

@@ -31,7 +31,8 @@ async def list_queues(
     include_inactive: bool = Query(False),
 ):
     """List all queues."""
-    query = select(Queue).order_by(Queue.display_order, Queue.name)
+    # CRITICAL: Filter by tenant_id for multi-tenant security
+    query = select(Queue).where(Queue.tenant_id == current_user.tenant_id).order_by(Queue.display_order, Queue.name)
 
     if not include_inactive:
         query = query.where(Queue.is_active == True)
@@ -69,6 +70,7 @@ async def create_queue(
     import json
 
     queue = Queue(
+        tenant_id=current_user.tenant_id,  # CRITICAL: Multi-tenant isolation
         name=queue_data.name,
         description=queue_data.description,
         queue_type=queue_data.queue_type,
@@ -119,7 +121,13 @@ async def get_queue(
     current_user: Annotated[object, Depends(require_permission("queue", "view"))],
 ):
     """Get a specific queue."""
-    result = await db.execute(select(Queue).where(Queue.id == queue_id))
+    # CRITICAL: Filter by tenant_id for multi-tenant security
+    result = await db.execute(
+        select(Queue).where(
+            Queue.id == queue_id,
+            Queue.tenant_id == current_user.tenant_id,
+        )
+    )
     queue = result.scalar_one_or_none()
 
     if not queue:
@@ -153,7 +161,13 @@ async def update_queue(
     current_user: Annotated[object, Depends(require_permission("queue", "update"))],
 ):
     """Update a queue."""
-    result = await db.execute(select(Queue).where(Queue.id == queue_id))
+    # CRITICAL: Filter by tenant_id for multi-tenant security
+    result = await db.execute(
+        select(Queue).where(
+            Queue.id == queue_id,
+            Queue.tenant_id == current_user.tenant_id,
+        )
+    )
     queue = result.scalar_one_or_none()
 
     if not queue:
@@ -209,7 +223,13 @@ async def get_queue_stats(
     current_user: Annotated[object, Depends(require_permission("queue", "view"))],
 ):
     """Get statistics for a queue."""
-    result = await db.execute(select(Queue).where(Queue.id == queue_id))
+    # CRITICAL: Filter by tenant_id for multi-tenant security
+    result = await db.execute(
+        select(Queue).where(
+            Queue.id == queue_id,
+            Queue.tenant_id == current_user.tenant_id,
+        )
+    )
     queue = result.scalar_one_or_none()
 
     if not queue:
@@ -219,11 +239,13 @@ async def get_queue_stats(
         )
 
     # Get item counts by status
+    # CRITICAL: Filter by tenant_id for multi-tenant security
     status_counts = {}
     for status_val in CheckStatus:
         count_result = await db.execute(
             select(func.count(CheckItem.id)).where(
                 CheckItem.queue_id == queue_id,
+                CheckItem.tenant_id == current_user.tenant_id,
                 CheckItem.status == status_val,
             )
         )
@@ -232,12 +254,14 @@ async def get_queue_stats(
             status_counts[status_val.value] = count
 
     # Get item counts by risk level
+    # CRITICAL: Filter by tenant_id for multi-tenant security
     from app.models.check import RiskLevel
     risk_counts = {}
     for risk_val in RiskLevel:
         count_result = await db.execute(
             select(func.count(CheckItem.id)).where(
                 CheckItem.queue_id == queue_id,
+                CheckItem.tenant_id == current_user.tenant_id,
                 CheckItem.risk_level == risk_val,
                 CheckItem.status.in_([CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]),
             )
@@ -247,9 +271,11 @@ async def get_queue_stats(
             risk_counts[risk_val.value] = count
 
     # Get SLA breached count
+    # CRITICAL: Filter by tenant_id for multi-tenant security
     sla_result = await db.execute(
         select(func.count(CheckItem.id)).where(
             CheckItem.queue_id == queue_id,
+            CheckItem.tenant_id == current_user.tenant_id,
             CheckItem.sla_breached == True,
             CheckItem.status.in_([CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]),
         )
@@ -257,9 +283,11 @@ async def get_queue_stats(
     sla_breached = sla_result.scalar() or 0
 
     # Get total active items
+    # CRITICAL: Filter by tenant_id for multi-tenant security
     total_result = await db.execute(
         select(func.count(CheckItem.id)).where(
             CheckItem.queue_id == queue_id,
+            CheckItem.tenant_id == current_user.tenant_id,
             CheckItem.status.in_([CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]),
         )
     )
@@ -286,6 +314,19 @@ async def get_queue_assignments(
     current_user: Annotated[object, Depends(require_permission("queue", "view"))],
 ):
     """Get user assignments for a queue."""
+    # First verify the queue belongs to this tenant
+    queue_result = await db.execute(
+        select(Queue).where(
+            Queue.id == queue_id,
+            Queue.tenant_id == current_user.tenant_id,
+        )
+    )
+    if not queue_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Queue not found",
+        )
+
     result = await db.execute(
         select(QueueAssignment)
         .options(selectinload(QueueAssignment.user))
@@ -324,8 +365,14 @@ async def create_queue_assignment(
     """Assign a user to a queue."""
     from datetime import datetime, timezone
 
-    # Verify queue exists
-    result = await db.execute(select(Queue).where(Queue.id == queue_id))
+    # Verify queue exists and belongs to this tenant
+    # CRITICAL: Filter by tenant_id for multi-tenant security
+    result = await db.execute(
+        select(Queue).where(
+            Queue.id == queue_id,
+            Queue.tenant_id == current_user.tenant_id,
+        )
+    )
     if not result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

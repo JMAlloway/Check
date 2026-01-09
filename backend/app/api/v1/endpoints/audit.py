@@ -46,7 +46,9 @@ async def search_audit_logs(
     """Search audit logs with filtering."""
     audit_service = AuditService(db)
 
+    # CRITICAL: Filter by tenant_id for multi-tenant security
     logs, total = await audit_service.search_audit_logs(
+        tenant_id=current_user.tenant_id,
         action=action,
         resource_type=resource_type,
         resource_id=resource_id,
@@ -95,7 +97,12 @@ async def get_item_audit_trail(
 ):
     """Get complete audit trail for a check item."""
     audit_service = AuditService(db)
-    logs = await audit_service.get_item_audit_trail(item_id, limit=limit)
+    # CRITICAL: Filter by tenant_id for multi-tenant security
+    logs = await audit_service.get_item_audit_trail(
+        item_id=item_id,
+        tenant_id=current_user.tenant_id,
+        limit=limit,
+    )
 
     return [
         AuditLogResponse(
@@ -125,15 +132,24 @@ async def get_item_views(
     """Get all view records for a check item."""
     from app.models.user import User
 
+    # CRITICAL: Filter by tenant_id for multi-tenant security
     result = await db.execute(
-        select(ItemView).where(ItemView.check_item_id == item_id).order_by(ItemView.view_started_at.desc())
+        select(ItemView).where(
+            ItemView.check_item_id == item_id,
+            ItemView.tenant_id == current_user.tenant_id,
+        ).order_by(ItemView.view_started_at.desc())
     )
     views = result.scalars().all()
 
     responses = []
     for v in views:
-        # Get username
-        user_result = await db.execute(select(User.username).where(User.id == v.user_id))
+        # Get username (users are tenant-scoped)
+        user_result = await db.execute(
+            select(User.username).where(
+                User.id == v.user_id,
+                User.tenant_id == current_user.tenant_id,
+            )
+        )
         username = user_result.scalar_one_or_none()
 
         responses.append(
@@ -172,9 +188,13 @@ async def generate_audit_packet(
     for k in expired_keys:
         del _packet_cache[k]
 
-    # Verify item exists
+    # Verify item exists and belongs to this tenant
+    # CRITICAL: Filter by tenant_id for multi-tenant security
     result = await db.execute(
-        select(CheckItem).where(CheckItem.id == packet_request.check_item_id)
+        select(CheckItem).where(
+            CheckItem.id == packet_request.check_item_id,
+            CheckItem.tenant_id == current_user.tenant_id,
+        )
     )
     item = result.scalar_one_or_none()
 
@@ -282,8 +302,10 @@ async def get_user_activity(
 ):
     """Get audit log entries for a specific user."""
     audit_service = AuditService(db)
+    # CRITICAL: Filter by tenant_id for multi-tenant security
     logs = await audit_service.get_user_activity(
         user_id=user_id,
+        tenant_id=current_user.tenant_id,
         date_from=date_from,
         date_to=date_to,
         limit=limit,

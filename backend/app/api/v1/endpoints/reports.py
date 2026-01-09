@@ -24,9 +24,13 @@ async def get_dashboard_stats(
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
+    # CRITICAL: All queries filter by tenant_id for multi-tenant security
+    tenant_id = current_user.tenant_id
+
     # Total items in review
     pending_result = await db.execute(
         select(func.count(CheckItem.id)).where(
+            CheckItem.tenant_id == tenant_id,
             CheckItem.status.in_([
                 CheckStatus.NEW,
                 CheckStatus.IN_REVIEW,
@@ -40,6 +44,7 @@ async def get_dashboard_stats(
     # Items processed today
     processed_result = await db.execute(
         select(func.count(CheckItem.id)).where(
+            CheckItem.tenant_id == tenant_id,
             CheckItem.status.in_([CheckStatus.APPROVED, CheckStatus.RETURNED, CheckStatus.REJECTED]),
             CheckItem.updated_at >= today_start,
         )
@@ -49,6 +54,7 @@ async def get_dashboard_stats(
     # SLA breached items
     sla_result = await db.execute(
         select(func.count(CheckItem.id)).where(
+            CheckItem.tenant_id == tenant_id,
             CheckItem.sla_breached == True,
             CheckItem.status.in_([CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]),
         )
@@ -60,6 +66,7 @@ async def get_dashboard_stats(
     for risk in RiskLevel:
         count_result = await db.execute(
             select(func.count(CheckItem.id)).where(
+                CheckItem.tenant_id == tenant_id,
                 CheckItem.risk_level == risk,
                 CheckItem.status.in_([CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]),
             )
@@ -70,7 +77,10 @@ async def get_dashboard_stats(
     status_counts = {}
     for status_val in CheckStatus:
         count_result = await db.execute(
-            select(func.count(CheckItem.id)).where(CheckItem.status == status_val)
+            select(func.count(CheckItem.id)).where(
+                CheckItem.tenant_id == tenant_id,
+                CheckItem.status == status_val,
+            )
         )
         count = count_result.scalar() or 0
         if count > 0:
@@ -79,6 +89,7 @@ async def get_dashboard_stats(
     # Dual control pending
     dual_control_result = await db.execute(
         select(func.count(Decision.id)).where(
+            Decision.tenant_id == tenant_id,
             Decision.is_dual_control_required == True,
             Decision.dual_control_approved_at.is_(None),
         )
@@ -108,6 +119,9 @@ async def get_throughput_report(
     now = datetime.now(timezone.utc)
     start_date = now - timedelta(days=days)
 
+    # CRITICAL: Filter by tenant_id for multi-tenant security
+    tenant_id = current_user.tenant_id
+
     # Get daily processing counts
     daily_data = []
     for i in range(days):
@@ -116,6 +130,7 @@ async def get_throughput_report(
 
         processed_result = await db.execute(
             select(func.count(CheckItem.id)).where(
+                CheckItem.tenant_id == tenant_id,
                 CheckItem.status.in_([CheckStatus.APPROVED, CheckStatus.RETURNED, CheckStatus.REJECTED]),
                 CheckItem.updated_at >= day_start,
                 CheckItem.updated_at < day_end,
@@ -124,6 +139,7 @@ async def get_throughput_report(
 
         received_result = await db.execute(
             select(func.count(CheckItem.id)).where(
+                CheckItem.tenant_id == tenant_id,
                 CheckItem.presented_date >= day_start,
                 CheckItem.presented_date < day_end,
             )
@@ -151,11 +167,15 @@ async def get_decision_report(
     now = datetime.now(timezone.utc)
     start_date = now - timedelta(days=days)
 
+    # CRITICAL: Filter by tenant_id for multi-tenant security
+    tenant_id = current_user.tenant_id
+
     # Decision action breakdown
     action_counts = {}
     for action in DecisionAction:
         count_result = await db.execute(
             select(func.count(Decision.id)).where(
+                Decision.tenant_id == tenant_id,
                 Decision.action == action,
                 Decision.created_at >= start_date,
             )
@@ -167,6 +187,7 @@ async def get_decision_report(
     # Approval rate
     total_final = await db.execute(
         select(func.count(Decision.id)).where(
+            Decision.tenant_id == tenant_id,
             Decision.action.in_([DecisionAction.APPROVE, DecisionAction.RETURN, DecisionAction.REJECT]),
             Decision.created_at >= start_date,
         )
@@ -175,6 +196,7 @@ async def get_decision_report(
 
     approved = await db.execute(
         select(func.count(Decision.id)).where(
+            Decision.tenant_id == tenant_id,
             Decision.action == DecisionAction.APPROVE,
             Decision.created_at >= start_date,
         )
@@ -203,10 +225,16 @@ async def get_reviewer_performance(
     now = datetime.now(timezone.utc)
     start_date = now - timedelta(days=days)
 
-    # Get all users who made decisions in the period
+    # CRITICAL: Filter by tenant_id for multi-tenant security
+    tenant_id = current_user.tenant_id
+
+    # Get all users who made decisions in the period (within this tenant)
     users_result = await db.execute(
         select(Decision.user_id, func.count(Decision.id).label("count"))
-        .where(Decision.created_at >= start_date)
+        .where(
+            Decision.tenant_id == tenant_id,
+            Decision.created_at >= start_date,
+        )
         .group_by(Decision.user_id)
         .order_by(func.count(Decision.id).desc())
     )
@@ -214,9 +242,12 @@ async def get_reviewer_performance(
 
     performance = []
     for user_id, count in user_stats:
-        # Get user info
+        # Get user info (users are also tenant-scoped)
         user_result = await db.execute(
-            select(User.username, User.full_name).where(User.id == user_id)
+            select(User.username, User.full_name).where(
+                User.id == user_id,
+                User.tenant_id == tenant_id,
+            )
         )
         user_info = user_result.one_or_none()
 
@@ -226,7 +257,11 @@ async def get_reviewer_performance(
             # Get breakdown by action
             actions_result = await db.execute(
                 select(Decision.action, func.count(Decision.id))
-                .where(Decision.user_id == user_id, Decision.created_at >= start_date)
+                .where(
+                    Decision.tenant_id == tenant_id,
+                    Decision.user_id == user_id,
+                    Decision.created_at >= start_date,
+                )
                 .group_by(Decision.action)
             )
             actions = {a.value: c for a, c in actions_result.all()}
@@ -256,6 +291,9 @@ async def export_decisions_csv(
     """Export decisions to CSV."""
     from app.models.user import User
 
+    # CRITICAL: Filter by tenant_id for multi-tenant security
+    tenant_id = current_user.tenant_id
+
     # Audit log the export - critical for data governance
     audit_service = AuditService(db)
     await audit_service.log_report_access(
@@ -270,6 +308,7 @@ async def export_decisions_csv(
         ip_address=request.client.host if request.client else None,
     )
 
+    # CRITICAL: Filter by tenant_id for multi-tenant security
     query = (
         select(
             Decision.id,
@@ -283,6 +322,7 @@ async def export_decisions_csv(
         )
         .join(User, Decision.user_id == User.id)
         .join(CheckItem, Decision.check_item_id == CheckItem.id)
+        .where(Decision.tenant_id == tenant_id)
     )
 
     if date_from:

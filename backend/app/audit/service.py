@@ -34,6 +34,7 @@ class AuditService:
         after_value: dict | None = None,
         metadata: dict | None = None,
         session_id: str | None = None,
+        tenant_id: str | None = None,  # Multi-tenant support
     ) -> AuditLog:
         """
         Create an immutable audit log entry.
@@ -56,6 +57,7 @@ class AuditService:
             The created AuditLog entry
         """
         log_entry = AuditLog(
+            tenant_id=tenant_id,  # Multi-tenant isolation
             timestamp=datetime.now(timezone.utc),
             user_id=user_id,
             username=username,
@@ -80,12 +82,14 @@ class AuditService:
         self,
         check_item_id: str,
         user_id: str,
+        tenant_id: str,  # Multi-tenant required
         username: str | None = None,
         ip_address: str | None = None,
         session_id: str | None = None,
     ) -> ItemView:
         """Start tracking an item view session."""
         view = ItemView(
+            tenant_id=tenant_id,  # Multi-tenant isolation
             check_item_id=check_item_id,
             user_id=user_id,
             session_id=session_id,
@@ -206,15 +210,18 @@ class AuditService:
 
     async def get_item_audit_trail(
         self,
-        check_item_id: str,
+        item_id: str,
+        tenant_id: str,  # Multi-tenant required
         limit: int = 100,
     ) -> list[AuditLog]:
         """Get complete audit trail for a check item."""
+        # CRITICAL: Filter by tenant_id for multi-tenant security
         result = await self.db.execute(
             select(AuditLog)
             .where(
+                AuditLog.tenant_id == tenant_id,
                 AuditLog.resource_type == "check_item",
-                AuditLog.resource_id == check_item_id,
+                AuditLog.resource_id == item_id,
             )
             .order_by(AuditLog.timestamp.desc())
             .limit(limit)
@@ -224,12 +231,17 @@ class AuditService:
     async def get_user_activity(
         self,
         user_id: str,
+        tenant_id: str,  # Multi-tenant required
         date_from: datetime | None = None,
         date_to: datetime | None = None,
         limit: int = 100,
     ) -> list[AuditLog]:
         """Get audit log entries for a specific user."""
-        query = select(AuditLog).where(AuditLog.user_id == user_id)
+        # CRITICAL: Filter by tenant_id for multi-tenant security
+        query = select(AuditLog).where(
+            AuditLog.tenant_id == tenant_id,
+            AuditLog.user_id == user_id,
+        )
 
         if date_from:
             query = query.where(AuditLog.timestamp >= date_from)
@@ -243,6 +255,7 @@ class AuditService:
 
     async def search_audit_logs(
         self,
+        tenant_id: str,  # Multi-tenant required
         action: AuditAction | None = None,
         resource_type: str | None = None,
         resource_id: str | None = None,
@@ -258,7 +271,8 @@ class AuditService:
         query = select(AuditLog)
         count_query = select(func.count(AuditLog.id))
 
-        conditions = []
+        # CRITICAL: Always filter by tenant_id for multi-tenant security
+        conditions = [AuditLog.tenant_id == tenant_id]
         if action:
             conditions.append(AuditLog.action == action)
         if resource_type:
@@ -272,10 +286,9 @@ class AuditService:
         if date_to:
             conditions.append(AuditLog.timestamp <= date_to)
 
-        if conditions:
-            from sqlalchemy import and_
-            query = query.where(and_(*conditions))
-            count_query = count_query.where(and_(*conditions))
+        from sqlalchemy import and_
+        query = query.where(and_(*conditions))
+        count_query = count_query.where(and_(*conditions))
 
         # Get total count
         total_result = await self.db.execute(count_query)

@@ -173,10 +173,14 @@ async def create_decision(
     and item characteristics (amount thresholds, account types, etc.).
     """
     # Get the check item with images for evidence snapshot
+    # CRITICAL: Filter by tenant_id for multi-tenant security
     result = await db.execute(
         select(CheckItem)
         .options(selectinload(CheckItem.images))
-        .where(CheckItem.id == decision_data.check_item_id)
+        .where(
+            CheckItem.id == decision_data.check_item_id,
+            CheckItem.tenant_id == current_user.tenant_id,
+        )
     )
     item = result.scalar_one_or_none()
 
@@ -256,7 +260,10 @@ async def create_decision(
         # Cannot approve your own recommendation
         if item.pending_dual_control_decision_id:
             pending_decision_result = await db.execute(
-                select(Decision).where(Decision.id == item.pending_dual_control_decision_id)
+                select(Decision).where(
+                    Decision.id == item.pending_dual_control_decision_id,
+                    Decision.tenant_id == current_user.tenant_id,
+                )
             )
             pending_decision = pending_decision_result.scalar_one_or_none()
             if pending_decision and pending_decision.user_id == current_user.id:
@@ -382,6 +389,7 @@ async def create_decision(
 
     # Create decision record with evidence snapshot
     decision = Decision(
+        tenant_id=current_user.tenant_id,  # CRITICAL: Multi-tenant isolation
         check_item_id=item.id,
         user_id=current_user.id,
         decision_type=decision_data.decision_type,
@@ -530,10 +538,14 @@ async def approve_dual_control(
     audit_service = AuditService(db)
     ip_address = request.client.host if request.client else None
 
+    # CRITICAL: Filter by tenant_id for multi-tenant security
     result = await db.execute(
         select(Decision)
         .options(selectinload(Decision.check_item).selectinload(CheckItem.images))
-        .where(Decision.id == approval.decision_id)
+        .where(
+            Decision.id == approval.decision_id,
+            Decision.tenant_id == current_user.tenant_id,
+        )
     )
     decision = result.scalar_one_or_none()
 
@@ -695,11 +707,15 @@ async def get_decision_history(
     current_user: Annotated[object, Depends(require_permission("check_item", "view"))],
 ):
     """Get decision history for a check item."""
+    # CRITICAL: Filter by tenant_id for multi-tenant security
     # Eager load user relationship to avoid N+1 query
     result = await db.execute(
         select(Decision)
         .options(selectinload(Decision.user))
-        .where(Decision.check_item_id == item_id)
+        .where(
+            Decision.check_item_id == item_id,
+            Decision.tenant_id == current_user.tenant_id,
+        )
         .order_by(Decision.created_at.desc())
     )
     decisions = result.scalars().all()

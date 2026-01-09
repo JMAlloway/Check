@@ -79,9 +79,7 @@ class DemoSeeder:
     async def _clear_demo_data(self):
         """Clear all demo data from the database using is_demo flag."""
         # Delete in reverse order of dependencies using is_demo column
-
-        # Clear audit logs first
-        await self.db.execute(delete(AuditLog).where(AuditLog.is_demo == True))
+        # NOTE: Audit logs are immutable (DB trigger prevents DELETE), so we skip them
 
         # Clear decisions
         await self.db.execute(delete(Decision).where(Decision.is_demo == True))

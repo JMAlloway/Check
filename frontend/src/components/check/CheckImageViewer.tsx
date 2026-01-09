@@ -10,7 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { CheckImage, ROIRegion } from '../../types';
-import { imageApi } from '../../services/api';
+import { imageApi, resolveImageUrl } from '../../services/api';
 
 interface CheckImageViewerProps {
   images: CheckImage[];
@@ -358,7 +358,7 @@ export default function CheckImageViewer({
           <>
             <img
               ref={imageRef}
-              src={currentImage.image_url}
+              src={resolveImageUrl(currentImage.image_url)}
               alt={`Check ${activeImage}`}
               style={imageStyle}
               className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-none"
@@ -395,7 +395,7 @@ export default function CheckImageViewer({
                 style={{
                   left: magnifierPos.x - 75,
                   top: magnifierPos.y - 75,
-                  backgroundImage: `url(${currentImage.image_url})`,
+                  backgroundImage: `url(${resolveImageUrl(currentImage.image_url)})`,
                   backgroundPosition: `${-magnifierPos.x * 2 + 75}px ${-magnifierPos.y * 2 + 75}px`,
                   backgroundSize: `${zoom * 4}%`,
                   filter: imageStyle.filter,

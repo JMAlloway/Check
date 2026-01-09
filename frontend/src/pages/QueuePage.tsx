@@ -25,6 +25,8 @@ export default function QueuePage() {
   const statusFilter = searchParams.getAll('status') as CheckStatus[];
   const riskFilter = searchParams.getAll('risk_level') as RiskLevel[];
   const slaBreached = searchParams.get('sla_breached') === 'true';
+  const dateFrom = searchParams.get('date_from');
+  const dateTo = searchParams.get('date_to');
 
   // Fetch queue info if queueId provided
   const { data: queue } = useQuery({
@@ -35,7 +37,7 @@ export default function QueuePage() {
 
   // Fetch items
   const { data: itemsData, isLoading, refetch } = useQuery<PaginatedResponse<CheckItemListItem>>({
-    queryKey: ['checkItems', page, queueId, statusFilter, riskFilter, slaBreached],
+    queryKey: ['checkItems', page, queueId, statusFilter, riskFilter, slaBreached, dateFrom, dateTo],
     queryFn: () =>
       checkApi.getItems({
         page,
@@ -44,6 +46,8 @@ export default function QueuePage() {
         status: statusFilter.length > 0 ? statusFilter : undefined,
         risk_level: riskFilter.length > 0 ? riskFilter : undefined,
         sla_breached: slaBreached || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
       }),
   });
 
@@ -103,16 +107,25 @@ export default function QueuePage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
               <div className="space-y-2">
-                {['new', 'in_review', 'pending_approval', 'escalated'].map((status) => (
-                  <label key={status} className="flex items-center">
+                {[
+                  { value: 'new', label: 'New' },
+                  { value: 'in_review', label: 'In Review' },
+                  { value: 'pending_approval', label: 'Pending Approval' },
+                  { value: 'pending_dual_control', label: 'Pending Dual Control' },
+                  { value: 'escalated', label: 'Escalated' },
+                  { value: 'approved', label: 'Approved' },
+                  { value: 'rejected', label: 'Rejected' },
+                  { value: 'returned', label: 'Returned' },
+                ].map((status) => (
+                  <label key={status.value} className="flex items-center">
                     <input
                       type="checkbox"
-                      checked={statusFilter.includes(status as CheckStatus)}
-                      onChange={(e) => updateFilter('status', status, e.target.checked)}
+                      checked={statusFilter.includes(status.value as CheckStatus)}
+                      onChange={(e) => updateFilter('status', status.value, e.target.checked)}
                       className="rounded border-gray-300 text-primary-600"
                     />
-                    <span className="ml-2 text-sm text-gray-600 capitalize">
-                      {status.replace('_', ' ')}
+                    <span className="ml-2 text-sm text-gray-600">
+                      {status.label}
                     </span>
                   </label>
                 ))}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CheckHistory } from '../../types';
-import { checkApi } from '../../services/api';
+import { checkApi, resolveImageUrl } from '../../services/api';
 import clsx from 'clsx';
 
 interface CheckHistoryPanelProps {
@@ -112,7 +112,7 @@ export default function CheckHistoryPanel({
                 {selectedId === item.id && item.front_image_url && (
                   <div className="mt-3 border-t pt-3">
                     <img
-                      src={item.front_image_url}
+                      src={resolveImageUrl(item.front_image_url)}
                       alt="Historical check"
                       className="w-full rounded border"
                     />

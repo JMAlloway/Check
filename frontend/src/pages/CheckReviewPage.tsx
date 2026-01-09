@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeftIcon, DocumentArrowDownIcon, ShieldExclamationIcon } from '@heroicons/react/24/outline';
-import { checkApi, auditApi } from '../services/api';
+import { checkApi, auditApi, resolveImageUrl } from '../services/api';
 import { CheckItem, CheckHistory, ROIRegion } from '../types';
 import CheckImageViewer from '../components/check/CheckImageViewer';
 import CheckContextPanel from '../components/check/CheckContextPanel';
@@ -166,7 +166,7 @@ export default function CheckReviewPage() {
               <div className="flex-1 flex items-center justify-center">
                 {comparisonItem.front_image_url ? (
                   <img
-                    src={comparisonItem.front_image_url}
+                    src={resolveImageUrl(comparisonItem.front_image_url)}
                     alt="Historical check"
                     className="max-w-full max-h-full object-contain"
                   />

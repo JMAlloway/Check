@@ -32,7 +32,7 @@ from app.demo.scenarios import (
 )
 from app.models.audit import AuditLog, AuditAction
 from app.models.check import CheckHistory, CheckImage, CheckItem, CheckStatus, RiskLevel, AccountType
-from app.models.decision import Decision, DecisionAction, DecisionType
+from app.models.decision import Decision, DecisionAction, DecisionType, ReasonCode
 from app.models.queue import Queue, QueueType
 from app.models.user import User
 
@@ -54,6 +54,7 @@ class DemoSeeder:
         stats = {
             "users": 0,
             "queues": 0,
+            "reason_codes": 0,
             "check_items": 0,
             "check_images": 0,
             "check_history": 0,
@@ -68,6 +69,7 @@ class DemoSeeder:
         # Seed in order of dependencies
         stats["users"] = await self._seed_users()
         stats["queues"] = await self._seed_queues()
+        stats["reason_codes"] = await self._seed_reason_codes()
         stats["check_items"], stats["check_images"] = await self._seed_checks()
         stats["check_history"] = await self._seed_check_history()
         stats["decisions"] = await self._seed_decisions()
@@ -95,6 +97,9 @@ class DemoSeeder:
 
         # Clear queues
         await self.db.execute(delete(Queue).where(Queue.is_demo == True))
+
+        # Clear reason codes (by code prefix - reason codes don't have is_demo)
+        await self.db.execute(delete(ReasonCode).where(ReasonCode.code.like("DEMO-%")))
 
         # Clear demo users
         await self.db.execute(delete(User).where(User.is_demo == True))
@@ -189,6 +194,170 @@ class DemoSeeder:
             )
             self.db.add(queue)
             self.demo_queues[config["name"]] = queue
+            count += 1
+
+        await self.db.flush()
+        return count
+
+    async def _seed_reason_codes(self) -> int:
+        """Create demo reason codes for decisions."""
+        reason_code_configs = [
+            # Return reason codes
+            {
+                "code": "RET-SIG",
+                "description": "Signature discrepancy - signature does not match account records",
+                "category": "signature",
+                "decision_type": "return",
+                "display_order": 10,
+                "requires_notes": False,
+            },
+            {
+                "code": "RET-AMT",
+                "description": "Amount mismatch - written and numeric amounts do not match",
+                "category": "amount",
+                "decision_type": "return",
+                "display_order": 20,
+                "requires_notes": False,
+            },
+            {
+                "code": "RET-DATE",
+                "description": "Date issue - stale dated or post-dated check",
+                "category": "date",
+                "decision_type": "return",
+                "display_order": 30,
+                "requires_notes": False,
+            },
+            {
+                "code": "RET-PAYEE",
+                "description": "Payee issue - payee name unclear or altered",
+                "category": "payee",
+                "decision_type": "return",
+                "display_order": 40,
+                "requires_notes": False,
+            },
+            {
+                "code": "RET-OTHER",
+                "description": "Other return reason - see notes for details",
+                "category": "other",
+                "decision_type": "return",
+                "display_order": 100,
+                "requires_notes": True,
+            },
+            # Reject reason codes
+            {
+                "code": "REJ-FRAUD",
+                "description": "Suspected fraud - check appears to be fraudulent",
+                "category": "fraud",
+                "decision_type": "reject",
+                "display_order": 10,
+                "requires_notes": True,
+            },
+            {
+                "code": "REJ-FORGE",
+                "description": "Forged signature - signature appears to be forged",
+                "category": "signature",
+                "decision_type": "reject",
+                "display_order": 20,
+                "requires_notes": True,
+            },
+            {
+                "code": "REJ-CNTFT",
+                "description": "Counterfeit check - check stock is not authentic",
+                "category": "fraud",
+                "decision_type": "reject",
+                "display_order": 30,
+                "requires_notes": True,
+            },
+            {
+                "code": "REJ-ALTER",
+                "description": "Altered check - check has been materially altered",
+                "category": "alteration",
+                "decision_type": "reject",
+                "display_order": 40,
+                "requires_notes": True,
+            },
+            {
+                "code": "REJ-DUP",
+                "description": "Duplicate presentment - check was previously deposited",
+                "category": "duplicate",
+                "decision_type": "reject",
+                "display_order": 50,
+                "requires_notes": False,
+            },
+            # Escalate reason codes
+            {
+                "code": "ESC-REVIEW",
+                "description": "Requires senior review - complex case needs additional review",
+                "category": "escalation",
+                "decision_type": "escalate",
+                "display_order": 10,
+                "requires_notes": True,
+            },
+            {
+                "code": "ESC-POLICY",
+                "description": "Policy exception required - case requires policy exception",
+                "category": "escalation",
+                "decision_type": "escalate",
+                "display_order": 20,
+                "requires_notes": True,
+            },
+            {
+                "code": "ESC-LEGAL",
+                "description": "Legal review needed - requires legal department input",
+                "category": "escalation",
+                "decision_type": "escalate",
+                "display_order": 30,
+                "requires_notes": True,
+            },
+            # Needs more info reason codes
+            {
+                "code": "INFO-SIG",
+                "description": "Need signature verification - requires customer contact",
+                "category": "verification",
+                "decision_type": "needs_more_info",
+                "display_order": 10,
+                "requires_notes": False,
+            },
+            {
+                "code": "INFO-DOC",
+                "description": "Need supporting documents - requires additional documentation",
+                "category": "verification",
+                "decision_type": "needs_more_info",
+                "display_order": 20,
+                "requires_notes": True,
+            },
+            {
+                "code": "INFO-CALL",
+                "description": "Callback required - need to contact customer",
+                "category": "verification",
+                "decision_type": "needs_more_info",
+                "display_order": 30,
+                "requires_notes": True,
+            },
+        ]
+
+        count = 0
+        for config in reason_code_configs:
+            # Check if reason code exists
+            result = await self.db.execute(
+                select(ReasonCode).where(ReasonCode.code == config["code"])
+            )
+            existing = result.scalar_one_or_none()
+
+            if existing:
+                continue
+
+            reason_code = ReasonCode(
+                id=str(uuid.uuid4()),
+                code=config["code"],
+                description=config["description"],
+                category=config["category"],
+                decision_type=config["decision_type"],
+                display_order=config["display_order"],
+                requires_notes=config["requires_notes"],
+                is_active=True,
+            )
+            self.db.add(reason_code)
             count += 1
 
         await self.db.flush()

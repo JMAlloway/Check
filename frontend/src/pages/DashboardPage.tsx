@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   ClockIcon,
   CheckCircleIcon,
@@ -9,6 +9,26 @@ import {
 import { reportsApi, queueApi } from '../services/api';
 import { DashboardStats, Queue } from '../types';
 import clsx from 'clsx';
+
+// Get today's date in ISO format for filtering (America/New_York timezone as default for bank)
+function getTodayDateRange(): { from: string; to: string } {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = formatter.formatToParts(now);
+  const year = parts.find(p => p.type === 'year')?.value;
+  const month = parts.find(p => p.type === 'month')?.value;
+  const day = parts.find(p => p.type === 'day')?.value;
+  const todayStr = `${year}-${month}-${day}`;
+  return {
+    from: `${todayStr}T00:00:00`,
+    to: `${todayStr}T23:59:59`,
+  };
+}
 
 function StatCard({
   title,
@@ -44,13 +64,19 @@ function StatCard({
   return content;
 }
 
-function RiskDistribution({ data }: { data: Record<string, number> }) {
+function RiskDistribution({ data, onSegmentClick }: { data: Record<string, number>; onSegmentClick?: (level: string) => void }) {
   const total = Object.values(data).reduce((a, b) => a + b, 0);
   const colors = {
     low: 'bg-green-500',
     medium: 'bg-yellow-500',
     high: 'bg-orange-500',
     critical: 'bg-red-500',
+  };
+  const hoverColors = {
+    low: 'hover:bg-green-600',
+    medium: 'hover:bg-yellow-600',
+    high: 'hover:bg-orange-600',
+    critical: 'hover:bg-red-600',
   };
 
   if (total === 0) {
@@ -70,16 +96,31 @@ function RiskDistribution({ data }: { data: Record<string, number> }) {
           return (
             <div
               key={level}
-              className={clsx(colors[level as keyof typeof colors])}
+              className={clsx(
+                colors[level as keyof typeof colors],
+                hoverColors[level as keyof typeof hoverColors],
+                'transition-colors cursor-pointer'
+              )}
               style={{ width: `${percentage}%` }}
-              title={`${level}: ${count}`}
+              title={`${level}: ${count} - Click to filter`}
+              onClick={() => onSegmentClick?.(level)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && onSegmentClick?.(level)}
             />
           );
         })}
       </div>
       <div className="flex justify-between mt-2 text-xs text-gray-500">
         {Object.entries(data).map(([level, count]) => (
-          <div key={level} className="flex items-center">
+          <div
+            key={level}
+            className="flex items-center cursor-pointer hover:text-gray-700 transition-colors"
+            onClick={() => onSegmentClick?.(level)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && onSegmentClick?.(level)}
+          >
             <div className={clsx('w-2 h-2 rounded-full mr-1', colors[level as keyof typeof colors])} />
             <span className="capitalize">{level}: {count}</span>
           </div>
@@ -90,6 +131,7 @@ function RiskDistribution({ data }: { data: Record<string, number> }) {
 }
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ['dashboardStats'],
     queryFn: reportsApi.getDashboard,
@@ -99,6 +141,23 @@ export default function DashboardPage() {
     queryKey: ['queues'],
     queryFn: () => queueApi.getQueues(),
   });
+
+  // Build link for "Processed Today" with date filter
+  const getProcessedTodayLink = (): string => {
+    const { from, to } = getTodayDateRange();
+    const params = new URLSearchParams();
+    params.append('status', 'approved');
+    params.append('status', 'rejected');
+    params.append('status', 'returned');
+    params.set('date_from', from);
+    params.set('date_to', to);
+    return `/queue?${params.toString()}`;
+  };
+
+  // Handler for risk segment clicks
+  const handleRiskSegmentClick = (level: string) => {
+    navigate(`/queue?risk_level=${level}`);
+  };
 
   if (statsLoading || queuesLoading) {
     return (
@@ -130,6 +189,7 @@ export default function DashboardPage() {
           value={stats?.summary.processed_today || 0}
           icon={CheckCircleIcon}
           color="green"
+          link={getProcessedTodayLink()}
         />
         <StatCard
           title="SLA Breached"
@@ -143,6 +203,7 @@ export default function DashboardPage() {
           value={stats?.summary.dual_control_pending || 0}
           icon={UserGroupIcon}
           color="purple"
+          link="/queue?status=pending_dual_control"
         />
       </div>
 
@@ -150,7 +211,7 @@ export default function DashboardPage() {
         {/* Risk Distribution */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Risk Distribution</h2>
-          <RiskDistribution data={stats?.items_by_risk || {}} />
+          <RiskDistribution data={stats?.items_by_risk || {}} onSegmentClick={handleRiskSegmentClick} />
         </div>
 
         {/* Queue Summary */}

@@ -5,6 +5,27 @@ const API_BASE_URL = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api/v1`
   : 'http://localhost:8000/api/v1';
 
+// Extract API origin for resolving relative image URLs
+// API_BASE_URL is like "http://localhost:8000/api/v1", we need just "http://localhost:8000"
+const API_ORIGIN = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+/**
+ * Resolve an image URL from the backend.
+ * Backend returns relative paths like "/api/v1/images/secure/{token}"
+ * We need to prepend the API origin so the browser fetches from the correct server.
+ */
+export function resolveImageUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+
+  // If it's already an absolute URL, return as-is
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+
+  // Prepend API origin to relative URLs
+  return `${API_ORIGIN}${url}`;
+}
+
 /**
  * API Client - Security-hardened for bank-grade auth
  *
@@ -152,6 +173,8 @@ export const checkApi = {
     assigned_to?: string;
     has_ai_flags?: boolean;
     sla_breached?: boolean;
+    date_from?: string;
+    date_to?: string;
   }) => {
     const response = await api.get('/checks', { params });
     return response.data;

@@ -144,14 +144,14 @@ async def get_check_history(
     """Get check history for the account associated with a check item."""
     check_service = CheckService(db)
 
-    item = await check_service.get_check_item(item_id, current_user.id)
+    item = await check_service.get_check_item(item_id, current_user.id, current_user.tenant_id)
     if not item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Check item not found",
         )
 
-    history = await check_service.get_check_history(item.account_id, current_user.id, limit=limit)
+    history = await check_service.get_check_history(item.account_id, current_user.id, current_user.tenant_id, limit=limit)
     return history
 
 

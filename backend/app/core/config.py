@@ -61,7 +61,7 @@ class Settings(BaseSettings):
 
     # Image handling
     IMAGE_CACHE_TTL_SECONDS: int = 300
-    IMAGE_SIGNED_URL_TTL_SECONDS: int = 60
+    IMAGE_SIGNED_URL_TTL_SECONDS: int = 3600  # 1 hour - sufficient for review sessions
     MAX_IMAGE_SIZE_MB: int = 10
 
     # Queue settings

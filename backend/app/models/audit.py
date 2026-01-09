@@ -165,7 +165,7 @@ class AuditLog(Base, UUIDMixin):
         index=True
     )
     resource_type: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g., "check_item", "user"
-    resource_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    resource_id: Mapped[str | None] = mapped_column(String(255), index=True)  # 255 to accommodate demo image IDs
 
     # Details - JSONB for structured data and efficient querying
     description: Mapped[str | None] = mapped_column(Text)

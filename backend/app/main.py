@@ -74,6 +74,18 @@ async def lifespan(app: FastAPI):
                     print(f"Created enum type: {enum_name}")
 
             await conn.run_sync(Base.metadata.create_all)
+
+            # Fix column sizes that may be too small in existing databases
+            # audit_logs.resource_id needs to be 255 to accommodate demo image IDs
+            alter_sql = text(
+                "ALTER TABLE audit_logs ALTER COLUMN resource_id TYPE VARCHAR(255)"
+            )
+            try:
+                await conn.execute(alter_sql)
+                print("Updated audit_logs.resource_id column size")
+            except Exception:
+                pass  # Column already correct size or table doesn't exist yet
+
         print("Database tables created/verified")
     else:
         print("Production mode: Skipping auto-create. Use Alembic migrations.")

@@ -144,7 +144,7 @@ class DemoSeeder:
         queue_configs = [
             {
                 "name": "Demo High Priority",
-                "queue_type": QueueType.STANDARD,
+                "queue_type": QueueType.HIGH_PRIORITY,
                 "priority": 100,
                 "description": "Demo queue for high-value items requiring immediate review",
             },
@@ -156,7 +156,7 @@ class DemoSeeder:
             },
             {
                 "name": "Demo Dual Control",
-                "queue_type": QueueType.DUAL_CONTROL,
+                "queue_type": QueueType.SPECIAL_REVIEW,
                 "priority": 75,
                 "description": "Demo queue for items pending dual control approval",
             },

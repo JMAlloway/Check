@@ -394,7 +394,12 @@ class MockAdapter(
     # CheckImageProvider implementation
     async def get_image(self, image_id: str) -> CheckImageData | None:
         """Get a mock check image."""
-        is_front = "FRONT" in image_id
+        # Handle demo image IDs (format: DEMO-IMG-{uuid}-front/back)
+        if image_id.startswith("DEMO-IMG-"):
+            is_front = image_id.endswith("-front")
+        else:
+            is_front = "FRONT" in image_id
+
         image_bytes = self._generate_check_image(image_id, is_front=is_front)
 
         return CheckImageData(
@@ -415,7 +420,11 @@ class MockAdapter(
         self, image_id: str, width: int = 200, height: int = 100
     ) -> bytes | None:
         """Get a thumbnail version."""
-        is_front = "FRONT" in image_id
+        # Handle demo image IDs (format: DEMO-IMG-{uuid}-front/back)
+        if image_id.startswith("DEMO-IMG-"):
+            is_front = image_id.endswith("-front")
+        else:
+            is_front = "FRONT" in image_id
         return self._generate_check_image(image_id, is_front=is_front, width=width, height=height)
 
     # AccountContextProvider implementation

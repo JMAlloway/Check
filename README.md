@@ -278,6 +278,88 @@ docker build -f docker/Dockerfile.frontend.prod -t check-review-frontend:latest 
 - Enable database encryption at rest
 - Configure session timeouts appropriately
 
+## Recent Development Updates
+
+### January 2026 - MVP Development Session
+
+This section documents the fixes and improvements made during the MVP development phase.
+
+#### Issues Resolved
+
+1. **PostgreSQL Enum Type Creation**
+   - Fixed async enum type creation during database initialization
+   - Added checks for existing enum types before creating them
+   - Affected enums: `fraud_type`, `fraud_channel`, `amount_bucket`, `fraud_event_status`, `match_severity`
+
+2. **Docker Configuration**
+   - Re-enabled backend volume mount for development hot-reloading
+   - Fixed SECRET_KEY mismatch between `docker-compose.yml` and `config.py` defaults
+   - Both now use: `change-this-in-production-use-secure-random-key`
+
+3. **Check Image Loading**
+   - **Bearer Token Issue**: Removed `require_permission` dependency from `/api/v1/images/secure/{token}` endpoint - `<img>` tags cannot send Authorization headers, so the endpoint now self-authenticates via the signed URL token
+   - **Signed URL TTL**: Increased `IMAGE_SIGNED_URL_TTL_SECONDS` from 60s to 3600s (1 hour) to prevent "Invalid or expired image URL" errors during review sessions
+   - **Thumbnail URLs**: Added `resolveImageUrl()` to QueuePage for proper thumbnail URL resolution
+   - **Error Handling**: Added loading states and error messages to CheckImageViewer component
+
+4. **Database Schema Fixes**
+   - Fixed `audit_logs.resource_id` column size from VARCHAR(36) to VARCHAR(255) to accommodate demo image IDs (format: `DEMO-IMG-{uuid}-front/back`)
+   - Added automatic ALTER TABLE during startup for existing databases
+
+5. **API Endpoint Fixes**
+   - Fixed `get_check_history` endpoint: removed extraneous `tenant_id` argument that caused "got multiple values for argument 'limit'" error
+   - Added `tenant_id` parameter to `get_check_item` calls for proper multi-tenant isolation
+
+#### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/app/main.py` | Added enum type creation, ALTER TABLE for audit_logs |
+| `backend/app/api/v1/endpoints/images.py` | Removed require_permission, added self-authentication |
+| `backend/app/api/v1/endpoints/checks.py` | Fixed tenant_id and limit parameter handling |
+| `backend/app/core/config.py` | Increased IMAGE_SIGNED_URL_TTL_SECONDS to 3600 |
+| `backend/app/models/audit.py` | Changed resource_id to String(255) |
+| `docker/docker-compose.yml` | Fixed SECRET_KEY default, re-enabled volume mount |
+| `frontend/src/pages/QueuePage.tsx` | Added resolveImageUrl for thumbnails |
+| `frontend/src/components/check/CheckImageViewer.tsx` | Added loading/error states |
+
+#### Running the Application
+
+After pulling the latest changes:
+
+```bash
+# Navigate to project
+cd Check
+
+# Start Docker containers
+cd docker
+docker-compose down
+docker-compose up
+
+# Access the application
+# Frontend: http://localhost:3000
+# Backend API: http://localhost:8000
+# API Docs: http://localhost:8000/api/v1/docs
+```
+
+#### Troubleshooting
+
+**Images not loading:**
+1. Check browser console (F12) for error messages
+2. Verify SECRET_KEY is consistent in docker-compose.yml
+3. Restart containers after config changes: `docker-compose down && docker-compose up`
+
+**401 Unauthorized on images:**
+- The signed URL token may have expired (1 hour TTL)
+- SECRET_KEY may have changed between signing and verification
+- Solution: Refresh the page to get new signed URLs
+
+**Database errors on startup:**
+- If you see VARCHAR truncation errors, ensure you have the latest code with the audit_logs fix
+- The backend auto-applies ALTER TABLE on startup in development mode
+
+---
+
 ## Contributing
 
 1. Fork the repository

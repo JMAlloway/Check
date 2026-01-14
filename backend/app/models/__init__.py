@@ -2,6 +2,12 @@
 
 from app.models.audit import AuditLog, ItemView
 from app.models.check import CheckItem, CheckImage, CheckHistory
+from app.models.image_connector import (
+    ImageConnector,
+    ConnectorAuditLog,
+    ConnectorRequestLog,
+    ConnectorStatus,
+)
 from app.models.connector import (
     BankConnectorConfig,
     CommitBatch,
@@ -40,7 +46,12 @@ __all__ = [
     "CheckItem",
     "CheckImage",
     "CheckHistory",
-    # Connector B
+    # Connector A (Image Connector)
+    "ImageConnector",
+    "ConnectorAuditLog",
+    "ConnectorRequestLog",
+    "ConnectorStatus",
+    # Connector B (Batch Commit)
     "BankConnectorConfig",
     "CommitBatch",
     "CommitRecord",

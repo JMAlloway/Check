@@ -98,6 +98,12 @@ class Settings(BaseSettings):
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 100
 
+    # Image Connector (Connector A) - JWT token signing
+    # RSA private key for signing JWT tokens for image connector requests
+    CONNECTOR_JWT_PRIVATE_KEY: str = ""  # Set in production
+    CONNECTOR_JWT_ISSUER: str = "check-review-saas"
+    CONNECTOR_JWT_DEFAULT_EXPIRY_SECONDS: int = 120
+
     # Fraud Intelligence Sharing
     # Current pepper for indicator hashing (HMAC secret)
     NETWORK_PEPPER: str = "change-this-network-pepper-in-production"

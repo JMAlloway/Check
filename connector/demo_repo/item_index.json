@@ -1,0 +1,59 @@
+{
+  "items": [
+    {
+      "trace_number": "12374628",
+      "date": "2024-01-15",
+      "image_path": "\\\\tn-director-pro\\Checks\\Transit\\V406\\580\\12374628.IMG",
+      "amount_cents": 125000,
+      "check_number": "1234",
+      "account_last4": "5678",
+      "is_onus": false,
+      "is_multi_page": true,
+      "has_back_image": true
+    },
+    {
+      "trace_number": "12374629",
+      "date": "2024-01-15",
+      "image_path": "\\\\tn-director-pro\\Checks\\OnUs\\V406\\123\\12374629.IMG",
+      "amount_cents": 50000,
+      "check_number": "5678",
+      "account_last4": "1234",
+      "is_onus": true,
+      "is_multi_page": true,
+      "has_back_image": true
+    },
+    {
+      "trace_number": "12374630",
+      "date": "2024-01-16",
+      "image_path": "\\\\tn-director-pro\\Checks\\Transit\\V406\\580\\12374630.IMG",
+      "amount_cents": 250000,
+      "check_number": "9012",
+      "account_last4": "4321",
+      "is_onus": false,
+      "is_multi_page": true,
+      "has_back_image": true
+    },
+    {
+      "trace_number": "12374631",
+      "date": "2024-01-16",
+      "image_path": "\\\\tn-director-pro\\Checks\\OnUs\\V406\\123\\12374631.IMG",
+      "amount_cents": 75000,
+      "check_number": "3456",
+      "account_last4": "8765",
+      "is_onus": true,
+      "is_multi_page": true,
+      "has_back_image": true
+    },
+    {
+      "trace_number": "12374632",
+      "date": "2024-01-17",
+      "image_path": "\\\\tn-director-pro\\Checks\\Transit\\V406\\580\\12374632.IMG",
+      "amount_cents": 100000,
+      "check_number": "7890",
+      "account_last4": "2468",
+      "is_onus": false,
+      "is_multi_page": false,
+      "has_back_image": false
+    }
+  ]
+}

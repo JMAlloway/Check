@@ -8,6 +8,7 @@ from app.api.v1.endpoints import (
     connector,
     decisions,
     images,
+    image_connectors,
     policies,
     queues,
     users,
@@ -30,4 +31,5 @@ api_router.include_router(audit.router, prefix="/audit", tags=["Audit"])
 api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
 api_router.include_router(fraud.router, prefix="/fraud", tags=["Fraud Intelligence"])
 api_router.include_router(connector.router, prefix="/connector", tags=["Connector B - Batch Commit"])
+api_router.include_router(image_connectors.router, prefix="/image-connectors", tags=["Connector A - Image Connectors"])
 api_router.include_router(system.router, prefix="/system", tags=["System"])

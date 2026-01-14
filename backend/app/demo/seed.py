@@ -78,17 +78,28 @@ class DemoSeeder:
             print("Cleared existing demo data")
 
         # Seed in order of dependencies
+        # CRITICAL: Commit users early so login always works even if later steps fail
         stats["users"] = await self._seed_users()
         stats["queues"] = await self._seed_queues()
+        await self.db.commit()  # Commit users and queues first
+        print(f"Committed {stats['users']} users and {stats['queues']} queues")
+
         stats["reason_codes"] = await self._seed_reason_codes()
         stats["check_items"], stats["check_images"] = await self._seed_checks()
         stats["check_history"] = await self._seed_check_history()
         stats["decisions"] = await self._seed_decisions()
         stats["audit_events"] = await self._seed_audit_events()
-        stats["fraud_events"] = await self._seed_fraud_events()
-        stats["network_alerts"] = await self._seed_network_alerts()
+        await self.db.commit()  # Commit core data
 
-        await self.db.commit()
+        # Fraud data is optional - don't let it break the whole seeding
+        try:
+            stats["fraud_events"] = await self._seed_fraud_events()
+            stats["network_alerts"] = await self._seed_network_alerts()
+            await self.db.commit()
+        except Exception as e:
+            print(f"Warning: Failed to seed fraud data: {e}")
+            await self.db.rollback()
+
         return stats
 
     async def _clear_demo_data(self):

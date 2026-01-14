@@ -87,6 +87,20 @@ async def lifespan(app: FastAPI):
                 pass  # Column already correct size or table doesn't exist yet
 
         print("Database tables created/verified")
+
+        # Auto-seed demo data if DEMO_MODE is enabled
+        if settings.DEMO_MODE:
+            print("Checking for demo data...")
+            from app.demo.seed import seed_demo_data
+            try:
+                stats = await seed_demo_data(reset=False, count=settings.DEMO_DATA_COUNT)
+                if stats["users"] > 0:
+                    print(f"Seeded demo data: {stats}")
+                else:
+                    print("Demo data already exists, skipping seed")
+            except Exception as e:
+                print(f"Warning: Failed to seed demo data: {e}")
+                # Don't fail startup - demo data seeding is not critical
     else:
         print("Production mode: Skipping auto-create. Use Alembic migrations.")
 

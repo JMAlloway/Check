@@ -33,6 +33,15 @@ from app.demo.scenarios import (
 from app.models.audit import AuditLog, AuditAction
 from app.models.check import CheckHistory, CheckImage, CheckItem, CheckStatus, RiskLevel, AccountType
 from app.models.decision import Decision, DecisionAction, DecisionType, ReasonCode
+from app.models.fraud import (
+    FraudEvent,
+    FraudSharedArtifact,
+    NetworkMatchAlert,
+    FraudType,
+    FraudChannel,
+    FraudEventStatus,
+    get_amount_bucket,
+)
 from app.models.queue import Queue, QueueType
 from app.models.user import User
 
@@ -60,6 +69,8 @@ class DemoSeeder:
             "check_history": 0,
             "decisions": 0,
             "audit_events": 0,
+            "fraud_events": 0,
+            "network_alerts": 0,
         }
 
         if reset:
@@ -74,6 +85,8 @@ class DemoSeeder:
         stats["check_history"] = await self._seed_check_history()
         stats["decisions"] = await self._seed_decisions()
         stats["audit_events"] = await self._seed_audit_events()
+        stats["fraud_events"] = await self._seed_fraud_events()
+        stats["network_alerts"] = await self._seed_network_alerts()
 
         await self.db.commit()
         return stats
@@ -82,6 +95,27 @@ class DemoSeeder:
         """Clear all demo data from the database using is_demo flag."""
         # Delete in reverse order of dependencies using is_demo column
         # NOTE: Audit logs are immutable (DB trigger prevents DELETE), so we skip them
+
+        # Clear network alerts (must clear before check items due to FK)
+        await self.db.execute(
+            delete(NetworkMatchAlert).where(
+                NetworkMatchAlert.tenant_id == "DEMO-TENANT-000000000000000000000000"
+            )
+        )
+
+        # Clear fraud shared artifacts (must clear before fraud events)
+        await self.db.execute(
+            delete(FraudSharedArtifact).where(
+                FraudSharedArtifact.tenant_id == "DEMO-TENANT-000000000000000000000000"
+            )
+        )
+
+        # Clear fraud events (must clear before check items due to FK)
+        await self.db.execute(
+            delete(FraudEvent).where(
+                FraudEvent.tenant_id == "DEMO-TENANT-000000000000000000000000"
+            )
+        )
 
         # Clear decisions
         await self.db.execute(delete(Decision).where(Decision.is_demo == True))
@@ -546,29 +580,49 @@ class DemoSeeder:
         return check_count, image_count
 
     async def _seed_check_history(self) -> int:
-        """Create historical check data for side-by-side comparison."""
+        """Create historical check data for side-by-side comparison with images."""
         count = 0
 
         for account in DEMO_ACCOUNTS:
-            # Create 5-15 historical checks per account
-            history_count = random.randint(5, 15)
+            # Create 8-20 historical checks per account for better scrollable history
+            history_count = random.randint(8, 20)
 
             for i in range(history_count):
                 check_date = datetime.now(timezone.utc) - timedelta(
                     days=random.randint(30, 365)
                 )
                 amount = account.avg_check_amount * Decimal(str(random.uniform(0.5, 1.5)))
+                history_id = str(uuid.uuid4())
+                external_id = f"DEMO-HIST-{account.account_id}-{i}"
+
+                # Generate image references for historical checks
+                front_image_ref = f"DEMO-IMG-HIST-{history_id}-front"
+                back_image_ref = f"DEMO-IMG-HIST-{history_id}-back"
+
+                # Most checks cleared, some returned with different reasons
+                status_roll = random.random()
+                if status_roll < 0.85:
+                    status = "cleared"
+                    return_reason = None
+                elif status_roll < 0.92:
+                    status = "returned"
+                    return_reason = random.choice(["NSF", "Stop Payment", "Account Closed"])
+                else:
+                    status = "returned"
+                    return_reason = random.choice(["Signature Mismatch", "Stale Dated", "Duplicate"])
 
                 history = CheckHistory(
-                    id=str(uuid.uuid4()),
+                    id=history_id,
                     account_id=account.account_id,
                     check_number=f"{random.randint(1000, 9999)}",
                     amount=amount.quantize(Decimal("0.01")),
                     check_date=check_date,
                     payee_name=random.choice(DEMO_PAYEES),
-                    status=random.choice(["cleared", "cleared", "cleared", "returned"]),
-                    return_reason="NSF" if random.random() < 0.1 else None,
-                    external_item_id=f"DEMO-HIST-{account.account_id}-{i}",
+                    status=status,
+                    return_reason=return_reason,
+                    external_item_id=external_id,
+                    front_image_ref=front_image_ref,
+                    back_image_ref=back_image_ref,
                     signature_hash=f"DEMO-SIG-{uuid.uuid4().hex[:16]}",
                     check_stock_hash=f"DEMO-STOCK-{uuid.uuid4().hex[:16]}",
                     is_demo=True,  # Mark as demo data
@@ -674,6 +728,179 @@ class DemoSeeder:
                 is_demo=True,  # Mark as demo data
             )
             self.db.add(view_log)
+            count += 1
+
+        await self.db.flush()
+        return count
+
+    async def _seed_fraud_events(self) -> int:
+        """Create fraud events for network intelligence demonstration."""
+        count = 0
+
+        # Fraud event configurations - realistic scenarios
+        fraud_scenarios = [
+            {
+                "fraud_type": FraudType.COUNTERFEIT_CHECK,
+                "channel": FraudChannel.MOBILE,
+                "confidence": 5,
+                "narrative": "Counterfeit check stock detected - magnetic ink anomalies",
+            },
+            {
+                "fraud_type": FraudType.FORGED_SIGNATURE,
+                "channel": FraudChannel.BRANCH,
+                "confidence": 4,
+                "narrative": "Signature does not match known patterns for account holder",
+            },
+            {
+                "fraud_type": FraudType.ALTERED_CHECK,
+                "channel": FraudChannel.RDC,
+                "confidence": 5,
+                "narrative": "Amount field shows evidence of chemical alteration",
+            },
+            {
+                "fraud_type": FraudType.DUPLICATE_DEPOSIT,
+                "channel": FraudChannel.MOBILE,
+                "confidence": 5,
+                "narrative": "Same check deposited at multiple institutions",
+            },
+            {
+                "fraud_type": FraudType.ACCOUNT_TAKEOVER,
+                "channel": FraudChannel.ONLINE,
+                "confidence": 4,
+                "narrative": "Unusual check activity pattern inconsistent with account history",
+            },
+            {
+                "fraud_type": FraudType.PAYEE_ALTERATION,
+                "channel": FraudChannel.BRANCH,
+                "confidence": 4,
+                "narrative": "Payee name shows signs of mechanical erasure and rewriting",
+            },
+            {
+                "fraud_type": FraudType.AMOUNT_ALTERATION,
+                "channel": FraudChannel.ATM,
+                "confidence": 5,
+                "narrative": "Numeric and written amounts inconsistent, alterations visible",
+            },
+            {
+                "fraud_type": FraudType.CHECK_KITING,
+                "channel": FraudChannel.BRANCH,
+                "confidence": 3,
+                "narrative": "Pattern of circular deposits between accounts detected",
+            },
+        ]
+
+        # Create fraud events for some high-risk demo checks
+        high_risk_checks = [c for c in self.demo_checks if c.risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]]
+        rejected_checks = [c for c in self.demo_checks if c.status == CheckStatus.REJECTED]
+        fraud_check_pool = list(set(high_risk_checks + rejected_checks))[:15]  # Limit to 15
+
+        reviewer = self.demo_users.get("reviewer", self.demo_users.get("admin"))
+
+        for i, check in enumerate(fraud_check_pool):
+            scenario = fraud_scenarios[i % len(fraud_scenarios)]
+            event_date = check.presented_date - timedelta(hours=random.randint(1, 48))
+
+            fraud_event = FraudEvent(
+                id=str(uuid.uuid4()),
+                tenant_id="DEMO-TENANT-000000000000000000000000",
+                check_item_id=check.id,
+                event_date=event_date,
+                amount=check.amount,
+                amount_bucket=get_amount_bucket(check.amount),
+                fraud_type=scenario["fraud_type"],
+                channel=scenario["channel"],
+                confidence=scenario["confidence"],
+                narrative_private=scenario["narrative"],
+                narrative_shareable=f"Fraud indicator detected via {scenario['channel'].value} channel" if random.random() > 0.5 else None,
+                sharing_level=random.choice([0, 1, 2]),  # Mix of sharing levels
+                status=random.choice([FraudEventStatus.DRAFT, FraudEventStatus.SUBMITTED, FraudEventStatus.SUBMITTED]),
+                created_by_user_id=reviewer.id,
+                submitted_at=datetime.now(timezone.utc) if random.random() > 0.3 else None,
+                submitted_by_user_id=reviewer.id if random.random() > 0.3 else None,
+            )
+            self.db.add(fraud_event)
+            count += 1
+
+            # Create shared artifact for submitted events with network sharing
+            if fraud_event.status == FraudEventStatus.SUBMITTED and fraud_event.sharing_level >= 1:
+                artifact = FraudSharedArtifact(
+                    id=str(uuid.uuid4()),
+                    tenant_id="DEMO-TENANT-000000000000000000000000",
+                    fraud_event_id=fraud_event.id,
+                    sharing_level=fraud_event.sharing_level,
+                    occurred_at=event_date,
+                    occurred_month=event_date.strftime("%Y-%m"),
+                    fraud_type=scenario["fraud_type"],
+                    channel=scenario["channel"],
+                    amount_bucket=fraud_event.amount_bucket,
+                    indicators_json={
+                        "routing_hash": f"demo_routing_{uuid.uuid4().hex[:8]}",
+                        "payee_hash": f"demo_payee_{uuid.uuid4().hex[:8]}",
+                        "check_fingerprint": f"demo_fp_{uuid.uuid4().hex[:12]}",
+                    } if fraud_event.sharing_level == 2 else None,
+                    pepper_version=1,
+                    is_active=True,
+                )
+                self.db.add(artifact)
+
+        await self.db.flush()
+        return count
+
+    async def _seed_network_alerts(self) -> int:
+        """Create network match alerts for fraud intelligence demonstration."""
+        count = 0
+
+        # Create alerts for some checks to show network intelligence in action
+        # These alerts simulate matches found against the fraud network
+        alertable_checks = [c for c in self.demo_checks if c.risk_level in [RiskLevel.MEDIUM, RiskLevel.HIGH, RiskLevel.CRITICAL]][:10]
+
+        for check in alertable_checks:
+            # Vary the severity and match count
+            severity = random.choice(["low", "medium", "high"])
+            total_matches = random.randint(1, 8)
+            distinct_institutions = min(total_matches, random.randint(1, 5))
+
+            # Generate realistic match reasons
+            match_reasons = {}
+            possible_reasons = [
+                ("routing_hash", "Routing number matched prior fraud reports"),
+                ("payee_hash", "Payee name pattern matched known fraud"),
+                ("check_fingerprint", "Check image characteristics match known counterfeits"),
+                ("amount_pattern", "Amount pattern consistent with fraud ring activity"),
+            ]
+
+            num_reasons = random.randint(1, 3)
+            selected_reasons = random.sample(possible_reasons, num_reasons)
+
+            for reason_key, reason_desc in selected_reasons:
+                months_back = random.randint(1, 12)
+                first_seen = (datetime.now(timezone.utc) - timedelta(days=30 * months_back)).strftime("%Y-%m")
+                last_seen = (datetime.now(timezone.utc) - timedelta(days=random.randint(1, 30))).strftime("%Y-%m")
+
+                match_reasons[reason_key] = {
+                    "count": random.randint(1, total_matches),
+                    "first_seen": first_seen,
+                    "last_seen": last_seen,
+                    "description": reason_desc,
+                }
+
+            alert = NetworkMatchAlert(
+                id=str(uuid.uuid4()),
+                tenant_id="DEMO-TENANT-000000000000000000000000",
+                check_item_id=check.id,
+                matched_artifact_ids=[str(uuid.uuid4()) for _ in range(total_matches)],
+                match_reasons=match_reasons,
+                severity=severity,
+                total_matches=total_matches,
+                distinct_institutions=distinct_institutions,
+                earliest_match_date=datetime.now(timezone.utc) - timedelta(days=random.randint(30, 180)),
+                latest_match_date=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 30)),
+                dismissed_at=datetime.now(timezone.utc) if random.random() < 0.2 else None,  # 20% dismissed
+                dismissed_by_user_id=self.demo_users.get("reviewer", self.demo_users.get("admin")).id if random.random() < 0.2 else None,
+                dismissed_reason="False positive - verified with customer" if random.random() < 0.2 else None,
+                last_checked_at=datetime.now(timezone.utc),
+            )
+            self.db.add(alert)
             count += 1
 
         await self.db.flush()

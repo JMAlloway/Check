@@ -13,15 +13,22 @@ import {
   XCircleIcon,
   FunnelIcon,
   ArrowPathIcon,
+  ServerIcon,
+  KeyIcon,
+  SignalIcon,
+  TrashIcon,
+  ClipboardDocumentIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
-import { userApi, queueAdminApi, policyApi, auditLogApi } from '../services/api';
+import { userApi, queueAdminApi, policyApi, auditLogApi, imageConnectorApi } from '../services/api';
 import { format } from 'date-fns';
 
 const adminNav = [
   { name: 'Users', href: '/admin/users', icon: UsersIcon },
   { name: 'Queues', href: '/admin/queues', icon: QueueListIcon },
   { name: 'Policies', href: '/admin/policies', icon: DocumentTextIcon },
+  { name: 'Image Connectors', href: '/admin/connectors', icon: ServerIcon },
   { name: 'Audit Log', href: '/admin/audit', icon: ClipboardDocumentListIcon },
 ];
 
@@ -1450,6 +1457,727 @@ function AuditLogAdmin() {
 }
 
 // ============================================================================
+// Image Connectors Management Component
+// ============================================================================
+
+interface ImageConnector {
+  id: string;
+  connector_id: string;
+  name: string;
+  description?: string;
+  base_url: string;
+  status: string;
+  is_enabled: boolean;
+  public_key_id: string;
+  public_key_expires_at?: string;
+  secondary_public_key_id?: string;
+  token_expiry_seconds: number;
+  last_health_check_at?: string;
+  last_health_check_status?: string;
+  last_health_check_latency_ms?: number;
+  health_check_failure_count: number;
+  last_successful_request_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+function ImageConnectorsAdmin() {
+  const queryClient = useQueryClient();
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingConnector, setEditingConnector] = useState<ImageConnector | null>(null);
+  const [showKeyModal, setShowKeyModal] = useState<ImageConnector | null>(null);
+  const [testingConnector, setTestingConnector] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{ connectorId: string; success: boolean; latency?: number; error?: string } | null>(null);
+
+  const { data: connectors, isLoading, refetch } = useQuery({
+    queryKey: ['image-connectors'],
+    queryFn: () => imageConnectorApi.getConnectors(),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: imageConnectorApi.createConnector,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['image-connectors'] });
+      setShowCreateModal(false);
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ connectorId, data }: { connectorId: string; data: Parameters<typeof imageConnectorApi.updateConnector>[1] }) =>
+      imageConnectorApi.updateConnector(connectorId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['image-connectors'] });
+      setEditingConnector(null);
+    },
+  });
+
+  const enableMutation = useMutation({
+    mutationFn: imageConnectorApi.enableConnector,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['image-connectors'] }),
+  });
+
+  const disableMutation = useMutation({
+    mutationFn: imageConnectorApi.disableConnector,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['image-connectors'] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: imageConnectorApi.deleteConnector,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['image-connectors'] }),
+  });
+
+  const testMutation = useMutation({
+    mutationFn: imageConnectorApi.testConnector,
+    onSuccess: (data, connectorId) => {
+      setTestResult({ connectorId, success: data.success, latency: data.latency_ms, error: data.error });
+      queryClient.invalidateQueries({ queryKey: ['image-connectors'] });
+    },
+    onError: (error: any, connectorId) => {
+      setTestResult({ connectorId, success: false, error: error.message || 'Connection failed' });
+    },
+    onSettled: () => setTestingConnector(null),
+  });
+
+  const handleTest = (connectorId: string) => {
+    setTestingConnector(connectorId);
+    setTestResult(null);
+    testMutation.mutate(connectorId);
+  };
+
+  const handleDelete = (connector: ImageConnector) => {
+    if (confirm(`Are you sure you want to delete connector "${connector.name}"? This action cannot be undone.`)) {
+      deleteMutation.mutate(connector.connector_id);
+    }
+  };
+
+  const getStatusBadge = (connector: ImageConnector) => {
+    if (!connector.is_enabled) {
+      return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Disabled</span>;
+    }
+    switch (connector.status) {
+      case 'healthy':
+        return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Healthy</span>;
+      case 'degraded':
+        return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Degraded</span>;
+      case 'unhealthy':
+        return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Unhealthy</span>;
+      default:
+        return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">{connector.status}</span>;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Image Connectors</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Manage bank-side connectors for secure check image retrieval
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => refetch()}
+                className="p-2 text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg"
+              >
+                <ArrowPathIcon className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              >
+                <PlusIcon className="h-5 w-5 mr-2" />
+                Add Connector
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="p-8 text-center text-gray-500">Loading connectors...</div>
+        ) : !connectors || connectors.length === 0 ? (
+          <div className="p-8 text-center">
+            <ServerIcon className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Connectors Configured</h3>
+            <p className="text-gray-500 mb-4">
+              Add a bank-side connector to enable secure check image retrieval.
+            </p>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            >
+              <PlusIcon className="h-5 w-5 mr-2" />
+              Add Connector
+            </button>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-200">
+            {connectors.map((connector: ImageConnector) => (
+              <div key={connector.id} className="p-6 hover:bg-gray-50">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-lg font-medium text-gray-900">{connector.name}</h3>
+                      {getStatusBadge(connector)}
+                      {connector.health_check_failure_count > 0 && (
+                        <span className="inline-flex items-center text-xs text-amber-600">
+                          <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+                          {connector.health_check_failure_count} failures
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500">{connector.description || 'No description'}</p>
+
+                    <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-500">Connector ID:</span>{' '}
+                        <span className="font-mono text-gray-900">{connector.connector_id}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Base URL:</span>{' '}
+                        <span className="font-mono text-gray-900 text-xs">{connector.base_url}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Token TTL:</span>{' '}
+                        <span className="text-gray-900">{connector.token_expiry_seconds}s</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Key ID:</span>{' '}
+                        <span className="font-mono text-gray-900 text-xs">{connector.public_key_id.slice(0, 12)}...</span>
+                      </div>
+                    </div>
+
+                    {connector.last_health_check_at && (
+                      <div className="mt-2 text-xs text-gray-500">
+                        Last health check: {format(new Date(connector.last_health_check_at), 'MMM d, yyyy HH:mm:ss')}
+                        {connector.last_health_check_latency_ms && (
+                          <span className="ml-2">({connector.last_health_check_latency_ms}ms)</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Test Result */}
+                    {testResult && testResult.connectorId === connector.connector_id && (
+                      <div className={clsx(
+                        'mt-3 p-3 rounded-lg text-sm',
+                        testResult.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+                      )}>
+                        {testResult.success ? (
+                          <span className="flex items-center">
+                            <CheckCircleIcon className="h-4 w-4 mr-2" />
+                            Connection successful{testResult.latency && ` (${testResult.latency}ms)`}
+                          </span>
+                        ) : (
+                          <span className="flex items-center">
+                            <XCircleIcon className="h-4 w-4 mr-2" />
+                            Connection failed: {testResult.error}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 ml-4">
+                    <button
+                      onClick={() => handleTest(connector.connector_id)}
+                      disabled={testingConnector === connector.connector_id}
+                      className="inline-flex items-center px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <SignalIcon className={clsx('h-4 w-4 mr-1', testingConnector === connector.connector_id && 'animate-pulse')} />
+                      {testingConnector === connector.connector_id ? 'Testing...' : 'Test'}
+                    </button>
+
+                    {connector.is_enabled ? (
+                      <button
+                        onClick={() => disableMutation.mutate(connector.connector_id)}
+                        disabled={disableMutation.isPending}
+                        className="px-3 py-1.5 text-sm border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50"
+                      >
+                        Disable
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => enableMutation.mutate(connector.connector_id)}
+                        disabled={enableMutation.isPending}
+                        className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
+                      >
+                        Enable
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => setShowKeyModal(connector)}
+                      className="p-2 text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg"
+                      title="Key Management"
+                    >
+                      <KeyIcon className="h-5 w-5" />
+                    </button>
+
+                    <button
+                      onClick={() => setEditingConnector(connector)}
+                      className="p-2 text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg"
+                      title="Edit"
+                    >
+                      <PencilIcon className="h-5 w-5" />
+                    </button>
+
+                    <button
+                      onClick={() => handleDelete(connector)}
+                      disabled={deleteMutation.isPending}
+                      className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                      title="Delete"
+                    >
+                      <TrashIcon className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Create Connector Modal */}
+      {showCreateModal && (
+        <ConnectorFormModal
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={(data) => createMutation.mutate(data)}
+          isLoading={createMutation.isPending}
+          error={createMutation.error}
+        />
+      )}
+
+      {/* Edit Connector Modal */}
+      {editingConnector && (
+        <ConnectorFormModal
+          connector={editingConnector}
+          onClose={() => setEditingConnector(null)}
+          onSubmit={(data) => updateMutation.mutate({ connectorId: editingConnector.connector_id, data })}
+          isLoading={updateMutation.isPending}
+          error={updateMutation.error}
+        />
+      )}
+
+      {/* Key Management Modal */}
+      {showKeyModal && (
+        <KeyManagementModal
+          connector={showKeyModal}
+          onClose={() => setShowKeyModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ConnectorFormModal({
+  connector,
+  onClose,
+  onSubmit,
+  isLoading,
+  error,
+}: {
+  connector?: ImageConnector;
+  onClose: () => void;
+  onSubmit: (data: any) => void;
+  isLoading: boolean;
+  error?: Error | null;
+}) {
+  const [formData, setFormData] = useState({
+    connector_id: connector?.connector_id || '',
+    name: connector?.name || '',
+    description: connector?.description || '',
+    base_url: connector?.base_url || '',
+    public_key_pem: '',
+    token_expiry_seconds: connector?.token_expiry_seconds || 120,
+  });
+  const [generatedKeys, setGeneratedKeys] = useState<{ private_key_pem: string; public_key_pem: string } | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleGenerateKeys = async () => {
+    setIsGenerating(true);
+    try {
+      const keys = await imageConnectorApi.generateKeypair();
+      setGeneratedKeys(keys);
+      setFormData({ ...formData, public_key_pem: keys.public_key_pem });
+    } catch (err) {
+      console.error('Failed to generate keys:', err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (connector) {
+      // Update - only send changed fields
+      const updateData: any = {};
+      if (formData.name !== connector.name) updateData.name = formData.name;
+      if (formData.description !== connector.description) updateData.description = formData.description;
+      if (formData.base_url !== connector.base_url) updateData.base_url = formData.base_url;
+      if (formData.token_expiry_seconds !== connector.token_expiry_seconds) updateData.token_expiry_seconds = formData.token_expiry_seconds;
+      onSubmit(updateData);
+    } else {
+      // Create
+      onSubmit(formData);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">
+            {connector ? 'Edit Connector' : 'Add Image Connector'}
+          </h3>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+              {(error as any)?.response?.data?.detail || error.message}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Connector ID</label>
+              <input
+                type="text"
+                required
+                disabled={!!connector}
+                value={formData.connector_id}
+                onChange={(e) => setFormData({ ...formData, connector_id: e.target.value })}
+                placeholder="connector-prod-001"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
+              />
+              <p className="mt-1 text-xs text-gray-500">Must match connector config</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <input
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Primary DC Connector"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <input
+              type="text"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Production connector in primary data center"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Base URL</label>
+            <input
+              type="url"
+              required
+              value={formData.base_url}
+              onChange={(e) => setFormData({ ...formData, base_url: e.target.value })}
+              placeholder="https://connector.bank.local:8443"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Token Expiry (seconds)</label>
+            <input
+              type="number"
+              required
+              min={60}
+              max={300}
+              value={formData.token_expiry_seconds}
+              onChange={(e) => setFormData({ ...formData, token_expiry_seconds: parseInt(e.target.value) || 120 })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+            />
+            <p className="mt-1 text-xs text-gray-500">How long image request tokens are valid (60-300 seconds)</p>
+          </div>
+
+          {!connector && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-gray-700">Public Key (PEM)</label>
+                <button
+                  type="button"
+                  onClick={handleGenerateKeys}
+                  disabled={isGenerating}
+                  className="text-sm text-primary-600 hover:text-primary-700"
+                >
+                  {isGenerating ? 'Generating...' : 'Generate Key Pair'}
+                </button>
+              </div>
+              <textarea
+                required
+                rows={6}
+                value={formData.public_key_pem}
+                onChange={(e) => setFormData({ ...formData, public_key_pem: e.target.value })}
+                placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 font-mono text-xs"
+              />
+
+              {generatedKeys && (
+                <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center text-amber-800">
+                      <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
+                      <span className="font-medium">Save the Private Key!</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(generatedKeys.private_key_pem)}
+                      className="text-sm text-amber-700 hover:text-amber-900 flex items-center"
+                    >
+                      <ClipboardDocumentIcon className="h-4 w-4 mr-1" />
+                      Copy
+                    </button>
+                  </div>
+                  <p className="text-xs text-amber-700 mb-2">
+                    Configure this private key on your connector. It will not be shown again.
+                  </p>
+                  <pre className="text-xs bg-white p-2 rounded border border-amber-200 overflow-x-auto max-h-32">
+                    {generatedKeys.private_key_pem}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            >
+              {isLoading ? 'Saving...' : connector ? 'Update' : 'Create Connector'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function KeyManagementModal({
+  connector,
+  onClose,
+}: {
+  connector: ImageConnector;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [showRotate, setShowRotate] = useState(false);
+  const [newPublicKey, setNewPublicKey] = useState('');
+  const [overlapHours, setOverlapHours] = useState(24);
+  const [generatedKeys, setGeneratedKeys] = useState<{ private_key_pem: string; public_key_pem: string } | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const rotateMutation = useMutation({
+    mutationFn: (data: { new_public_key_pem: string; overlap_hours: number }) =>
+      imageConnectorApi.rotateKey(connector.connector_id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['image-connectors'] });
+      onClose();
+    },
+  });
+
+  const handleGenerateKeys = async () => {
+    setIsGenerating(true);
+    try {
+      const keys = await imageConnectorApi.generateKeypair();
+      setGeneratedKeys(keys);
+      setNewPublicKey(keys.public_key_pem);
+    } catch (err) {
+      console.error('Failed to generate keys:', err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  const handleRotate = () => {
+    rotateMutation.mutate({ new_public_key_pem: newPublicKey, overlap_hours: overlapHours });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">Key Management</h3>
+          <p className="text-sm text-gray-500">{connector.name}</p>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Current Key Info */}
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 mb-2">Current Key</h4>
+            <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Key ID:</span>
+                <span className="font-mono">{connector.public_key_id}</span>
+              </div>
+              {connector.public_key_expires_at && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Expires:</span>
+                  <span>{format(new Date(connector.public_key_expires_at), 'MMM d, yyyy HH:mm')}</span>
+                </div>
+              )}
+              {connector.secondary_public_key_id && (
+                <>
+                  <div className="border-t border-gray-200 my-2 pt-2">
+                    <span className="text-xs text-amber-600 font-medium">Key rotation in progress</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Secondary Key ID:</span>
+                    <span className="font-mono">{connector.secondary_public_key_id}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Rotate Key Section */}
+          {!showRotate ? (
+            <button
+              onClick={() => setShowRotate(true)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            >
+              <KeyIcon className="h-5 w-5 inline mr-2" />
+              Rotate Public Key
+            </button>
+          ) : (
+            <div className="border border-gray-200 rounded-lg p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium text-gray-900">Rotate Key</h4>
+                <button
+                  type="button"
+                  onClick={handleGenerateKeys}
+                  disabled={isGenerating}
+                  className="text-sm text-primary-600 hover:text-primary-700"
+                >
+                  {isGenerating ? 'Generating...' : 'Generate New Key Pair'}
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Public Key (PEM)</label>
+                <textarea
+                  rows={6}
+                  value={newPublicKey}
+                  onChange={(e) => setNewPublicKey(e.target.value)}
+                  placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 font-mono text-xs"
+                />
+              </div>
+
+              {generatedKeys && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center text-amber-800">
+                      <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
+                      <span className="font-medium">Save the Private Key!</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(generatedKeys.private_key_pem)}
+                      className="text-sm text-amber-700 hover:text-amber-900 flex items-center"
+                    >
+                      <ClipboardDocumentIcon className="h-4 w-4 mr-1" />
+                      Copy
+                    </button>
+                  </div>
+                  <p className="text-xs text-amber-700 mb-2">
+                    Configure this private key on your connector before completing the rotation.
+                  </p>
+                  <pre className="text-xs bg-white p-2 rounded border border-amber-200 overflow-x-auto max-h-32">
+                    {generatedKeys.private_key_pem}
+                  </pre>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Overlap Period (hours)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={168}
+                  value={overlapHours}
+                  onChange={(e) => setOverlapHours(parseInt(e.target.value) || 24)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Both old and new keys will be accepted during this period (1-168 hours)
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setShowRotate(false);
+                    setNewPublicKey('');
+                    setGeneratedKeys(null);
+                  }}
+                  className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRotate}
+                  disabled={!newPublicKey || rotateMutation.isPending}
+                  className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                >
+                  {rotateMutation.isPending ? 'Rotating...' : 'Rotate Key'}
+                </button>
+              </div>
+
+              {rotateMutation.error && (
+                <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+                  {(rotateMutation.error as any)?.response?.data?.detail || 'Failed to rotate key'}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="p-6 border-t border-gray-200">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // Main Admin Page Component
 // ============================================================================
 
@@ -1492,6 +2220,7 @@ export default function AdminPage() {
             <Route path="/users" element={<UsersAdmin />} />
             <Route path="/queues" element={<QueuesAdmin />} />
             <Route path="/policies" element={<PoliciesAdmin />} />
+            <Route path="/connectors" element={<ImageConnectorsAdmin />} />
             <Route path="/audit" element={<AuditLogAdmin />} />
           </Routes>
         </div>

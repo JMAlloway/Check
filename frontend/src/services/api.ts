@@ -649,6 +649,78 @@ export const auditLogApi = {
   },
 };
 
+// Image Connector API - Admin management of bank-side connectors
+export const imageConnectorApi = {
+  getConnectors: async (enabledOnly = false) => {
+    const response = await api.get('/image-connectors', {
+      params: { enabled_only: enabledOnly },
+    });
+    return response.data;
+  },
+
+  getConnector: async (connectorId: string) => {
+    const response = await api.get(`/image-connectors/${connectorId}`);
+    return response.data;
+  },
+
+  createConnector: async (data: {
+    connector_id: string;
+    name: string;
+    description?: string;
+    base_url: string;
+    public_key_pem: string;
+    token_expiry_seconds?: number;
+  }) => {
+    const response = await api.post('/image-connectors', data);
+    return response.data;
+  },
+
+  updateConnector: async (connectorId: string, data: {
+    name?: string;
+    description?: string;
+    base_url?: string;
+    token_expiry_seconds?: number;
+    timeout_seconds?: number;
+    max_retries?: number;
+    priority?: number;
+  }) => {
+    const response = await api.patch(`/image-connectors/${connectorId}`, data);
+    return response.data;
+  },
+
+  deleteConnector: async (connectorId: string) => {
+    await api.delete(`/image-connectors/${connectorId}`);
+  },
+
+  enableConnector: async (connectorId: string) => {
+    const response = await api.post(`/image-connectors/${connectorId}/enable`);
+    return response.data;
+  },
+
+  disableConnector: async (connectorId: string) => {
+    const response = await api.post(`/image-connectors/${connectorId}/disable`);
+    return response.data;
+  },
+
+  testConnector: async (connectorId: string) => {
+    const response = await api.post(`/image-connectors/${connectorId}/test`);
+    return response.data;
+  },
+
+  rotateKey: async (connectorId: string, data: {
+    new_public_key_pem: string;
+    overlap_hours?: number;
+  }) => {
+    const response = await api.post(`/image-connectors/${connectorId}/rotate-key`, data);
+    return response.data;
+  },
+
+  generateKeypair: async () => {
+    const response = await api.post('/image-connectors/generate-keypair');
+    return response.data;
+  },
+};
+
 // System API - Demo mode and system status
 export const systemApi = {
   getStatus: async () => {

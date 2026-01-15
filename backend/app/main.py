@@ -32,6 +32,12 @@ async def lifespan(app: FastAPI):
     # Startup
     print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
 
+    # Configure structured logging for SIEM integration
+    # This sets up JSON-formatted logs suitable for Splunk/ELK/CloudWatch
+    from app.core.logging_config import configure_logging
+    configure_logging()
+    print("Configured structured JSON logging for SIEM")
+
     # Install token redaction on all loggers to prevent bearer token leakage
     # This is critical for bank-grade security compliance
     install_token_redaction_logging()

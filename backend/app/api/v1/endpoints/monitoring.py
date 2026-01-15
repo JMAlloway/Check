@@ -201,6 +201,117 @@ def _process_security_event(event: FrontendSecurityEvent, client_ip: str) -> Non
     track_security_event(f"frontend.{event.eventType}", event.severity)
 
 
+# =============================================================================
+# Alertmanager Webhook Endpoint
+# =============================================================================
+
+alert_logger = logging.getLogger("alertmanager.webhook")
+
+
+class AlertmanagerAlert(BaseModel):
+    """Single alert from Alertmanager."""
+
+    status: Literal["firing", "resolved"]
+    labels: dict
+    annotations: dict
+    startsAt: str
+    endsAt: str | None = None
+    generatorURL: str | None = None
+    fingerprint: str | None = None
+
+
+class AlertmanagerWebhookRequest(BaseModel):
+    """Alertmanager webhook payload."""
+
+    version: str
+    groupKey: str
+    truncatedAlerts: int = 0
+    status: Literal["firing", "resolved"]
+    receiver: str
+    groupLabels: dict
+    commonLabels: dict
+    commonAnnotations: dict
+    externalURL: str
+    alerts: list[AlertmanagerAlert]
+
+
+class AlertmanagerWebhookResponse(BaseModel):
+    """Response to Alertmanager webhook."""
+
+    status: str
+    received: int
+
+
+@router.post("/alerts", response_model=AlertmanagerWebhookResponse)
+async def receive_alertmanager_alerts(
+    request: Request,
+    data: AlertmanagerWebhookRequest,
+) -> AlertmanagerWebhookResponse:
+    """Receive alerts from Alertmanager.
+
+    This endpoint logs alerts for:
+    - SIEM ingestion
+    - Audit trail of all alerts
+    - Integration with incident management
+
+    In production, this would also:
+    - Create incidents in ticketing systems
+    - Send to PagerDuty/OpsGenie
+    - Notify on-call teams
+    """
+    for alert in data.alerts:
+        severity = alert.labels.get("severity", "unknown")
+        alertname = alert.labels.get("alertname", "unknown")
+        soc2_control = alert.labels.get("soc2_control", "N/A")
+
+        log_data = {
+            "event_type": "alertmanager.alert",
+            "alert_status": alert.status,
+            "alert_name": alertname,
+            "severity": severity,
+            "soc2_control": soc2_control,
+            "labels": alert.labels,
+            "annotations": alert.annotations,
+            "starts_at": alert.startsAt,
+            "ends_at": alert.endsAt,
+            "receiver": data.receiver,
+            "fingerprint": alert.fingerprint,
+        }
+
+        if alert.status == "firing":
+            if severity == "critical":
+                alert_logger.critical(
+                    f"ALERT FIRING: {alertname} (SOC2: {soc2_control})",
+                    extra=log_data,
+                )
+            elif severity == "warning":
+                alert_logger.warning(
+                    f"ALERT FIRING: {alertname}",
+                    extra=log_data,
+                )
+            else:
+                alert_logger.info(
+                    f"ALERT FIRING: {alertname}",
+                    extra=log_data,
+                )
+
+            # Track in metrics
+            track_security_event(
+                f"alertmanager.{alertname}.firing",
+                severity if severity in ("info", "warning", "error") else "warning"
+            )
+        else:
+            alert_logger.info(
+                f"ALERT RESOLVED: {alertname}",
+                extra=log_data,
+            )
+
+    return AlertmanagerWebhookResponse(
+        status="ok",
+        received=len(data.alerts),
+    )
+
+
 @router.get("/health")
 async def monitoring_health() -> dict:
     """Health check for monitoring endpoint."""

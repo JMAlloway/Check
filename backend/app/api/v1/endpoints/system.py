@@ -1,14 +1,15 @@
 """
-System status and demo mode endpoints.
+System status, demo mode, and retention management endpoints.
 
-These endpoints provide system information and demo mode controls.
+These endpoints provide system information, demo mode controls,
+and log retention management for compliance.
 """
 
 import os
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -253,3 +254,154 @@ async def get_demo_credentials() -> dict[str, Any]:
         ],
         "warning": "Do NOT use these credentials in any real environment",
     }
+
+
+# =============================================================================
+# Log Retention Management
+# =============================================================================
+
+
+class RetentionPolicyInfo(BaseModel):
+    """Retention policy configuration."""
+
+    retention_days: int
+    cutoff_date: str
+    records_to_delete: int
+
+
+class RetentionStatsResponse(BaseModel):
+    """Response containing retention statistics."""
+
+    policies: dict[str, RetentionPolicyInfo]
+    timestamp: datetime
+
+
+class RetentionRunRequest(BaseModel):
+    """Request to run retention cleanup."""
+
+    dry_run: bool = True
+    verify_integrity: bool = True
+
+
+class RetentionResultItem(BaseModel):
+    """Result for a single retention policy execution."""
+
+    table: str
+    deleted_count: int
+    cutoff_date: str
+    duration_seconds: float
+    error: str | None = None
+
+
+class RetentionRunResponse(BaseModel):
+    """Response after running retention cleanup."""
+
+    success: bool
+    dry_run: bool
+    results: list[RetentionResultItem]
+    timestamp: datetime
+
+
+class IntegrityVerificationResponse(BaseModel):
+    """Response from integrity verification."""
+
+    total_checked: int
+    valid: int
+    invalid: int
+    no_hash: int
+    invalid_ids: list[str]
+    timestamp: datetime
+
+
+@router.get("/retention/stats", response_model=RetentionStatsResponse)
+async def get_retention_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_superuser),
+) -> RetentionStatsResponse:
+    """
+    Get log retention statistics.
+
+    Shows how many records would be deleted under current retention policies.
+    Requires superuser authentication.
+    """
+    from app.audit.retention import RetentionService
+
+    service = RetentionService(db)
+    stats = await service.get_retention_stats()
+
+    return RetentionStatsResponse(
+        policies={
+            name: RetentionPolicyInfo(**data)
+            for name, data in stats.items()
+        },
+        timestamp=datetime.now(timezone.utc),
+    )
+
+
+@router.post("/retention/run", response_model=RetentionRunResponse)
+async def run_retention_cleanup(
+    request: RetentionRunRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_superuser),
+) -> RetentionRunResponse:
+    """
+    Run log retention cleanup.
+
+    Deletes records older than retention policy thresholds.
+    Requires superuser authentication.
+
+    - **dry_run**: If true, only reports what would be deleted (default: true)
+    - **verify_integrity**: If true, verifies audit log integrity before deletion
+    """
+    from app.audit.retention import RetentionService
+
+    service = RetentionService(db)
+    results = await service.run_retention(
+        dry_run=request.dry_run,
+        verify_integrity=request.verify_integrity,
+    )
+
+    return RetentionRunResponse(
+        success=all(r.error is None for r in results),
+        dry_run=request.dry_run,
+        results=[
+            RetentionResultItem(
+                table=r.table,
+                deleted_count=r.deleted_count,
+                cutoff_date=r.cutoff_date.isoformat(),
+                duration_seconds=r.duration_seconds,
+                error=r.error,
+            )
+            for r in results
+        ],
+        timestamp=datetime.now(timezone.utc),
+    )
+
+
+@router.post("/retention/verify-integrity", response_model=IntegrityVerificationResponse)
+async def verify_audit_integrity(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_superuser),
+    max_records: int = 10000,
+) -> IntegrityVerificationResponse:
+    """
+    Verify integrity of audit log records.
+
+    Checks that audit log checksums match computed values to detect tampering.
+    Requires superuser authentication.
+
+    - **max_records**: Maximum number of records to check (default: 10000)
+    """
+    from app.audit.retention import RetentionService
+
+    service = RetentionService(db)
+    stats = await service.verify_all_audit_integrity(max_records=max_records)
+
+    return IntegrityVerificationResponse(
+        total_checked=stats["total_checked"],
+        valid=stats["valid"],
+        invalid=stats["invalid"],
+        no_hash=stats["no_hash"],
+        invalid_ids=stats["invalid_ids"][:100],  # Limit to first 100
+        timestamp=datetime.now(timezone.utc),
+    )

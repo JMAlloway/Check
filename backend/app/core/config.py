@@ -71,8 +71,11 @@ class Settings(BaseSettings):
     HIGH_PRIORITY_THRESHOLD: float = 10000.0
     DUAL_CONTROL_THRESHOLD: float = 5000.0
 
-    # Audit settings
+    # Audit and Log Retention settings
     AUDIT_LOG_RETENTION_YEARS: int = 7
+    AUDIT_LOG_RETENTION_DAYS: int = 2555  # 7 years (7 * 365)
+    ACCESS_LOG_RETENTION_DAYS: int = 90   # Access logs (item_views)
+    SESSION_RETENTION_DAYS: int = 90      # User sessions
 
     # Integration settings
     INTEGRATION_TIMEOUT_SECONDS: int = 30

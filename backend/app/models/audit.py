@@ -3,6 +3,8 @@
 from datetime import datetime
 from enum import Enum
 from typing import Any
+import hashlib
+import json
 
 from sqlalchemy import Boolean, DateTime, Enum as SQLEnum, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -182,6 +184,55 @@ class AuditLog(Base, UUIDMixin):
 
     # Demo mode flag - marks synthetic demo audit entries
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Integrity verification - SHA256 hash of critical fields
+    # Used to detect tampering with audit records
+    # Format: SHA256(id|tenant_id|timestamp|user_id|action|resource_type|resource_id|before|after|extra)
+    integrity_hash: Mapped[str | None] = mapped_column(String(64), index=True)
+
+    def compute_integrity_hash(self) -> str:
+        """Compute SHA256 hash of critical audit fields for tamper detection.
+
+        The hash includes all fields that, if modified, would indicate tampering.
+        This is computed at insert time and can be verified at any point.
+        """
+        # Serialize values consistently for hashing
+        def serialize(v: Any) -> str:
+            if v is None:
+                return "null"
+            if isinstance(v, datetime):
+                return v.isoformat()
+            if isinstance(v, dict):
+                return json.dumps(v, sort_keys=True, default=str)
+            if isinstance(v, Enum):
+                return str(v.value)
+            return str(v)
+
+        # Concatenate critical fields with pipe separator
+        # Order matters - must be consistent
+        hash_input = "|".join([
+            serialize(self.id),
+            serialize(self.tenant_id),
+            serialize(self.timestamp),
+            serialize(self.user_id),
+            serialize(self.action),
+            serialize(self.resource_type),
+            serialize(self.resource_id),
+            serialize(self.before_value),
+            serialize(self.after_value),
+            serialize(self.extra_data),
+        ])
+
+        return hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
+
+    def verify_integrity(self) -> bool:
+        """Verify that the audit log entry has not been tampered with.
+
+        Returns True if the stored hash matches the computed hash.
+        """
+        if not self.integrity_hash:
+            return False  # No hash means integrity cannot be verified
+        return self.integrity_hash == self.compute_integrity_hash()
 
     __table_args__ = (
         Index("ix_audit_logs_resource", "resource_type", "resource_id"),

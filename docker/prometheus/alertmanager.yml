@@ -1,0 +1,121 @@
+# Alertmanager configuration for Check Review Console
+# Handles alert routing, grouping, and notification delivery
+
+global:
+  # How long to wait before sending a notification for a group of alerts
+  resolve_timeout: 5m
+
+  # SMTP configuration for email alerts (configure in production)
+  # smtp_smarthost: 'smtp.example.com:587'
+  # smtp_from: 'alerts@check-review.example.com'
+  # smtp_auth_username: 'alerts@check-review.example.com'
+  # smtp_auth_password: 'your-smtp-password'
+
+  # Slack configuration (configure in production)
+  # slack_api_url: 'https://hooks.slack.com/services/XXX/YYY/ZZZ'
+
+# Templates for notification formatting
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Route tree for alert handling
+route:
+  # Default receiver
+  receiver: 'default-receiver'
+
+  # Group alerts by alertname and severity
+  group_by: ['alertname', 'severity']
+
+  # Wait time before sending first notification
+  group_wait: 30s
+
+  # Wait time before sending notification about new alerts in a group
+  group_interval: 5m
+
+  # Wait time before re-sending a notification
+  repeat_interval: 4h
+
+  # Child routes for specific alert types
+  routes:
+    # Critical alerts go to PagerDuty (configure in production)
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 10s
+      repeat_interval: 1h
+      continue: true  # Also send to default
+
+    # Security alerts get special handling
+    - match_re:
+        alertname: '^(CrossTenantAccessAttempt|AuditLogWriteFailure)$'
+      receiver: 'security-critical'
+      group_wait: 0s  # Immediate notification
+      repeat_interval: 15m
+
+    # Warning alerts
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_wait: 1m
+      repeat_interval: 6h
+
+# Inhibition rules to suppress redundant alerts
+inhibit_rules:
+  # If the entire backend is down, don't alert on individual metrics
+  - source_match:
+      alertname: 'BackendDown'
+    target_match_re:
+      alertname: '^(HighErrorRate|HighLatency|SLABreachRateHigh)$'
+    equal: ['instance']
+
+  # If database is down, suppress dependent alerts
+  - source_match:
+      alertname: 'DatabaseDown'
+    target_match_re:
+      alertname: '^(SlowQueries|DatabaseConnectionsHigh)$'
+
+  # Critical overrides warning for same alert
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname']
+
+# Receivers define where alerts are sent
+receivers:
+  # Default receiver - logs to file/stdout for development
+  - name: 'default-receiver'
+    webhook_configs:
+      - url: 'http://backend:8000/api/v1/monitoring/alerts'
+        send_resolved: true
+
+  # Critical alerts - would be PagerDuty in production
+  - name: 'critical-alerts'
+    webhook_configs:
+      - url: 'http://backend:8000/api/v1/monitoring/alerts'
+        send_resolved: true
+    # pagerduty_configs:
+    #   - service_key: 'YOUR_PAGERDUTY_SERVICE_KEY'
+    #     severity: critical
+
+  # Security critical alerts - immediate response required
+  - name: 'security-critical'
+    webhook_configs:
+      - url: 'http://backend:8000/api/v1/monitoring/alerts'
+        send_resolved: true
+    # slack_configs:
+    #   - channel: '#security-alerts'
+    #     username: 'AlertManager'
+    #     icon_emoji: ':rotating_light:'
+    #     title: '{{ .CommonLabels.alertname }}'
+    #     text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+
+  # Warning alerts
+  - name: 'warning-alerts'
+    webhook_configs:
+      - url: 'http://backend:8000/api/v1/monitoring/alerts'
+        send_resolved: true
+    # email_configs:
+    #   - to: 'ops-team@example.com'
+    #     headers:
+    #       Subject: '[Warning] {{ .CommonLabels.alertname }}'

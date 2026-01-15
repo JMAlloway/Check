@@ -1,0 +1,16 @@
+# Grafana dashboard provisioning
+# Automatically loads dashboards from the dashboards directory
+
+apiVersion: 1
+
+providers:
+  - name: 'Check Review Console'
+    orgId: 1
+    folder: 'Check Review Console'
+    folderUid: 'check-review'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

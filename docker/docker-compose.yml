@@ -133,6 +133,29 @@ services:
       - check_review_network
     restart: unless-stopped
 
+  # Grafana - Metrics visualization and dashboards
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: check_review_grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: "http://localhost:3001"
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3001:3000"
+    networks:
+      - check_review_network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
   # Redis Exporter - Redis metrics for Prometheus
   redis-exporter:
     image: oliver006/redis_exporter:v1.55.0
@@ -209,6 +232,7 @@ volumes:
   redis_data:
   prometheus_data:
   alertmanager_data:
+  grafana_data:
 
 networks:
   check_review_network:

@@ -155,7 +155,6 @@ class AuditPacketGenerator:
         result = await self.db.execute(
             select(CheckItem)
             .options(
-                selectinload(CheckItem.queue),
                 selectinload(CheckItem.images),
             )
             .where(CheckItem.id == item_id)

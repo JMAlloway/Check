@@ -162,6 +162,48 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # =============================================================================
+  # Nginx Reverse Proxy (Production)
+  # =============================================================================
+
+  # Nginx - Reverse proxy for production deployments
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: check_review_nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ../frontend/dist:/usr/share/nginx/html:ro
+    ports:
+      - "80:80"
+    networks:
+      - check_review_network
+    depends_on:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - production
+
+  # Nginx Exporter - Nginx metrics for Prometheus
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:0.11.0
+    container_name: check_review_nginx_exporter
+    command:
+      - '-nginx.scrape-uri=http://nginx:80/nginx_status'
+    ports:
+      - "9113:9113"
+    networks:
+      - check_review_network
+    depends_on:
+      - nginx
+    restart: unless-stopped
+    profiles:
+      - production
+
 volumes:
   postgres_data:
   redis_data:

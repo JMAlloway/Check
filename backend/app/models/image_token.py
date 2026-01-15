@@ -46,18 +46,19 @@ class ImageAccessToken(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "image_access_tokens"
 
     # Tenant isolation - token can only access images from this tenant
-    tenant_id: Mapped[str] = mapped_column(
-        String(36), nullable=False, index=True
-    )
+    # Note: Index created by migration (ix_image_access_tokens_tenant_id)
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False)
 
     # Reference to the check image this token grants access to
+    # Note: Index created by migration (ix_image_access_tokens_image_id)
     image_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("check_images.id"), nullable=False, index=True
+        String(36), ForeignKey("check_images.id"), nullable=False
     )
 
     # Token lifecycle
+    # Note: Index created by migration (ix_image_access_tokens_expires_at)
     expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
+        DateTime(timezone=True), nullable=False
     )
     used_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -80,9 +81,8 @@ class ImageAccessToken(Base, UUIDMixin, TimestampMixin):
     created_by: Mapped["User"] = relationship()
 
     __table_args__ = (
-        # Index for cleanup of expired tokens
-        Index("ix_image_access_tokens_expires_at", "expires_at"),
-        # Index for finding unused tokens for an image
+        # Composite index for finding unused tokens for an image
+        # Note: single-column indexes are created via index=True on columns
         Index("ix_image_access_tokens_image_unused", "image_id", "used_at"),
     )
 

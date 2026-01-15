@@ -44,6 +44,8 @@ from app.models.fraud import (
     SharingLevel,
     get_amount_bucket,
 )
+from app.models.image_connector import ImageConnector, ConnectorStatus
+from app.models.policy import Policy, PolicyVersion, PolicyRule, PolicyStatus, RuleType
 from app.models.queue import Queue, QueueType
 from app.models.user import User
 
@@ -65,6 +67,8 @@ class DemoSeeder:
         stats = {
             "users": 0,
             "queues": 0,
+            "policies": 0,
+            "image_connectors": 0,
             "reason_codes": 0,
             "check_items": 0,
             "check_images": 0,
@@ -87,6 +91,12 @@ class DemoSeeder:
         await self._seed_tenant_fraud_config()  # Enable fraud features for demo
         await self.db.commit()  # Commit users and queues first
         print(f"Committed {stats['users']} users and {stats['queues']} queues")
+
+        # Seed admin configuration items
+        stats["policies"] = await self._seed_policies()
+        stats["image_connectors"] = await self._seed_image_connectors()
+        await self.db.commit()
+        print(f"Committed {stats['policies']} policies and {stats['image_connectors']} image connectors")
 
         stats["reason_codes"] = await self._seed_reason_codes()
         stats["check_items"], stats["check_images"] = await self._seed_checks()
@@ -151,6 +161,15 @@ class DemoSeeder:
 
         # Clear reason codes (by code prefix - reason codes don't have is_demo)
         await self.db.execute(delete(ReasonCode).where(ReasonCode.code.like("DEMO-%")))
+
+        # Clear image connectors (by connector_id prefix)
+        await self.db.execute(
+            delete(ImageConnector).where(ImageConnector.connector_id.like("DEMO-%"))
+        )
+
+        # Clear policy rules, versions, and policies (by name prefix)
+        # Rules are cascade deleted with versions, versions cascade with policies
+        await self.db.execute(delete(Policy).where(Policy.name.like("Demo%")))
 
         # Clear demo users
         await self.db.execute(delete(User).where(User.is_demo == True))
@@ -279,6 +298,294 @@ class DemoSeeder:
             config.minimum_alert_severity = "low"
 
         await self.db.flush()
+
+    async def _seed_policies(self) -> int:
+        """Create demo policies for the admin console."""
+        import json
+
+        count = 0
+        admin_user = self.demo_users.get("admin")
+        admin_id = admin_user.id if admin_user else "DEMO-USER-ADMIN-00000001"
+
+        policy_configs = [
+            {
+                "name": "Demo High Value Check Policy",
+                "description": "Policy for checks exceeding $10,000 - requires dual control and enhanced review",
+                "is_default": True,
+                "rules": [
+                    {
+                        "name": "High Value Dual Control",
+                        "rule_type": RuleType.DUAL_CONTROL,
+                        "priority": 100,
+                        "conditions": json.dumps([
+                            {"field": "amount", "operator": "greater_or_equal", "value": 10000, "value_type": "number"}
+                        ]),
+                        "actions": json.dumps([
+                            {"action": "require_dual_control", "params": {"approver_role": "senior_approver"}}
+                        ]),
+                        "amount_threshold": Decimal("10000.00"),
+                    },
+                    {
+                        "name": "Very High Value Escalation",
+                        "rule_type": RuleType.ESCALATION,
+                        "priority": 90,
+                        "conditions": json.dumps([
+                            {"field": "amount", "operator": "greater_or_equal", "value": 50000, "value_type": "number"}
+                        ]),
+                        "actions": json.dumps([
+                            {"action": "escalate", "params": {"queue": "management_review", "notify": True}}
+                        ]),
+                        "amount_threshold": Decimal("50000.00"),
+                    },
+                ],
+            },
+            {
+                "name": "Demo Fraud Prevention Policy",
+                "description": "Policy for handling high-risk and potentially fraudulent checks",
+                "is_default": False,
+                "rules": [
+                    {
+                        "name": "High Risk Auto-Escalate",
+                        "rule_type": RuleType.ESCALATION,
+                        "priority": 100,
+                        "conditions": json.dumps([
+                            {"field": "risk_level", "operator": "in", "value": ["high", "critical"], "value_type": "array"}
+                        ]),
+                        "actions": json.dumps([
+                            {"action": "escalate", "params": {"queue": "fraud_review"}},
+                            {"action": "require_dual_control", "params": {}}
+                        ]),
+                        "risk_level_threshold": "high",
+                    },
+                    {
+                        "name": "AI Flag Review Required",
+                        "rule_type": RuleType.REQUIRE_REASON,
+                        "priority": 80,
+                        "conditions": json.dumps([
+                            {"field": "has_ai_flags", "operator": "equals", "value": True, "value_type": "boolean"}
+                        ]),
+                        "actions": json.dumps([
+                            {"action": "require_reason", "params": {"reason_category": "ai_override"}}
+                        ]),
+                    },
+                    {
+                        "name": "Network Alert Dual Control",
+                        "rule_type": RuleType.DUAL_CONTROL,
+                        "priority": 95,
+                        "conditions": json.dumps([
+                            {"field": "has_network_alerts", "operator": "equals", "value": True, "value_type": "boolean"}
+                        ]),
+                        "actions": json.dumps([
+                            {"action": "require_dual_control", "params": {"approver_role": "fraud_analyst"}}
+                        ]),
+                    },
+                ],
+            },
+            {
+                "name": "Demo New Account Policy",
+                "description": "Enhanced scrutiny for accounts less than 90 days old",
+                "is_default": False,
+                "rules": [
+                    {
+                        "name": "New Account Enhanced Review",
+                        "rule_type": RuleType.ROUTING,
+                        "priority": 70,
+                        "conditions": json.dumps([
+                            {"field": "account_tenure_days", "operator": "less_than", "value": 90, "value_type": "number"}
+                        ]),
+                        "actions": json.dumps([
+                            {"action": "route_to_queue", "params": {"queue": "new_account_review"}}
+                        ]),
+                    },
+                    {
+                        "name": "New Account High Value",
+                        "rule_type": RuleType.DUAL_CONTROL,
+                        "priority": 85,
+                        "conditions": json.dumps([
+                            {"field": "account_tenure_days", "operator": "less_than", "value": 90, "value_type": "number"},
+                            {"field": "amount", "operator": "greater_or_equal", "value": 5000, "value_type": "number"}
+                        ]),
+                        "actions": json.dumps([
+                            {"action": "require_dual_control", "params": {}},
+                            {"action": "escalate", "params": {"notify": True}}
+                        ]),
+                        "amount_threshold": Decimal("5000.00"),
+                    },
+                ],
+            },
+            {
+                "name": "Demo SLA Management Policy",
+                "description": "Automatic routing based on SLA status",
+                "is_default": False,
+                "rules": [
+                    {
+                        "name": "SLA Breach High Priority",
+                        "rule_type": RuleType.ROUTING,
+                        "priority": 100,
+                        "conditions": json.dumps([
+                            {"field": "sla_breached", "operator": "equals", "value": True, "value_type": "boolean"}
+                        ]),
+                        "actions": json.dumps([
+                            {"action": "route_to_queue", "params": {"queue": "high_priority"}},
+                            {"action": "notify", "params": {"channel": "supervisor"}}
+                        ]),
+                    },
+                ],
+            },
+        ]
+
+        for config in policy_configs:
+            # Check if policy already exists
+            result = await self.db.execute(
+                select(Policy).where(Policy.name == config["name"])
+            )
+            existing = result.scalar_one_or_none()
+            if existing:
+                continue
+
+            # Create policy
+            policy = Policy(
+                id=str(uuid.uuid4()),
+                name=config["name"],
+                description=config["description"],
+                status=PolicyStatus.ACTIVE,
+                is_default=config.get("is_default", False),
+                applies_to_account_types=json.dumps(["consumer", "business", "commercial"]),
+                applies_to_branches=json.dumps(["all"]),
+                applies_to_markets=json.dumps(["all"]),
+            )
+            self.db.add(policy)
+            await self.db.flush()
+
+            # Create policy version
+            version = PolicyVersion(
+                id=str(uuid.uuid4()),
+                policy_id=policy.id,
+                version_number=1,
+                effective_date=datetime.now(timezone.utc) - timedelta(days=30),
+                is_current=True,
+                rules_snapshot=json.dumps(config["rules"]),
+                approved_by_id=admin_id,
+                approved_at=datetime.now(timezone.utc) - timedelta(days=30),
+                change_notes="Initial demo policy version",
+            )
+            self.db.add(version)
+            await self.db.flush()
+
+            # Create policy rules
+            for rule_config in config["rules"]:
+                rule = PolicyRule(
+                    id=str(uuid.uuid4()),
+                    policy_version_id=version.id,
+                    name=rule_config["name"],
+                    rule_type=rule_config["rule_type"],
+                    priority=rule_config["priority"],
+                    is_enabled=True,
+                    conditions=rule_config["conditions"],
+                    actions=rule_config["actions"],
+                    amount_threshold=rule_config.get("amount_threshold"),
+                    risk_level_threshold=rule_config.get("risk_level_threshold"),
+                )
+                self.db.add(rule)
+
+            count += 1
+
+        await self.db.flush()
+        return count
+
+    async def _seed_image_connectors(self) -> int:
+        """Create demo image connector configuration."""
+        count = 0
+        admin_user = self.demo_users.get("admin")
+        admin_id = admin_user.id if admin_user else "DEMO-USER-ADMIN-00000001"
+
+        # Demo RSA public key (NOT for production use - just for demo display)
+        demo_public_key = """-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1LfVLPHCozMxH2Mo
+4lgOEePzNm0tRgeLezV6ffAt0gunVTLw7onLRnrq0/IzW7yWR7QkrmBL7jTKEn5u
++qKhbwKfBstIs+bMY2Zkp18gnTxKLxoS2tFczGkPLPgizskuemMghRniWaoLcyeh
+kd3qqGElvW/VDL5AaWTg0nLVkjRo9z+40RQzuVaE8AkAFmxZzow3x+VJYKdjykkJ
+0iT9wCS0DRTXu269V264Vf/3jvredZiKRkgwlL9xNAwxXFg0x/XFw005UWVRIkdg
+cKWTjpBP2dPwVZ4WWC+9aGVd+Gyn1o0CLelf4rEjGoXbAAEgAqeGUxrcIlbjXfbc
+mwIDAQAB
+-----END PUBLIC KEY-----"""
+
+        connector_configs = [
+            {
+                "connector_id": "DEMO-CONNECTOR-PRIMARY",
+                "name": "Demo Primary Image Connector",
+                "description": "Primary connector for demo check images - simulates bank datacenter connection",
+                "base_url": "https://demo-connector.example.com:8443",
+                "status": ConnectorStatus.ACTIVE,
+                "is_enabled": True,
+                "priority": 100,
+                "connector_version": "1.2.0",
+                "connector_mode": "demo",
+                "allowed_roots": ["/demo/images", "/demo/archive"],
+            },
+            {
+                "connector_id": "DEMO-CONNECTOR-BACKUP",
+                "name": "Demo Backup Image Connector",
+                "description": "Secondary connector for failover demonstration",
+                "base_url": "https://demo-connector-backup.example.com:8443",
+                "status": ConnectorStatus.INACTIVE,
+                "is_enabled": False,
+                "priority": 200,
+                "connector_version": "1.2.0",
+                "connector_mode": "demo",
+                "allowed_roots": ["/demo/images"],
+            },
+        ]
+
+        for config in connector_configs:
+            # Check if connector already exists
+            result = await self.db.execute(
+                select(ImageConnector).where(
+                    ImageConnector.connector_id == config["connector_id"],
+                    ImageConnector.tenant_id == "DEMO-TENANT-000000000000000000000000",
+                )
+            )
+            existing = result.scalar_one_or_none()
+            if existing:
+                continue
+
+            connector = ImageConnector(
+                id=str(uuid.uuid4()),
+                tenant_id="DEMO-TENANT-000000000000000000000000",
+                connector_id=config["connector_id"],
+                name=config["name"],
+                description=config["description"],
+                base_url=config["base_url"],
+                status=config["status"],
+                is_enabled=config["is_enabled"],
+                public_key_pem=demo_public_key,
+                public_key_id=f"{config['connector_id']}-key-v1",
+                public_key_expires_at=datetime.now(timezone.utc) + timedelta(days=365),
+                token_expiry_seconds=120,
+                jwt_issuer="check-review-demo",
+                last_health_check_at=datetime.now(timezone.utc) - timedelta(minutes=5) if config["is_enabled"] else None,
+                last_health_check_status="healthy" if config["is_enabled"] else None,
+                last_health_check_latency_ms=45 if config["is_enabled"] else None,
+                health_check_failure_count=0,
+                last_successful_request_at=datetime.now(timezone.utc) - timedelta(hours=1) if config["is_enabled"] else None,
+                connector_version=config["connector_version"],
+                connector_mode=config["connector_mode"],
+                allowed_roots=config["allowed_roots"],
+                timeout_seconds=30,
+                max_retries=2,
+                circuit_breaker_threshold=5,
+                circuit_breaker_timeout_seconds=60,
+                priority=config["priority"],
+                created_by_user_id=admin_id,
+                last_connection_test_at=datetime.now(timezone.utc) - timedelta(hours=2) if config["is_enabled"] else None,
+                last_connection_test_result="Connection successful" if config["is_enabled"] else None,
+                last_connection_test_success=True if config["is_enabled"] else None,
+            )
+            self.db.add(connector)
+            count += 1
+
+        await self.db.flush()
+        return count
 
     async def _seed_reason_codes(self) -> int:
         """Create demo reason codes for decisions."""

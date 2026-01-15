@@ -64,11 +64,15 @@ def generate_signed_url(
     user_id: str,
     expires_in: int | None = None,
 ) -> str:
-    """Generate a short-lived, user-bound signed URL for secure resource access.
+    """Generate a short-lived signed URL for secure resource access.
 
-    Security: The token is bound to a specific user to prevent URL sharing.
-    If the URL leaks (logs, referrers, etc.), it can only be used by the
-    original user who was issued the URL.
+    Security model:
+    - This is a BEARER TOKEN - anyone with the URL can access the resource
+    - Security relies on short TTL (default 90s) to limit exposure window
+    - user_id is embedded for AUDIT LOGGING only, not access control
+    - URLs should not be logged, shared, or exposed in referrer headers
+
+    For bank-grade security, consider authenticated blob fetches instead.
     """
     if expires_in is None:
         expires_in = settings.IMAGE_SIGNED_URL_TTL_SECONDS
@@ -85,17 +89,28 @@ def generate_signed_url(
 
 
 class SignedUrlPayload:
-    """Payload from a verified signed URL."""
+    """Payload from a verified signed URL (bearer token).
+
+    Note: user_id is for audit logging only - access is NOT restricted to this user.
+    """
     def __init__(self, resource_id: str, user_id: str):
         self.resource_id = resource_id
-        self.user_id = user_id
+        self.user_id = user_id  # For audit logging, not access control
 
 
 def verify_signed_url(token: str) -> SignedUrlPayload | None:
-    """Verify a signed URL and return the payload if valid.
+    """Verify a signed URL token and return the payload if valid.
+
+    This validates:
+    - Token signature (JWT)
+    - Token expiration (short TTL)
+    - Token type (signed_url)
+
+    This does NOT validate:
+    - User authentication (bearer token model)
 
     Returns:
-        SignedUrlPayload with resource_id and user_id, or None if invalid.
+        SignedUrlPayload with resource_id and user_id, or None if invalid/expired.
     """
     payload = decode_token(token)
     if payload and payload.get("type") == "signed_url":

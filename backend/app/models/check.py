@@ -14,6 +14,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -73,8 +74,8 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     # Tenant isolation
     tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
 
-    # External identifiers
-    external_item_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    # External identifiers (unique per tenant, not globally)
+    external_item_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     source_system: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g., "q2", "fiserv"
 
     # Account information
@@ -194,6 +195,8 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     __table_args__ = (
         Index("ix_check_items_status_priority", "status", "priority"),
         Index("ix_check_items_queue_status", "queue_id", "status"),
+        # Per-tenant uniqueness for external IDs (Bank A and Bank B can have same external_item_id)
+        UniqueConstraint("tenant_id", "external_item_id", name="uq_check_items_tenant_external_id"),
         # Note: presented_date index is created via index=True on the column
     )
 

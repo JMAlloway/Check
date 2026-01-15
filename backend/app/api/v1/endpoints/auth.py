@@ -3,11 +3,16 @@
 import secrets
 from typing import Annotated
 
+import pyotp
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 
 from app.api.deps import DBSession, CurrentUser
 from app.core.rate_limit import limiter
-from app.schemas.auth import LoginRequest, RefreshTokenRequest, Token, PasswordChangeRequest, LoginResponse, LoginUserInfo, LoginRoleInfo
+from app.schemas.auth import (
+    LoginRequest, RefreshTokenRequest, Token, PasswordChangeRequest,
+    LoginResponse, LoginUserInfo, LoginRoleInfo,
+    MFASetupResponse, MFAVerifyRequest,
+)
 from app.schemas.common import MessageResponse
 from app.schemas.user import CurrentUserResponse
 from app.services.auth import AuthService
@@ -103,6 +108,33 @@ async def login(
             detail=error,
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Check MFA if enabled
+    if user.mfa_enabled and user.mfa_secret:
+        if not login_data.mfa_code:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="MFA code required",
+                headers={"WWW-Authenticate": "Bearer, MFA-Required"},
+            )
+        # Verify TOTP code
+        totp = pyotp.TOTP(user.mfa_secret)
+        if not totp.verify(login_data.mfa_code, valid_window=1):
+            await audit_service.log(
+                action=AuditAction.LOGIN_FAILED,
+                resource_type="user",
+                resource_id=user.id,
+                user_id=user.id,
+                username=user.username,
+                description="MFA verification failed",
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid MFA code",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     tokens = await auth_service.create_tokens(
         user=user,
@@ -347,3 +379,153 @@ async def change_password(
     )
 
     return MessageResponse(message="Password changed successfully. Please log in again.", success=True)
+
+
+# =============================================================================
+# MFA (Multi-Factor Authentication) Endpoints
+# =============================================================================
+
+@router.post("/mfa/setup", response_model=MFASetupResponse)
+async def setup_mfa(
+    request: Request,
+    db: DBSession,
+    current_user: CurrentUser,
+):
+    """Begin MFA setup - generates TOTP secret and returns QR code URI.
+
+    User must verify with /mfa/verify to activate MFA.
+    """
+    if current_user.mfa_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="MFA is already enabled. Disable it first to set up a new device.",
+        )
+
+    # Generate new TOTP secret
+    secret = pyotp.random_base32()
+
+    # Store secret temporarily (not enabled yet until verified)
+    current_user.mfa_secret = secret
+    await db.commit()
+
+    # Generate provisioning URI for QR code
+    totp = pyotp.TOTP(secret)
+    qr_uri = totp.provisioning_uri(
+        name=current_user.email,
+        issuer_name=settings.APP_NAME,
+    )
+
+    audit_service = AuditService(db)
+    await audit_service.log(
+        action=AuditAction.MFA_SETUP_STARTED,
+        resource_type="user",
+        resource_id=current_user.id,
+        user_id=current_user.id,
+        username=current_user.username,
+        ip_address=request.client.host if request.client else None,
+        description="MFA setup initiated",
+    )
+
+    return MFASetupResponse(
+        secret=secret,
+        qr_code_uri=qr_uri,
+    )
+
+
+@router.post("/mfa/verify", response_model=MessageResponse)
+async def verify_mfa(
+    request: Request,
+    verify_data: MFAVerifyRequest,
+    db: DBSession,
+    current_user: CurrentUser,
+):
+    """Verify TOTP code and enable MFA.
+
+    Must be called after /mfa/setup with a valid code from authenticator app.
+    """
+    if current_user.mfa_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="MFA is already enabled",
+        )
+
+    if not current_user.mfa_secret:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="MFA setup not initiated. Call /mfa/setup first.",
+        )
+
+    # Verify the code
+    totp = pyotp.TOTP(current_user.mfa_secret)
+    if not totp.verify(verify_data.code, valid_window=1):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid MFA code. Please try again.",
+        )
+
+    # Enable MFA
+    current_user.mfa_enabled = True
+    await db.commit()
+
+    audit_service = AuditService(db)
+    await audit_service.log(
+        action=AuditAction.MFA_ENABLED,
+        resource_type="user",
+        resource_id=current_user.id,
+        user_id=current_user.id,
+        username=current_user.username,
+        ip_address=request.client.host if request.client else None,
+        description="MFA enabled successfully",
+    )
+
+    return MessageResponse(message="MFA enabled successfully", success=True)
+
+
+@router.post("/mfa/disable", response_model=MessageResponse)
+async def disable_mfa(
+    request: Request,
+    verify_data: MFAVerifyRequest,
+    db: DBSession,
+    current_user: CurrentUser,
+):
+    """Disable MFA. Requires valid TOTP code for security.
+
+    After disabling, user can set up MFA again with /mfa/setup.
+    """
+    if not current_user.mfa_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="MFA is not enabled",
+        )
+
+    if not current_user.mfa_secret:
+        # Shouldn't happen, but handle gracefully
+        current_user.mfa_enabled = False
+        await db.commit()
+        return MessageResponse(message="MFA disabled", success=True)
+
+    # Verify the code before disabling
+    totp = pyotp.TOTP(current_user.mfa_secret)
+    if not totp.verify(verify_data.code, valid_window=1):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid MFA code. MFA disable requires valid code.",
+        )
+
+    # Disable MFA and clear secret
+    current_user.mfa_enabled = False
+    current_user.mfa_secret = None
+    await db.commit()
+
+    audit_service = AuditService(db)
+    await audit_service.log(
+        action=AuditAction.MFA_DISABLED,
+        resource_type="user",
+        resource_id=current_user.id,
+        user_id=current_user.id,
+        username=current_user.username,
+        ip_address=request.client.host if request.client else None,
+        description="MFA disabled",
+    )
+
+    return MessageResponse(message="MFA disabled successfully", success=True)

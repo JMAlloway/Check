@@ -39,12 +39,16 @@ async def get_secure_image(
     """
     Get check image via signed URL token.
 
-    Security:
-    - Token must be valid and not expired
-    - Token is self-authenticating (contains user binding)
-    - No Bearer token required - enables <img> tag usage
-    - Access is logged for audit trail
+    Security Model (BEARER TOKEN):
+    - Token is a bearer token - anyone with the URL can access
+    - Security relies on short TTL (~90s) to limit exposure
+    - Token contains user_id for AUDIT LOGGING only
+    - Access is NOT restricted to the embedded user
+    - No session authentication required - enables <img> tag usage
     - Response headers prevent caching in shared locations
+
+    Risk: If URL leaks, image is accessible until token expires.
+    Mitigation: Short TTL (90s default) + no-cache headers.
     """
     # Verify the signed URL token
     payload = verify_signed_url(token)
@@ -55,9 +59,9 @@ async def get_secure_image(
             detail="Invalid or expired image URL",
         )
 
-    # Token is self-authenticating - the user_id is embedded in the signed token
-    # No need for additional Bearer token validation since the signed URL
-    # already proves the user had permission when the URL was generated
+    # NOTE: This is a bearer token model - we do NOT verify the requester matches user_id
+    # user_id is extracted for audit logging purposes only
+    # Access control relies solely on token validity + short TTL
     user_id = payload.user_id
 
     # Get user for audit logging

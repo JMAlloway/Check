@@ -27,6 +27,7 @@ class AuditAction(str, Enum):
     LOGOUT = "logout"
     LOGIN_FAILED = "login_failed"
     PASSWORD_CHANGE = "password_change"
+    MFA_SETUP_STARTED = "mfa_setup_started"
     MFA_ENABLED = "mfa_enabled"
     MFA_DISABLED = "mfa_disabled"
     SESSION_EXPIRED = "session_expired"

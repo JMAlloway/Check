@@ -61,7 +61,9 @@ class Settings(BaseSettings):
 
     # Image handling
     IMAGE_CACHE_TTL_SECONDS: int = 300
-    IMAGE_SIGNED_URL_TTL_SECONDS: int = 3600  # 1 hour - sufficient for review sessions
+    # Short TTL for signed URLs - treated as bearer tokens, not user-bound
+    # Frontend must refresh URLs before expiry for long review sessions
+    IMAGE_SIGNED_URL_TTL_SECONDS: int = 90  # 90 seconds - security/usability balance
     MAX_IMAGE_SIZE_MB: int = 10
 
     # Queue settings
@@ -126,13 +128,25 @@ class Settings(BaseSettings):
 
 def _validate_production_secrets(s: Settings) -> None:
     """
-    CRITICAL: Fail hard if production uses default secrets.
+    CRITICAL: Fail hard if production uses weak or placeholder secrets.
 
     This prevents accidental deployment with insecure defaults.
     Called during settings initialization.
+
+    Validates:
+    - Minimum length (32 characters for adequate entropy)
+    - No known default values
+    - No common placeholder patterns
     """
     if s.ENVIRONMENT != "production":
         return
+
+    # Secrets to validate with their minimum required length
+    secrets_to_check = {
+        "SECRET_KEY": 32,
+        "CSRF_SECRET_KEY": 32,
+        "NETWORK_PEPPER": 32,
+    }
 
     # Known default/placeholder secrets that MUST be changed
     insecure_defaults = {
@@ -141,18 +155,52 @@ def _validate_production_secrets(s: Settings) -> None:
         "NETWORK_PEPPER": "change-this-network-pepper-in-production",
     }
 
-    violations = []
-    for key, default_value in insecure_defaults.items():
-        actual_value = getattr(s, key, None)
-        if actual_value == default_value:
-            violations.append(key)
+    # Common placeholder patterns that indicate non-production secrets
+    placeholder_patterns = [
+        "change", "replace", "your-", "example", "placeholder",
+        "secret", "password", "default", "insecure", "changeme",
+        "todo", "fixme", "xxx", "test", "demo", "sample",
+    ]
 
-    if violations:
+    violations = []
+    length_violations = []
+    pattern_violations = []
+
+    for key, min_length in secrets_to_check.items():
+        actual_value = getattr(s, key, None)
+        if not actual_value:
+            violations.append(f"{key}: not set")
+            continue
+
+        # Check for exact default matches
+        if actual_value == insecure_defaults.get(key):
+            violations.append(f"{key}: using hardcoded default")
+            continue
+
+        # Check minimum length for entropy
+        if len(actual_value) < min_length:
+            length_violations.append(f"{key}: {len(actual_value)} chars (minimum {min_length})")
+            continue
+
+        # Check for placeholder patterns (case-insensitive)
+        value_lower = actual_value.lower()
+        for pattern in placeholder_patterns:
+            if pattern in value_lower:
+                pattern_violations.append(f"{key}: contains placeholder pattern '{pattern}'")
+                break
+
+    all_issues = violations + length_violations + pattern_violations
+    if all_issues:
         raise RuntimeError(
-            f"FATAL: Production deployment blocked - insecure default secrets detected!\n"
-            f"The following secrets MUST be changed before deploying to production:\n"
-            f"  {', '.join(violations)}\n\n"
-            f"Generate secure values with: python -c \"import secrets; print(secrets.token_urlsafe(32))\"\n"
+            f"FATAL: Production deployment blocked - insecure secrets detected!\n\n"
+            f"Issues found:\n"
+            f"  {chr(10).join('- ' + v for v in all_issues)}\n\n"
+            f"Requirements for production secrets:\n"
+            f"  - Minimum 32 characters\n"
+            f"  - No placeholder words (change, secret, password, etc.)\n"
+            f"  - Randomly generated\n\n"
+            f"Generate secure values with:\n"
+            f"  python -c \"import secrets; print(secrets.token_urlsafe(32))\"\n\n"
             f"Set these as environment variables or in your production .env file."
         )
 

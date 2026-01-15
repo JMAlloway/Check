@@ -2,8 +2,9 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.schemas.auth import PASSWORD_MIN_LENGTH, validate_password_complexity
 from app.schemas.common import BaseSchema, TimestampSchema
 
 
@@ -70,11 +71,17 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    """User create schema."""
+    """User create schema with password complexity requirements."""
 
-    password: str = Field(..., min_length=8)
+    password: str = Field(..., min_length=PASSWORD_MIN_LENGTH)
     role_ids: list[str] = []
     is_active: bool = True
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        """Enforce bank-grade password complexity."""
+        return validate_password_complexity(v)
 
 
 class UserUpdate(BaseModel):

@@ -1,15 +1,53 @@
 """Authentication schemas."""
 
+import re
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+
+# Password complexity requirements for bank-grade security
+PASSWORD_MIN_LENGTH = 12
+PASSWORD_REQUIREMENTS = """
+Password must:
+- Be at least 12 characters long
+- Contain at least one uppercase letter (A-Z)
+- Contain at least one lowercase letter (a-z)
+- Contain at least one digit (0-9)
+- Contain at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)
+"""
+
+
+def validate_password_complexity(password: str) -> str:
+    """Validate password meets bank-grade complexity requirements."""
+    errors = []
+
+    if len(password) < PASSWORD_MIN_LENGTH:
+        errors.append(f"at least {PASSWORD_MIN_LENGTH} characters")
+
+    if not re.search(r"[A-Z]", password):
+        errors.append("at least one uppercase letter")
+
+    if not re.search(r"[a-z]", password):
+        errors.append("at least one lowercase letter")
+
+    if not re.search(r"\d", password):
+        errors.append("at least one digit")
+
+    if not re.search(r"[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]", password):
+        errors.append("at least one special character")
+
+    if errors:
+        raise ValueError(f"Password must contain: {', '.join(errors)}")
+
+    return password
 
 
 class LoginRequest(BaseModel):
     """Login request schema."""
 
     username: str = Field(..., min_length=3, max_length=50)
-    password: str = Field(..., min_length=8)
+    password: str = Field(..., min_length=8)  # Login allows existing passwords
     mfa_code: str | None = None
     device_fingerprint: str | None = Field(None, max_length=255, description="Client device fingerprint for session tracking")
 
@@ -70,10 +108,16 @@ class TokenPayload(BaseModel):
 
 
 class PasswordChangeRequest(BaseModel):
-    """Password change request schema."""
+    """Password change request schema with complexity requirements."""
 
     current_password: str
-    new_password: str = Field(..., min_length=8)
+    new_password: str = Field(..., min_length=PASSWORD_MIN_LENGTH)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        """Enforce bank-grade password complexity."""
+        return validate_password_complexity(v)
 
 
 class PasswordResetRequest(BaseModel):

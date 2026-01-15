@@ -33,6 +33,7 @@ boto3==1.34.25
 # Security
 cryptography==41.0.7
 PyJWT==2.8.0
+pyotp==2.9.0  # TOTP MFA
 
 # Logging and monitoring
 structlog==24.1.0

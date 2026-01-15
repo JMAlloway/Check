@@ -1,0 +1,229 @@
+# SOC2 Compliance Alert Rules for Check Review Console
+# These alerts support SOC2 CC7.2 (Monitoring) and CC7.3 (Incident Response)
+
+groups:
+  - name: availability
+    rules:
+      # Service availability alerts
+      - alert: BackendDown
+        expr: up{job="backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          soc2_control: CC7.2
+        annotations:
+          summary: "Backend service is down"
+          description: "The Check Review Console backend has been unreachable for more than 1 minute."
+          runbook_url: "https://docs.internal/runbooks/backend-down"
+
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m])) /
+          sum(rate(http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          soc2_control: CC7.2
+        annotations:
+          summary: "High error rate detected (>5%)"
+          description: "More than 5% of requests are resulting in 5xx errors."
+          runbook_url: "https://docs.internal/runbooks/high-error-rate"
+
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 5
+        for: 10m
+        labels:
+          severity: warning
+          soc2_control: CC7.2
+        annotations:
+          summary: "High latency detected (p95 > 5s)"
+          description: "95th percentile response time is above 5 seconds."
+
+  - name: security
+    rules:
+      # Security event alerts
+      - alert: CrossTenantAccessAttempt
+        expr: |
+          increase(security_events_total{event_type="security.access.cross_tenant"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          soc2_control: CC6.1
+        annotations:
+          summary: "CRITICAL: Cross-tenant access attempt detected"
+          description: "A user attempted to access resources belonging to another tenant. Immediate investigation required."
+          runbook_url: "https://docs.internal/runbooks/cross-tenant-access"
+
+      - alert: HighFailedLoginRate
+        expr: |
+          sum(rate(security_events_total{event_type="security.auth.login_failure"}[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          soc2_control: CC6.1
+        annotations:
+          summary: "High rate of failed login attempts"
+          description: "More than 10 failed login attempts per second detected. Possible brute force attack."
+          runbook_url: "https://docs.internal/runbooks/brute-force"
+
+      - alert: FailedLoginsFromSingleIP
+        expr: |
+          sum by (ip_address) (increase(security_events_total{event_type="security.auth.login_failure"}[5m])) > 20
+        for: 0m
+        labels:
+          severity: warning
+          soc2_control: CC6.1
+        annotations:
+          summary: "Multiple failed logins from single IP"
+          description: "More than 20 failed login attempts from a single IP address in 5 minutes."
+
+      - alert: RateLimitExceeded
+        expr: |
+          increase(security_events_total{event_type="security.rate.limit_exceeded"}[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          soc2_control: CC6.6
+        annotations:
+          summary: "High rate limit violations"
+          description: "Significant number of rate limit violations detected."
+
+      - alert: ImageTokenAnomalies
+        expr: |
+          sum(rate(security_events_total{event_type="security.image.token_invalid"}[5m])) > 50
+        for: 5m
+        labels:
+          severity: warning
+          soc2_control: CC6.1
+        annotations:
+          summary: "High rate of invalid image token attempts"
+          description: "Unusual number of invalid/expired image token access attempts. Possible replay attack."
+
+  - name: database
+    rules:
+      - alert: DatabaseConnectionsHigh
+        expr: |
+          pg_stat_activity_count / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          soc2_control: CC7.2
+        annotations:
+          summary: "Database connection pool over 80%"
+          description: "PostgreSQL connection utilization is above 80%."
+
+      - alert: DatabaseDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          soc2_control: CC7.2
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "Cannot connect to the PostgreSQL database."
+          runbook_url: "https://docs.internal/runbooks/database-down"
+
+      - alert: SlowQueries
+        expr: |
+          rate(pg_stat_statements_seconds_total[5m]) /
+          rate(pg_stat_statements_calls_total[5m]) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow database queries detected"
+          description: "Average query execution time is above 1 second."
+
+  - name: infrastructure
+    rules:
+      - alert: HighCPUUsage
+        expr: |
+          100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is above 80% for more than 10 minutes."
+
+      - alert: HighMemoryUsage
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is above 85%."
+
+      - alert: DiskSpaceLow
+        expr: |
+          (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          soc2_control: CC7.2
+        annotations:
+          summary: "Disk space low"
+          description: "Disk usage is above 80%."
+
+      - alert: DiskSpaceCritical
+        expr: |
+          (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          soc2_control: CC7.2
+        annotations:
+          summary: "Disk space critically low"
+          description: "Disk usage is above 90%. Immediate action required."
+
+  - name: redis
+    rules:
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Cannot connect to Redis. Session management may be affected."
+
+      - alert: RedisMemoryHigh
+        expr: |
+          redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis memory usage is above 80%."
+
+  - name: sla
+    rules:
+      - alert: SLABreachRateHigh
+        expr: |
+          sum(check_items_sla_breached_total) /
+          sum(check_items_total) > 0.05
+        for: 30m
+        labels:
+          severity: warning
+          soc2_control: CC7.2
+        annotations:
+          summary: "High SLA breach rate"
+          description: "More than 5% of check items have breached their SLA."
+
+  - name: audit
+    rules:
+      - alert: AuditLogWriteFailure
+        expr: |
+          increase(audit_log_write_failures_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          soc2_control: CC7.2
+        annotations:
+          summary: "CRITICAL: Audit log write failure"
+          description: "Failed to write to audit log. Compliance requirement violated."
+          runbook_url: "https://docs.internal/runbooks/audit-failure"

@@ -23,7 +23,7 @@ from app.models.check import CheckItem, CheckStatus, RiskLevel
 from app.models.decision import Decision, DecisionAction
 from app.models.user import User, Role, Permission
 from app.models.audit import AuditLog, AuditAction, ItemView
-from app.models.queue import Queue, QueuePriority
+from app.models.queue import Queue, QueueType
 
 
 class TestCheckItemConstraints:
@@ -37,10 +37,10 @@ class TestCheckItemConstraints:
         assert tenant_col is not None
         assert tenant_col.nullable is False
 
-    def test_check_item_requires_external_id(self):
-        """CheckItem should require external_id."""
+    def test_check_item_requires_external_item_id(self):
+        """CheckItem should require external_item_id."""
         mapper = inspect(CheckItem)
-        ext_id_col = mapper.columns.get("external_id")
+        ext_id_col = mapper.columns.get("external_item_id")
         assert ext_id_col is not None
         assert ext_id_col.nullable is False
 
@@ -116,7 +116,7 @@ class TestDecisionConstraints:
         """DecisionAction enum should have expected values."""
         expected_actions = [
             "approve", "return", "reject", "escalate",
-            "hold", "request_info"
+            "hold", "needs_more_info"
         ]
         actual_values = [a.value for a in DecisionAction]
 
@@ -244,13 +244,13 @@ class TestQueueConstraints:
         assert tenant_col is not None
         assert tenant_col.nullable is False
 
-    def test_queue_priority_enum_values(self):
-        """QueuePriority enum should have expected values."""
-        expected_priorities = ["low", "normal", "high", "urgent"]
-        actual_values = [p.value for p in QueuePriority]
+    def test_queue_type_enum_values(self):
+        """QueueType enum should have expected values."""
+        expected_types = ["standard", "high_priority", "escalation", "special_review"]
+        actual_values = [t.value for t in QueueType]
 
-        for priority in expected_priorities:
-            assert priority in actual_values, f"Missing priority: {priority}"
+        for queue_type in expected_types:
+            assert queue_type in actual_values, f"Missing queue type: {queue_type}"
 
 
 class TestItemViewConstraints:
@@ -336,10 +336,10 @@ class TestFieldLengthConstraints:
         col = mapper.columns.get("email")
         assert col.type.length <= 255
 
-    def test_check_external_id_max_length(self):
-        """Check external_id should have reasonable max length."""
+    def test_check_external_item_id_max_length(self):
+        """Check external_item_id should have reasonable max length."""
         mapper = inspect(CheckItem)
-        col = mapper.columns.get("external_id")
+        col = mapper.columns.get("external_item_id")
         assert col.type.length <= 100
 
     def test_tenant_id_length(self):
@@ -360,9 +360,9 @@ class TestUniqueConstraints:
         email_col = mapper.columns.get("email")
         assert email_col is not None
 
-    def test_check_external_id_unique_within_tenant(self):
-        """Check external_id should be unique within tenant."""
+    def test_check_external_item_id_unique_within_tenant(self):
+        """Check external_item_id should be unique within tenant."""
         # External ID uniqueness per tenant prevents duplicates
         mapper = inspect(CheckItem)
-        ext_id_col = mapper.columns.get("external_id")
+        ext_id_col = mapper.columns.get("external_item_id")
         assert ext_id_col is not None

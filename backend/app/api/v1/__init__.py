@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     images,
     image_connectors,
     monitoring,
+    operations,
     policies,
     queues,
     users,
@@ -37,3 +38,4 @@ api_router.include_router(image_connectors.router, prefix="/image-connectors", t
 api_router.include_router(system.router, prefix="/system", tags=["System"])
 api_router.include_router(monitoring.router, prefix="/monitoring", tags=["Monitoring"])
 api_router.include_router(security.router, prefix="/security", tags=["Security Incidents"])
+api_router.include_router(operations.router, prefix="/operations", tags=["Operations"])

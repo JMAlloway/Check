@@ -112,6 +112,11 @@ class Settings(BaseSettings):
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 100
 
+    # Monitoring Infrastructure URLs
+    PROMETHEUS_URL: str = "http://localhost:9090"
+    ALERTMANAGER_URL: str = "http://localhost:9093"
+    GRAFANA_URL: str = "http://localhost:3001"
+
     # Image Connector (Connector A) - JWT token signing
     # RSA private key for signing JWT tokens for image connector requests
     CONNECTOR_JWT_PRIVATE_KEY: str = ""  # Set in production

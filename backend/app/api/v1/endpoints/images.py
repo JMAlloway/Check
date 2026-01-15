@@ -26,6 +26,9 @@ SECURE_IMAGE_HEADERS = {
     "X-XSS-Protection": "1; mode=block",
     # Prevent download managers from caching
     "Content-Disposition": "inline",
+    # CRITICAL: Prevent bearer token leakage via Referer header
+    # This is defense-in-depth (also set by middleware and nginx)
+    "Referrer-Policy": "no-referrer",
 }
 
 

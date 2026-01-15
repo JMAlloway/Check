@@ -12,6 +12,12 @@ from slowapi.errors import RateLimitExceeded
 from app.api.v1 import api_router
 from app.core.config import settings
 from app.core.rate_limit import limiter
+from app.core.middleware import (
+    TokenRedactionMiddleware,
+    install_token_redaction_logging,
+    redact_token_from_path,
+    redact_exception_args,
+)
 from app.db.session import engine, Base
 from app.schemas.common import HealthResponse
 
@@ -24,6 +30,11 @@ async def lifespan(app: FastAPI):
     """Application lifespan management."""
     # Startup
     print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+
+    # Install token redaction on all loggers to prevent bearer token leakage
+    # This is critical for bank-grade security compliance
+    install_token_redaction_logging()
+    print("Installed token redaction logging filters")
     print(f"Environment: {settings.ENVIRONMENT}")
 
     # CRITICAL SAFETY CHECK: Demo mode must NEVER run in production
@@ -135,17 +146,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Token redaction middleware - adds security headers for secure image endpoints
+# This prevents bearer token leakage via Referrer headers
+app.add_middleware(TokenRedactionMiddleware)
+
 
 # Global exception handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Handle uncaught exceptions."""
+    """Handle uncaught exceptions.
+
+    Security: Redacts bearer tokens from error details to prevent
+    token leakage via error responses or logs.
+    """
+    # Redact any tokens from exception to prevent leakage
+    exc = redact_exception_args(exc)
+
+    # Also redact the path for logging purposes
+    redacted_path = redact_token_from_path(request.url.path)
+
+    # Prepare error details (only in debug mode)
+    error_details = None
+    if settings.DEBUG:
+        error_str = str(exc)
+        # Additional redaction of the string representation
+        error_details = redact_token_from_path(error_str)
+
     return JSONResponse(
         status_code=500,
         content={
             "error": "internal_server_error",
             "message": "An unexpected error occurred",
-            "details": str(exc) if settings.DEBUG else None,
+            "details": error_details,
         },
     )
 

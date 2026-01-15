@@ -53,8 +53,8 @@ class Settings(BaseSettings):
             raise ValueError("DATABASE_URL must be a PostgreSQL connection string")
         return v
 
-    # Redis
-    REDIS_URL: str = "redis://localhost:6379/0"
+    # Redis (optional - leave empty to disable Redis health checks)
+    REDIS_URL: str = ""
 
     # Session
     SESSION_TIMEOUT_MINUTES: int = 30

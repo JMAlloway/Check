@@ -41,7 +41,7 @@ class AuditPacketGenerator:
     def _setup_custom_styles(self):
         """Setup custom paragraph styles."""
         self.styles.add(ParagraphStyle(
-            name='Title',
+            name='AuditTitle',
             parent=self.styles['Heading1'],
             fontSize=18,
             alignment=TA_CENTER,
@@ -195,7 +195,7 @@ class AuditPacketGenerator:
         elements = []
 
         # Title
-        elements.append(Paragraph("AUDIT PACKET", self.styles['Title']))
+        elements.append(Paragraph("AUDIT PACKET", self.styles['AuditTitle']))
         elements.append(Paragraph("Check Review Console", self.styles['Normal']))
         elements.append(Spacer(1, 10))
 

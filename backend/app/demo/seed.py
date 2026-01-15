@@ -302,6 +302,16 @@ class DemoSeeder:
     async def _seed_policies(self) -> int:
         """Create demo policies for the admin console."""
         import json
+        from enum import Enum
+
+        # Custom JSON encoder for Decimal and Enum types
+        class PolicyEncoder(json.JSONEncoder):
+            def default(self, obj):
+                if isinstance(obj, Decimal):
+                    return str(obj)
+                if isinstance(obj, Enum):
+                    return obj.value
+                return super().default(obj)
 
         count = 0
         admin_user = self.demo_users.get("admin")
@@ -464,7 +474,7 @@ class DemoSeeder:
                 version_number=1,
                 effective_date=datetime.now(timezone.utc) - timedelta(days=30),
                 is_current=True,
-                rules_snapshot=json.dumps(config["rules"]),
+                rules_snapshot=json.dumps(config["rules"], cls=PolicyEncoder),
                 approved_by_id=admin_id,
                 approved_at=datetime.now(timezone.utc) - timedelta(days=30),
                 change_notes="Initial demo policy version",

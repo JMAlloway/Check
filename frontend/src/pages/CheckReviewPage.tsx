@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeftIcon, DocumentArrowDownIcon, ShieldExclamationIcon } from '@heroicons/react/24/outline';
 import { checkApi, auditApi, resolveImageUrl } from '../services/api';
 import { CheckItem, CheckHistory, ROIRegion } from '../types';
+
+// Image URL refresh interval (60 seconds - before 90s TTL expires)
+const IMAGE_URL_REFRESH_INTERVAL = 60 * 1000;
 import CheckImageViewer from '../components/check/CheckImageViewer';
 import CheckContextPanel from '../components/check/CheckContextPanel';
 import CheckHistoryPanel from '../components/check/CheckHistoryPanel';
@@ -32,6 +35,11 @@ export default function CheckReviewPage() {
     queryKey: ['checkItem', itemId],
     queryFn: () => checkApi.getItem(itemId!),
     enabled: !!itemId,
+    // Refetch every 60s to get fresh signed image URLs (TTL is 90s)
+    // This ensures images stay accessible during long review sessions
+    refetchInterval: IMAGE_URL_REFRESH_INTERVAL,
+    // Only refetch when window is focused (save bandwidth when tab is hidden)
+    refetchIntervalInBackground: false,
   });
 
   const [isGeneratingPacket, setIsGeneratingPacket] = useState(false);

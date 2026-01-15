@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 
 from app.api.deps import DBSession, CurrentUser
+from app.core.rate_limit import limiter
 from app.schemas.auth import LoginRequest, RefreshTokenRequest, Token, PasswordChangeRequest, LoginResponse, LoginUserInfo, LoginRoleInfo
 from app.schemas.common import MessageResponse
 from app.schemas.user import CurrentUserResponse
@@ -63,6 +64,7 @@ def clear_auth_cookies(response: Response) -> None:
 
 
 @router.post("/login", response_model=LoginResponse)
+@limiter.limit("5/minute")  # Prevent brute force attacks
 async def login(
     request: Request,
     response: Response,
@@ -73,6 +75,7 @@ async def login(
 
     Security: Refresh token is set as httpOnly cookie (XSS-safe).
     Access token is returned in body for memory-only storage.
+    Rate limited to 5 requests per minute per IP.
     """
     auth_service = AuthService(db)
     audit_service = AuditService(db)
@@ -105,6 +108,7 @@ async def login(
         user=user,
         ip_address=ip_address,
         user_agent=user_agent,
+        device_fingerprint=login_data.device_fingerprint,
     )
 
     await audit_service.log(
@@ -306,11 +310,16 @@ async def get_current_user_info(current_user: CurrentUser):
 @router.post("/change-password", response_model=MessageResponse)
 async def change_password(
     request: Request,
+    response: Response,
     password_data: PasswordChangeRequest,
     db: DBSession,
     current_user: CurrentUser,
 ):
-    """Change current user's password."""
+    """Change current user's password.
+
+    Security: Invalidates all existing sessions after password change.
+    User must re-authenticate on all devices.
+    """
     if not verify_password(password_data.current_password, current_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -318,6 +327,13 @@ async def change_password(
         )
 
     current_user.hashed_password = get_password_hash(password_data.new_password)
+
+    # Invalidate all sessions for security - user must re-login on all devices
+    auth_service = AuthService(db)
+    sessions_revoked = await auth_service.logout_all_sessions(current_user.id)
+
+    # Clear cookies on this response too
+    clear_auth_cookies(response)
 
     audit_service = AuditService(db)
     await audit_service.log(
@@ -327,7 +343,7 @@ async def change_password(
         user_id=current_user.id,
         username=current_user.username,
         ip_address=request.client.host if request.client else None,
-        description="User changed password",
+        description=f"User changed password, {sessions_revoked} sessions invalidated",
     )
 
-    return MessageResponse(message="Password changed successfully", success=True)
+    return MessageResponse(message="Password changed successfully. Please log in again.", success=True)

@@ -88,6 +88,7 @@ class AuthService:
         user: User,
         ip_address: str | None = None,
         user_agent: str | None = None,
+        device_fingerprint: str | None = None,
     ) -> Token:
         """Create access and refresh tokens for a user."""
         # Gather roles and permissions for token
@@ -110,13 +111,14 @@ class AuthService:
         )
         refresh_token = create_refresh_token(subject=user.id)
 
-        # Store session
+        # Store session with device fingerprint for tracking
         token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
         session = UserSession(
             user_id=user.id,
             token_hash=token_hash,
             ip_address=ip_address,
             user_agent=user_agent,
+            device_fingerprint=device_fingerprint,
             expires_at=datetime.now(timezone.utc)
             + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
         )
@@ -169,12 +171,15 @@ class AuthService:
         if not user or not user.is_active:
             return None
 
+        # Preserve device fingerprint from old session
+        device_fingerprint = session.device_fingerprint
+
         # Revoke old session
         session.is_active = False
         session.revoked_at = datetime.now(timezone.utc)
 
-        # Create new tokens
-        return await self.create_tokens(user, ip_address, user_agent)
+        # Create new tokens with preserved device fingerprint
+        return await self.create_tokens(user, ip_address, user_agent, device_fingerprint)
 
     async def logout(self, refresh_token: str) -> bool:
         """Logout user by revoking their session."""

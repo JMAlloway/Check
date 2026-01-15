@@ -11,6 +11,7 @@ class LoginRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=8)
     mfa_code: str | None = None
+    device_fingerprint: str | None = Field(None, max_length=255, description="Client device fingerprint for session tracking")
 
 
 class RefreshTokenRequest(BaseModel):

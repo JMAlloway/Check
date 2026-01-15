@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.core.middleware import (
     TokenRedactionMiddleware,
+    SecurityHeadersMiddleware,
     install_token_redaction_logging,
     redact_token_from_path,
     redact_exception_args,
@@ -147,6 +148,10 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-Request-ID"],
     expose_headers=["X-Request-ID"],
 )
+
+# Security headers middleware - adds standard security headers to all responses
+# X-Content-Type-Options, X-Frame-Options, CSP, Permissions-Policy, etc.
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Token redaction middleware - adds security headers for secure image endpoints
 # This prevents bearer token leakage via Referrer headers

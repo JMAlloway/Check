@@ -2,12 +2,113 @@
 
 from datetime import datetime, timezone
 import json
+import re
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit import AuditAction, AuditLog, ItemView
+
+
+# =============================================================================
+# PII Redaction for Audit Logs
+# =============================================================================
+
+# Fields that should always be redacted
+PII_FIELDS = {
+    # Account/routing information
+    "account_number", "routing_number", "micr_line", "micr_account", "micr_routing",
+    "aba_number", "bank_account",
+    # Personal identifiers
+    "ssn", "social_security", "tax_id", "ein", "tin",
+    # Contact information
+    "phone", "phone_number", "mobile", "telephone",
+    # Financial data
+    "card_number", "credit_card", "debit_card", "cvv", "pin",
+    # Authentication secrets
+    "password", "hashed_password", "mfa_secret", "secret_key", "api_key",
+    # Full address components
+    "street_address", "address_line",
+}
+
+# Patterns to detect and redact PII values
+PII_PATTERNS = [
+    # SSN: XXX-XX-XXXX or XXXXXXXXX
+    (re.compile(r'\b\d{3}-\d{2}-\d{4}\b'), "[SSN_REDACTED]"),
+    (re.compile(r'\b\d{9}\b(?!\d)'), "[SSN_REDACTED]"),
+    # Account numbers (9-17 digits, common bank account lengths)
+    (re.compile(r'\b\d{9,17}\b'), "[ACCOUNT_REDACTED]"),
+    # Routing numbers (9 digits starting with 0-3)
+    (re.compile(r'\b[0-3]\d{8}\b'), "[ROUTING_REDACTED]"),
+    # Credit card numbers (13-19 digits, possibly with spaces/dashes)
+    (re.compile(r'\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{1,7}\b'), "[CARD_REDACTED]"),
+    # Phone numbers (various formats)
+    (re.compile(r'\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b'), "[PHONE_REDACTED]"),
+    (re.compile(r'\(\d{3}\)\s?\d{3}[-.\s]?\d{4}'), "[PHONE_REDACTED]"),
+]
+
+
+def redact_pii_value(value: Any) -> Any:
+    """Redact PII from a single value.
+
+    Handles strings, dicts, and lists recursively.
+    """
+    if value is None:
+        return None
+
+    if isinstance(value, str):
+        result = value
+        for pattern, replacement in PII_PATTERNS:
+            result = pattern.sub(replacement, result)
+        return result
+
+    if isinstance(value, dict):
+        return redact_pii_dict(value)
+
+    if isinstance(value, list):
+        return [redact_pii_value(item) for item in value]
+
+    # For other types (int, float, bool), return as-is
+    return value
+
+
+def redact_pii_dict(data: dict | None) -> dict | None:
+    """Redact PII from a dictionary.
+
+    - Redacts values of known PII field names
+    - Scans string values for PII patterns
+    - Recursively handles nested dicts and lists
+    """
+    if not data:
+        return data
+
+    result = {}
+    for key, value in data.items():
+        key_lower = key.lower()
+
+        # Check if field name indicates PII
+        if key_lower in PII_FIELDS:
+            if value is not None:
+                # Preserve type indicator but redact value
+                if isinstance(value, str) and len(value) > 4:
+                    # Show last 4 chars for account numbers
+                    result[key] = f"****{value[-4:]}"
+                else:
+                    result[key] = "[REDACTED]"
+            else:
+                result[key] = None
+        elif isinstance(value, dict):
+            result[key] = redact_pii_dict(value)
+        elif isinstance(value, list):
+            result[key] = [redact_pii_value(item) for item in value]
+        elif isinstance(value, str):
+            # Scan string values for PII patterns
+            result[key] = redact_pii_value(value)
+        else:
+            result[key] = value
+
+    return result
 
 
 class AuditService:
@@ -56,6 +157,12 @@ class AuditService:
         Returns:
             The created AuditLog entry
         """
+        # SECURITY: Redact PII from before_value, after_value, and metadata
+        # This prevents sensitive data from being stored in audit logs
+        redacted_before = redact_pii_dict(before_value) if before_value else None
+        redacted_after = redact_pii_dict(after_value) if after_value else None
+        redacted_metadata = redact_pii_dict(metadata) if metadata else None
+
         log_entry = AuditLog(
             tenant_id=tenant_id,  # Multi-tenant isolation
             timestamp=datetime.now(timezone.utc),
@@ -67,9 +174,9 @@ class AuditService:
             resource_type=resource_type,
             resource_id=resource_id,
             description=description,
-            before_value=json.dumps(before_value) if before_value else None,
-            after_value=json.dumps(after_value) if after_value else None,
-            extra_data=json.dumps(metadata) if metadata else None,
+            before_value=json.dumps(redacted_before) if redacted_before else None,
+            after_value=json.dumps(redacted_after) if redacted_after else None,
+            extra_data=json.dumps(redacted_metadata) if redacted_metadata else None,
             session_id=session_id,
         )
 

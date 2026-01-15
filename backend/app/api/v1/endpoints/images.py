@@ -18,6 +18,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import DBSession, require_permission, get_tenant_id
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.core.security import verify_signed_url
 from app.integrations.adapters.factory import get_adapter
 from app.audit.service import AuditService
@@ -80,6 +81,7 @@ class BatchTokenMintResponse(BaseModel):
 # =============================================================================
 
 @router.post("/tokens", response_model=TokenMintResponse)
+@limiter.limit("60/minute")  # Rate limit token minting to prevent abuse
 async def mint_image_token(
     request: Request,
     data: TokenMintRequest,
@@ -168,6 +170,7 @@ async def mint_image_token(
 
 
 @router.post("/tokens/batch", response_model=BatchTokenMintResponse)
+@limiter.limit("30/minute")  # Rate limit batch minting (more restrictive since it creates multiple tokens)
 async def mint_image_tokens_batch(
     request: Request,
     data: BatchTokenMintRequest,
@@ -182,6 +185,7 @@ async def mint_image_tokens_batch(
 
     Limits:
     - Maximum 10 tokens per request
+    - Rate limited to 30 requests per minute
     """
     if len(data.image_ids) > 10:
         raise HTTPException(

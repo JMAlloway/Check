@@ -82,6 +82,51 @@ class TokenRedactionFilter(logging.Filter):
         return True
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Middleware to add standard security headers to all API responses.
+
+    Headers added:
+    - X-Content-Type-Options: nosniff - Prevents MIME sniffing
+    - X-Frame-Options: DENY - Prevents clickjacking
+    - X-XSS-Protection: 0 - Disabled (CSP is preferred, and this can introduce vulnerabilities)
+    - Referrer-Policy: strict-origin-when-cross-origin - Limits referrer information
+    - Content-Security-Policy: default-src 'self' - Restricts resource loading
+    - Permissions-Policy: Restricts browser features
+    - Cache-Control: For API responses, prevent caching of sensitive data
+
+    Note: These are applied to ALL responses. Image endpoints have additional headers.
+    """
+
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Response]
+    ) -> Response:
+        """Process request and add security headers."""
+        response = await call_next(request)
+
+        # Standard security headers for all API responses
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        # X-XSS-Protection disabled - can cause vulnerabilities, CSP is preferred
+        response.headers["X-XSS-Protection"] = "0"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+        # Permissions-Policy to disable unnecessary browser features
+        response.headers["Permissions-Policy"] = (
+            "accelerometer=(), camera=(), geolocation=(), gyroscope=(), "
+            "magnetometer=(), microphone=(), payment=(), usb=()"
+        )
+
+        # Content-Security-Policy for API responses
+        # Note: This is restrictive - frontend serves its own CSP
+        if request.url.path.startswith("/api/"):
+            response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+            # Prevent caching of API responses with sensitive data
+            if "Cache-Control" not in response.headers:
+                response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+
+        return response
+
+
 class TokenRedactionMiddleware(BaseHTTPMiddleware):
     """Middleware to add security headers for secure image endpoints.
 

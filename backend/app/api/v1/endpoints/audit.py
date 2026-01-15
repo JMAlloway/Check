@@ -244,8 +244,8 @@ async def generate_audit_packet(
         },
     )
 
-    # Generate download URL
-    download_url = f"/api/v1/audit/packet/{packet_id}/download"
+    # Generate download URL (relative to API base, frontend adds /api/v1 prefix)
+    download_url = f"/audit/packet/{packet_id}/download"
 
     return AuditPacketResponse(
         packet_id=packet_id,

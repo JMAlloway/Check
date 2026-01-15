@@ -11,6 +11,7 @@ import {
   ArrowRightOnRectangleIcon,
   UserCircleIcon,
   ShieldExclamationIcon,
+  QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../stores/authStore';
 import { useDemoStore } from '../../stores/demoStore';
@@ -23,6 +24,7 @@ const navigation = [
   { name: 'Review Queue', href: '/queue', icon: QueueListIcon },
   { name: 'Fraud Trends', href: '/fraud/trends', icon: ShieldExclamationIcon },
   { name: 'Reports', href: '/reports', icon: ChartBarIcon },
+  { name: 'Help', href: '/help', icon: QuestionMarkCircleIcon },
 ];
 
 const adminNavigation = [

@@ -10,6 +10,7 @@ import CheckReviewPage from './pages/CheckReviewPage';
 import AdminPage from './pages/AdminPage';
 import ReportsPage from './pages/ReportsPage';
 import FraudTrendsPage from './pages/FraudTrendsPage';
+import HelpPage from './pages/HelpPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -91,6 +92,7 @@ function App() {
                 <Route path="/admin/*" element={<AdminPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/fraud/trends" element={<FraudTrendsPage />} />
+                <Route path="/help" element={<HelpPage />} />
               </Routes>
             </Layout>
           </ProtectedRoute>

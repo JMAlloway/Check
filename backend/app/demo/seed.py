@@ -893,9 +893,18 @@ class DemoSeeder:
         """Create network match alerts for fraud intelligence demonstration."""
         count = 0
 
-        # Create alerts for some checks to show network intelligence in action
-        # These alerts simulate matches found against the fraud network
-        alertable_checks = [c for c in self.demo_checks if c.risk_level in [RiskLevel.MEDIUM, RiskLevel.HIGH, RiskLevel.CRITICAL]][:10]
+        # Create alerts for ~40% of checks to ensure users see network intelligence in demos
+        # Prioritize higher risk checks but include some lower risk ones too
+        high_risk_checks = [c for c in self.demo_checks if c.risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]]
+        medium_risk_checks = [c for c in self.demo_checks if c.risk_level == RiskLevel.MEDIUM]
+        low_risk_checks = [c for c in self.demo_checks if c.risk_level == RiskLevel.LOW]
+
+        # Take most high-risk, some medium, few low for variety
+        alertable_checks = (
+            high_risk_checks[:15] +  # Most high-risk checks
+            medium_risk_checks[:10] +  # Some medium risk
+            low_risk_checks[:5]  # A few low risk (false positive scenarios)
+        )
 
         for check in alertable_checks:
             # Vary the severity and match count
@@ -915,6 +924,13 @@ class DemoSeeder:
             num_reasons = random.randint(1, 3)
             selected_reasons = random.sample(possible_reasons, num_reasons)
 
+            # Fraud types and channels for realistic match reasons
+            fraud_type_options = [
+                "counterfeit_check", "forged_signature", "altered_check",
+                "duplicate_deposit", "account_takeover", "check_kiting"
+            ]
+            channel_options = ["branch", "mobile", "atm", "rdc", "online"]
+
             for reason_key, reason_desc in selected_reasons:
                 months_back = random.randint(1, 12)
                 first_seen = (datetime.now(timezone.utc) - timedelta(days=30 * months_back)).strftime("%Y-%m")
@@ -925,6 +941,8 @@ class DemoSeeder:
                     "first_seen": first_seen,
                     "last_seen": last_seen,
                     "description": reason_desc,
+                    "fraud_types": random.sample(fraud_type_options, random.randint(1, 3)),
+                    "channels": random.sample(channel_options, random.randint(1, 2)),
                 }
 
             alert = NetworkMatchAlert(

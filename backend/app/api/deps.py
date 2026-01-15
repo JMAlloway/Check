@@ -255,3 +255,154 @@ RequireCheckReview = Annotated[User, Depends(require_permission("check_item", "r
 RequireCheckApprove = Annotated[User, Depends(require_permission("check_item", "approve"))]
 RequireAuditView = Annotated[User, Depends(require_permission("audit", "view"))]
 RequireAdmin = Annotated[User, Depends(require_role("admin"))]
+
+
+# =============================================================================
+# Tenant Isolation Helpers
+# =============================================================================
+
+def get_tenant_id(user: User) -> str:
+    """
+    Get tenant_id from user with validation.
+
+    CRITICAL: Never use a default/fallback tenant_id - this would allow
+    cross-tenant data access. If tenant_id is missing, it's a data integrity
+    issue that must fail loudly.
+
+    Args:
+        user: Authenticated user object
+
+    Returns:
+        The user's tenant_id
+
+    Raises:
+        HTTPException: If tenant_id is missing (data integrity error)
+    """
+    if not user.tenant_id:
+        auth_logger.error(
+            f"CRITICAL: User {user.id} has no tenant_id - data integrity issue",
+            extra={
+                "security_event": {
+                    "event": "tenant_missing",
+                    "user_id": user.id,
+                    "username": user.username,
+                }
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="User tenant configuration error",
+        )
+    return user.tenant_id
+
+
+async def get_resource_with_tenant_check(
+    db: AsyncSession,
+    model_class,
+    resource_id: str,
+    tenant_id: str,
+    *,
+    resource_name: str = "Resource",
+    options: list | None = None,
+    additional_filters: list | None = None,
+):
+    """
+    Fetch a resource by ID with mandatory tenant isolation.
+
+    This helper enforces tenant isolation for all "get by ID" operations.
+    Returns 404 for both "not found" and "wrong tenant" to prevent
+    enumeration attacks.
+
+    Args:
+        db: Database session
+        model_class: SQLAlchemy model class (must have tenant_id column)
+        resource_id: The resource ID to fetch
+        tenant_id: Current user's tenant_id
+        resource_name: Human-readable name for error messages
+        options: SQLAlchemy query options (e.g., selectinload)
+        additional_filters: Additional WHERE conditions
+
+    Returns:
+        The resource if found and owned by tenant
+
+    Raises:
+        HTTPException: 404 if not found or wrong tenant
+    """
+    query = select(model_class).where(
+        model_class.id == resource_id,
+        model_class.tenant_id == tenant_id,
+    )
+
+    if options:
+        for opt in options:
+            query = query.options(opt)
+
+    if additional_filters:
+        for filter_condition in additional_filters:
+            query = query.where(filter_condition)
+
+    result = await db.execute(query)
+    resource = result.scalar_one_or_none()
+
+    if not resource:
+        # Log potential cross-tenant access attempt for security monitoring
+        # We don't reveal whether the item exists in another tenant
+        auth_logger.info(
+            f"Resource not found or tenant mismatch: {resource_name} {resource_id}",
+            extra={
+                "security_event": {
+                    "event": "resource_access_denied",
+                    "resource_type": resource_name.lower().replace(" ", "_"),
+                    "resource_id": resource_id,
+                    "tenant_id": tenant_id,
+                }
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"{resource_name} not found",
+        )
+
+    return resource
+
+
+def log_cross_tenant_attempt(
+    user: User,
+    resource_type: str,
+    resource_id: str,
+    attempted_action: str,
+    request: Request | None = None,
+) -> None:
+    """
+    Log a potential cross-tenant access attempt.
+
+    Use this when you detect a user trying to access another tenant's data.
+    These logs should be monitored for security threats.
+
+    Args:
+        user: The user attempting access
+        resource_type: Type of resource (e.g., "check_item", "decision")
+        resource_id: ID of the resource
+        attempted_action: What the user tried to do
+        request: Optional request for IP/user-agent logging
+    """
+    log_data = {
+        "event": "cross_tenant_attempt",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "user_id": user.id,
+        "username": user.username,
+        "tenant_id": user.tenant_id,
+        "resource_type": resource_type,
+        "resource_id": resource_id,
+        "attempted_action": attempted_action,
+    }
+
+    if request:
+        log_data["ip_address"] = request.client.host if request.client else None
+        log_data["user_agent"] = request.headers.get("user-agent")
+        log_data["path"] = request.url.path
+
+    auth_logger.warning(
+        f"CROSS_TENANT_ATTEMPT: user={user.username} tried {attempted_action} on {resource_type}/{resource_id}",
+        extra={"security_event": log_data},
+    )

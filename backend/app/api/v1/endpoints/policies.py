@@ -8,7 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import DBSession, CurrentUser, require_permission
+from app.api.deps import (
+    DBSession,
+    CurrentUser,
+    require_permission,
+    get_tenant_id,
+    get_resource_with_tenant_check,
+)
 from app.models.policy import Policy, PolicyRule, PolicyStatus, PolicyVersion
 from app.schemas.policy import (
     PolicyCreate,
@@ -34,8 +40,13 @@ async def list_policies(
     current_user: Annotated[object, Depends(require_permission("policy", "view"))],
     status_filter: PolicyStatus | None = None,
 ):
-    """List all policies."""
-    query = select(Policy).options(selectinload(Policy.versions))
+    """List all policies for the current tenant."""
+    tenant_id = get_tenant_id(current_user)
+
+    # CRITICAL: Filter by tenant_id for multi-tenant isolation
+    query = select(Policy).options(selectinload(Policy.versions)).where(
+        Policy.tenant_id == tenant_id
+    )
 
     if status_filter:
         query = query.where(Policy.status == status_filter)
@@ -68,8 +79,12 @@ async def create_policy(
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("policy", "create"))],
 ):
-    """Create a new policy."""
+    """Create a new policy for the current tenant."""
+    tenant_id = get_tenant_id(current_user)
+
     policy = Policy(
+        # CRITICAL: Set tenant_id from authenticated user, never from request body
+        tenant_id=tenant_id,
         name=policy_data.name,
         description=policy_data.description,
         status=PolicyStatus.DRAFT,
@@ -117,6 +132,7 @@ async def create_policy(
         resource_id=policy.id,
         user_id=current_user.id,
         username=current_user.username,
+        tenant_id=tenant_id,
         ip_address=request.client.host if request.client else None,
         description=f"Created policy {policy.name}",
     )
@@ -146,21 +162,18 @@ async def get_policy(
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("policy", "view"))],
 ):
-    """Get a specific policy with all versions."""
-    result = await db.execute(
-        select(Policy)
-        .options(
-            selectinload(Policy.versions).selectinload(PolicyVersion.rules)
-        )
-        .where(Policy.id == policy_id)
-    )
-    policy = result.scalar_one_or_none()
+    """Get a specific policy with all versions (tenant-scoped)."""
+    tenant_id = get_tenant_id(current_user)
 
-    if not policy:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Policy not found",
-        )
+    # CRITICAL: Use tenant-scoped helper to prevent cross-tenant access
+    policy = await get_resource_with_tenant_check(
+        db=db,
+        model_class=Policy,
+        resource_id=policy_id,
+        tenant_id=tenant_id,
+        resource_name="Policy",
+        options=[selectinload(Policy.versions).selectinload(PolicyVersion.rules)],
+    )
 
     versions = []
     current_version = None
@@ -228,17 +241,18 @@ async def create_policy_version(
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("policy", "update"))],
 ):
-    """Create a new version of a policy."""
-    result = await db.execute(
-        select(Policy).options(selectinload(Policy.versions)).where(Policy.id == policy_id)
-    )
-    policy = result.scalar_one_or_none()
+    """Create a new version of a policy (tenant-scoped)."""
+    tenant_id = get_tenant_id(current_user)
 
-    if not policy:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Policy not found",
-        )
+    # CRITICAL: Verify policy belongs to current tenant
+    policy = await get_resource_with_tenant_check(
+        db=db,
+        model_class=Policy,
+        resource_id=policy_id,
+        tenant_id=tenant_id,
+        resource_name="Policy",
+        options=[selectinload(Policy.versions)],
+    )
 
     # Get next version number
     max_version = max((v.version_number for v in policy.versions), default=0)
@@ -319,17 +333,18 @@ async def activate_policy(
     current_user: Annotated[object, Depends(require_permission("policy", "activate"))],
     version_id: str | None = None,
 ):
-    """Activate a policy (or specific version)."""
-    result = await db.execute(
-        select(Policy).options(selectinload(Policy.versions)).where(Policy.id == policy_id)
-    )
-    policy = result.scalar_one_or_none()
+    """Activate a policy (or specific version) - tenant-scoped."""
+    tenant_id = get_tenant_id(current_user)
 
-    if not policy:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Policy not found",
-        )
+    # CRITICAL: Verify policy belongs to current tenant
+    policy = await get_resource_with_tenant_check(
+        db=db,
+        model_class=Policy,
+        resource_id=policy_id,
+        tenant_id=tenant_id,
+        resource_name="Policy",
+        options=[selectinload(Policy.versions)],
+    )
 
     # Find version to activate
     target_version = None
@@ -367,8 +382,12 @@ async def activate_policy(
         resource_id=policy_id,
         user_id=current_user.id,
         username=current_user.username,
+        tenant_id=tenant_id,
         ip_address=request.client.host if request.client else None,
         description=f"Activated policy {policy.name} version {target_version.version_number}",
     )
+
+    # Explicit commit for write operation
+    await db.commit()
 
     return {"message": f"Policy activated (version {target_version.version_number})", "version_id": target_version.id}

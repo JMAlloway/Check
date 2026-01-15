@@ -54,9 +54,17 @@ class RuleConditionOperator(str, Enum):
 
 
 class Policy(Base, UUIDMixin, TimestampMixin):
-    """Policy definition."""
+    """Policy definition.
+
+    Multi-tenant: Each policy belongs to a single tenant.
+    The tenant_id column ensures strict data isolation.
+    """
 
     __tablename__ = "policies"
+
+    # CRITICAL: tenant_id for multi-tenant isolation
+    # Every policy query MUST filter by tenant_id
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
 
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)

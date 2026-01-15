@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -756,33 +756,27 @@ class FraudService:
         from dateutil.relativedelta import relativedelta
         start_date = end_date - relativedelta(months=range_months)
 
-        # Get your bank's data
-        your_bank_query = select(
-            FraudSharedArtifact.fraud_type,
-            FraudSharedArtifact.channel,
-            FraudSharedArtifact.amount_bucket,
-            FraudSharedArtifact.occurred_month,
-            func.count().label("count"),
-        ).where(
-            FraudSharedArtifact.tenant_id == tenant_id,
-            FraudSharedArtifact.is_active == True,
-            FraudSharedArtifact.occurred_at >= start_date,
-        ).group_by(
-            FraudSharedArtifact.fraud_type,
-            FraudSharedArtifact.channel,
-            FraudSharedArtifact.amount_bucket,
-            FraudSharedArtifact.occurred_month,
-        )
-
-        # Get network data (excluding your bank)
+        # Get all network data (from all tenants for aggregate view)
         network_query = select(
             FraudSharedArtifact.fraud_type,
             FraudSharedArtifact.channel,
             FraudSharedArtifact.amount_bucket,
             FraudSharedArtifact.occurred_month,
+            FraudSharedArtifact.tenant_id,
             func.count().label("count"),
+            func.sum(
+                case(
+                    (FraudSharedArtifact.amount_bucket == AmountBucket.UNDER_100, 50),
+                    (FraudSharedArtifact.amount_bucket == AmountBucket.FROM_100_TO_500, 300),
+                    (FraudSharedArtifact.amount_bucket == AmountBucket.FROM_500_TO_1000, 750),
+                    (FraudSharedArtifact.amount_bucket == AmountBucket.FROM_1000_TO_5000, 3000),
+                    (FraudSharedArtifact.amount_bucket == AmountBucket.FROM_5000_TO_10000, 7500),
+                    (FraudSharedArtifact.amount_bucket == AmountBucket.FROM_10000_TO_50000, 30000),
+                    (FraudSharedArtifact.amount_bucket == AmountBucket.OVER_50000, 75000),
+                    else_=1000
+                )
+            ).label("estimated_amount"),
         ).where(
-            FraudSharedArtifact.tenant_id != tenant_id,
             FraudSharedArtifact.is_active == True,
             FraudSharedArtifact.sharing_level >= SharingLevel.AGGREGATE.value,
             FraudSharedArtifact.occurred_at >= start_date,
@@ -791,31 +785,86 @@ class FraudService:
             FraudSharedArtifact.channel,
             FraudSharedArtifact.amount_bucket,
             FraudSharedArtifact.occurred_month,
+            FraudSharedArtifact.tenant_id,
         )
 
-        your_bank_result = await self.db.execute(your_bank_query)
         network_result = await self.db.execute(network_query)
-
-        your_bank_data = list(your_bank_result.all())
         network_data = list(network_result.all())
 
-        # Process and aggregate the data
-        # Apply privacy thresholding
-        def apply_threshold(count: int) -> tuple[int, str]:
-            if count < privacy_threshold:
-                return count, f"<{privacy_threshold}"
-            return count, str(count)
+        # Build data points by period (month)
+        data_points_dict: dict[str, dict] = {}
+        fraud_type_counts: dict[str, int] = {}
+        channel_counts: dict[str, int] = {}
+        all_tenants: set[str] = set()
+        total_events = 0
+        total_amount = 0
 
-        # Build response structure
+        for row in network_data:
+            period = row.occurred_month or "unknown"
+            all_tenants.add(row.tenant_id)
+            total_events += row.count
+            total_amount += row.estimated_amount or 0
+
+            # Aggregate by fraud type
+            fraud_type_str = row.fraud_type.value if hasattr(row.fraud_type, 'value') else str(row.fraud_type)
+            fraud_type_counts[fraud_type_str] = fraud_type_counts.get(fraud_type_str, 0) + row.count
+
+            # Aggregate by channel
+            channel_str = row.channel.value if hasattr(row.channel, 'value') else str(row.channel)
+            channel_counts[channel_str] = channel_counts.get(channel_str, 0) + row.count
+
+            # Build data point for this period
+            if period not in data_points_dict:
+                data_points_dict[period] = {
+                    "period": period,
+                    "total_events": 0,
+                    "total_amount": 0,
+                    "avg_amount": 0,
+                    "by_type": {},
+                    "by_channel": {},
+                    "by_amount_bucket": {},
+                    "unique_institutions": set(),
+                }
+
+            dp = data_points_dict[period]
+            dp["total_events"] += row.count
+            dp["total_amount"] += row.estimated_amount or 0
+            dp["unique_institutions"].add(row.tenant_id)
+            dp["by_type"][fraud_type_str] = dp["by_type"].get(fraud_type_str, 0) + row.count
+            dp["by_channel"][channel_str] = dp["by_channel"].get(channel_str, 0) + row.count
+            amount_bucket_str = row.amount_bucket.value if hasattr(row.amount_bucket, 'value') else str(row.amount_bucket)
+            dp["by_amount_bucket"][amount_bucket_str] = dp["by_amount_bucket"].get(amount_bucket_str, 0) + row.count
+
+        # Convert data points to list and finalize
+        data_points = []
+        for period in sorted(data_points_dict.keys()):
+            dp = data_points_dict[period]
+            dp["unique_institutions"] = len(dp["unique_institutions"])
+            dp["avg_amount"] = dp["total_amount"] / dp["total_events"] if dp["total_events"] > 0 else 0
+            data_points.append(dp)
+
+        # Build top fraud types and channels lists
+        top_fraud_types = [
+            {"type": k, "count": v}
+            for k, v in sorted(fraud_type_counts.items(), key=lambda x: x[1], reverse=True)
+        ]
+        top_channels = [
+            {"channel": k, "count": v}
+            for k, v in sorted(channel_counts.items(), key=lambda x: x[1], reverse=True)
+        ]
+
+        # Build response in format frontend expects
         return {
-            "period_start": start_date.isoformat(),
-            "period_end": end_date.isoformat(),
-            "your_bank_total": sum(r.count for r in your_bank_data),
-            "network_total": sum(r.count for r in network_data),
-            "privacy_threshold": privacy_threshold,
-            "by_type": self._aggregate_by_field(your_bank_data, network_data, "fraud_type", privacy_threshold),
-            "by_channel": self._aggregate_by_field(your_bank_data, network_data, "channel", privacy_threshold),
-            "by_amount": self._aggregate_by_field(your_bank_data, network_data, "amount_bucket", privacy_threshold),
+            "range": f"{range_months}m",
+            "granularity": granularity,
+            "data_points": data_points,
+            "totals": {
+                "total_events": total_events,
+                "total_amount": total_amount,
+                "unique_institutions": len(all_tenants),
+                "top_fraud_types": top_fraud_types,
+                "top_channels": top_channels,
+            },
         }
 
     def _aggregate_by_field(

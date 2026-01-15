@@ -217,6 +217,8 @@ async def generate_audit_packet(
             generated_by=current_user.username,
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate PDF: {str(e)}",

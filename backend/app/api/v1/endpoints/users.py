@@ -103,8 +103,9 @@ async def create_user(
             detail="User with this email or username already exists",
         )
 
-    # Create user
+    # Create user (inherit tenant from current user)
     user = User(
+        tenant_id=current_user.tenant_id,
         email=user_data.email,
         username=user_data.username,
         full_name=user_data.full_name,

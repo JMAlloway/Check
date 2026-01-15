@@ -40,6 +40,8 @@ from app.models.fraud import (
     FraudType,
     FraudChannel,
     FraudEventStatus,
+    TenantFraudConfig,
+    SharingLevel,
     get_amount_bucket,
 )
 from app.models.queue import Queue, QueueType
@@ -81,6 +83,7 @@ class DemoSeeder:
         # CRITICAL: Commit users early so login always works even if later steps fail
         stats["users"] = await self._seed_users()
         stats["queues"] = await self._seed_queues()
+        await self._seed_tenant_fraud_config()  # Enable fraud features for demo
         await self.db.commit()  # Commit users and queues first
         print(f"Committed {stats['users']} users and {stats['queues']} queues")
 
@@ -244,6 +247,35 @@ class DemoSeeder:
 
         await self.db.flush()
         return count
+
+    async def _seed_tenant_fraud_config(self) -> None:
+        """Create or update tenant fraud config to enable fraud features."""
+        result = await self.db.execute(
+            select(TenantFraudConfig).where(
+                TenantFraudConfig.tenant_id == "DEMO-TENANT-000000000000000000000000"
+            )
+        )
+        config = result.scalar_one_or_none()
+
+        if not config:
+            config = TenantFraudConfig(
+                id=str(uuid.uuid4()),
+                tenant_id="DEMO-TENANT-000000000000000000000000",
+                default_sharing_level=SharingLevel.AGGREGATE.value,  # Level 1 - enables network trends
+                allow_narrative_sharing=True,
+                allow_account_indicator_sharing=True,
+                receive_network_alerts=True,
+                minimum_alert_severity="low",
+                shared_artifact_retention_months=24,
+            )
+            self.db.add(config)
+        else:
+            # Update existing config to enable features
+            config.default_sharing_level = SharingLevel.AGGREGATE.value
+            config.receive_network_alerts = True
+            config.minimum_alert_severity = "low"
+
+        await self.db.flush()
 
     async def _seed_reason_codes(self) -> int:
         """Create demo reason codes for decisions."""

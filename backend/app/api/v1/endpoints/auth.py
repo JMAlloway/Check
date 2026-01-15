@@ -213,6 +213,21 @@ async def login(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+        # SECURITY: Auto-migrate plaintext MFA secrets to encrypted format
+        # This ensures all MFA secrets are encrypted at rest
+        if not is_encrypted(user.mfa_secret):
+            user.mfa_secret = migrate_mfa_secret(user.mfa_secret)
+            await db.commit()
+            await audit_service.log(
+                action=AuditAction.MFA_ENABLED,  # Reusing action for migration
+                resource_type="user",
+                resource_id=user.id,
+                user_id=user.id,
+                username=user.username,
+                description="MFA secret migrated to encrypted format",
+                ip_address=ip_address,
+            )
+
     tokens = await auth_service.create_tokens(
         user=user,
         ip_address=ip_address,
@@ -278,18 +293,28 @@ async def refresh_token(
 ):
     """Refresh access token using refresh token from httpOnly cookie.
 
-    Security: Reads refresh token from httpOnly cookie (preferred) or body (legacy).
-    CSRF protection via X-CSRF-Token header validation.
+    SECURITY: CSRF validation is ALWAYS required for token refresh.
+    Reads refresh token from httpOnly cookie (preferred) or body (legacy).
     """
     auth_service = AuthService(db)
 
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
 
+    # SECURITY: Always validate CSRF token for refresh operations
+    # This prevents cross-site request forgery attacks
+    csrf_cookie = request.cookies.get(CSRF_TOKEN_COOKIE)
+    csrf_header = request.headers.get("X-CSRF-Token")
+    if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CSRF token validation failed",
+        )
+
     # Prefer cookie-based refresh token (more secure)
     token_to_use = refresh_token_cookie
     if not token_to_use and refresh_data:
-        # Fallback to body for backwards compatibility
+        # Fallback to body for backwards compatibility (still requires CSRF)
         token_to_use = refresh_data.refresh_token
 
     if not token_to_use:
@@ -297,16 +322,6 @@ async def refresh_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="No refresh token provided",
         )
-
-    # Validate CSRF token if using cookie-based auth
-    if refresh_token_cookie:
-        csrf_cookie = request.cookies.get(CSRF_TOKEN_COOKIE)
-        csrf_header = request.headers.get("X-CSRF-Token")
-        if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="CSRF token validation failed",
-            )
 
     tokens = await auth_service.refresh_tokens(
         refresh_token=token_to_use,

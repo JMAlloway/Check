@@ -4,9 +4,10 @@ Receives error reports, performance metrics, and security events
 from the frontend for aggregation and alerting.
 
 Security considerations:
-- Rate limited to prevent abuse
+- Rate limited to prevent abuse (30/minute per IP)
 - Input validation to prevent log injection
 - No PII in error messages (client-side responsibility)
+- Sanitization violations are logged for security monitoring
 """
 
 import logging
@@ -16,6 +17,7 @@ from typing import Literal
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field, field_validator
 
+from app.core.rate_limit import limiter
 from app.core.metrics import (
     security_events_total,
     track_security_event,
@@ -23,6 +25,7 @@ from app.core.metrics import (
 
 router = APIRouter()
 logger = logging.getLogger("frontend.monitoring")
+security_logger = logging.getLogger("security.monitoring")
 
 
 class FrontendErrorEvent(BaseModel):
@@ -42,11 +45,21 @@ class FrontendErrorEvent(BaseModel):
     @field_validator("message", "stack", "componentStack")
     @classmethod
     def sanitize_strings(cls, v: str | None) -> str | None:
-        """Remove potentially dangerous content from error strings."""
+        """Remove potentially dangerous content from error strings.
+
+        SECURITY: Logs when sanitization occurs for security monitoring.
+        """
         if v is None:
             return None
-        # Remove any potential script tags or HTML
+        # Check for potential script injection attempts
+        original = v
         v = v.replace("<script", "&lt;script").replace("</script", "&lt;/script")
+        # Log if sanitization occurred (potential attack attempt)
+        if v != original:
+            # Use module-level logger after class is defined
+            logging.getLogger("security.monitoring").warning(
+                "Script injection attempt sanitized in monitoring event"
+            )
         return v
 
 
@@ -91,6 +104,7 @@ class MonitoringEventsResponse(BaseModel):
 
 
 @router.post("/events", response_model=MonitoringEventsResponse)
+@limiter.limit("30/minute")  # SECURITY: Rate limit to prevent abuse/DoS
 async def receive_monitoring_events(
     request: Request,
     data: MonitoringEventsRequest,
@@ -100,7 +114,8 @@ async def receive_monitoring_events(
     Accepts batched error reports, performance metrics, and security events
     from the frontend application.
 
-    Rate limited to prevent abuse.
+    SECURITY: Rate limited to 30 requests/minute per IP to prevent abuse.
+    Each request can contain up to 50 events.
     """
     client_ip = request.client.host if request.client else "unknown"
     processed = 0

@@ -66,9 +66,14 @@ async def get_system_status() -> SystemStatusResponse:
 
     Returns environment, demo mode status, version, and build information.
     This endpoint is public and does not require authentication.
+
+    SECURITY: In production, build_commit is hidden to prevent
+    fingerprinting attacks that could identify specific vulnerable versions.
     """
-    # Try to get build commit from environment or git
-    build_commit = os.environ.get("BUILD_COMMIT") or os.environ.get("GIT_COMMIT")
+    # SECURITY: Hide build commit in production to prevent reconnaissance
+    build_commit = None
+    if settings.ENVIRONMENT != "production":
+        build_commit = os.environ.get("BUILD_COMMIT") or os.environ.get("GIT_COMMIT")
 
     return SystemStatusResponse(
         environment=settings.ENVIRONMENT,

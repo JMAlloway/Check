@@ -206,10 +206,14 @@ async def health_check():
     - Redis: Executes PING to verify connection (if configured)
 
     Returns 503 Service Unavailable if any critical dependency is down.
+
+    SECURITY: In production, error details are hidden to prevent
+    information disclosure that could aid reconnaissance attacks.
     """
     from sqlalchemy import text
     from app.db.session import AsyncSessionLocal
 
+    is_production = settings.ENVIRONMENT == "production"
     db_status = "disconnected"
     redis_status = "not_configured"
     overall_status = "healthy"
@@ -220,7 +224,8 @@ async def health_check():
             await session.execute(text("SELECT 1"))
             db_status = "connected"
     except Exception as e:
-        db_status = f"error: {str(e)[:50]}"
+        # SECURITY: Hide error details in production
+        db_status = "error" if is_production else f"error: {str(e)[:50]}"
         overall_status = "unhealthy"
 
     # Check Redis connection (if configured)
@@ -232,12 +237,10 @@ async def health_check():
             redis_status = "connected" if pong else "no_response"
             await redis_client.close()
         except ImportError:
-            redis_status = "redis_package_not_installed"
+            redis_status = "unavailable" if is_production else "redis_package_not_installed"
         except Exception as e:
-            redis_status = f"error: {str(e)[:50]}"
-            # Redis failure is non-critical if not required
-            # Uncomment below to make Redis critical:
-            # overall_status = "unhealthy"
+            # SECURITY: Hide error details in production
+            redis_status = "error" if is_production else f"error: {str(e)[:50]}"
 
     response = HealthResponse(
         status=overall_status,

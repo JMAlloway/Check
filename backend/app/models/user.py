@@ -88,7 +88,9 @@ class User(Base, UUIDMixin, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False)
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
-    mfa_secret: Mapped[str | None] = mapped_column(String(255))
+    # SECURITY: Increased to 500 to accommodate encrypted MFA secrets
+    # Encrypted format: base64(version + nonce + ciphertext + tag)
+    mfa_secret: Mapped[str | None] = mapped_column(String(500))
 
     # Organization/team
     department: Mapped[str | None] = mapped_column(String(100))

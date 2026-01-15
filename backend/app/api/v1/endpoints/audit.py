@@ -1,5 +1,6 @@
 """Audit log endpoints."""
 
+from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 from uuid import uuid4
@@ -26,8 +27,27 @@ from app.services.pdf_generator import AuditPacketGenerator
 
 router = APIRouter()
 
-# In-memory cache for generated packets (in production, use Redis or S3)
-_packet_cache: dict[str, tuple[bytes, datetime]] = {}
+# SECURITY: Bounded LRU cache to prevent memory exhaustion attacks
+# In production, use Redis or S3 for persistent storage
+PACKET_CACHE_MAX_SIZE = 100
+_packet_cache: OrderedDict[str, tuple[bytes, datetime]] = OrderedDict()
+
+
+def _cache_packet(packet_id: str, data: bytes) -> None:
+    """Add packet to cache with LRU eviction."""
+    # Remove oldest entries if at capacity
+    while len(_packet_cache) >= PACKET_CACHE_MAX_SIZE:
+        _packet_cache.popitem(last=False)
+    _packet_cache[packet_id] = (data, datetime.now(timezone.utc))
+
+
+def _get_cached_packet(packet_id: str) -> tuple[bytes, datetime] | None:
+    """Get packet from cache and move to end (most recently used)."""
+    if packet_id in _packet_cache:
+        # Move to end to mark as recently used
+        _packet_cache.move_to_end(packet_id)
+        return _packet_cache[packet_id]
+    return None
 
 
 @router.get("/logs", response_model=PaginatedResponse[AuditLogResponse])
@@ -224,9 +244,9 @@ async def generate_audit_packet(
             detail=f"Failed to generate PDF: {str(e)}",
         )
 
-    # Store in cache (expires in 1 hour)
+    # Store in cache with LRU eviction (expires in 1 hour)
     expires_at = now + timedelta(hours=1)
-    _packet_cache[packet_id] = (pdf_bytes, expires_at)
+    _cache_packet(packet_id, pdf_bytes)
 
     # Log packet generation
     audit_service = AuditService(db)
@@ -264,19 +284,21 @@ async def download_audit_packet(
     current_user: Annotated[object, Depends(require_permission("audit", "export"))],
 ):
     """Download a generated audit packet."""
-    global _packet_cache
-
-    # Check if packet exists and is not expired
-    if packet_id not in _packet_cache:
+    # Check if packet exists using LRU cache getter
+    cached = _get_cached_packet(packet_id)
+    if cached is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Packet not found or expired",
         )
 
-    pdf_bytes, expires_at = _packet_cache[packet_id]
+    pdf_bytes, created_at = cached
 
-    if datetime.now(timezone.utc) > expires_at:
-        del _packet_cache[packet_id]
+    # Check if expired (1 hour from creation)
+    if datetime.now(timezone.utc) > created_at + timedelta(hours=1):
+        # Remove expired packet
+        if packet_id in _packet_cache:
+            del _packet_cache[packet_id]
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail="Packet has expired",

@@ -1,0 +1,24 @@
+# Check Review Console - Data Retention Cron Jobs
+#
+# This file configures automated data retention according to compliance requirements:
+# - Audit logs: 7 years retention
+# - Access logs: 90 days retention
+# - User sessions: 90 days retention
+#
+# Logs are written to /var/log/check-review/retention.log
+
+# Environment variables (inherited from container)
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# Run retention cleanup daily at 2:00 AM UTC
+# This is off-peak hours for most US banks
+0 2 * * * cd /app && python scripts/run_retention.py --run >> /var/log/check-review/retention.log 2>&1
+
+# Run integrity verification weekly on Sunday at 3:00 AM UTC
+# This checks for any tampering with audit logs
+0 3 * * 0 cd /app && python scripts/run_retention.py --verify --max-verify-records 500000 >> /var/log/check-review/integrity.log 2>&1
+
+# Generate retention statistics daily at 1:00 AM UTC for monitoring
+# This helps track growth and predict storage needs
+0 1 * * * cd /app && python scripts/run_retention.py --stats >> /var/log/check-review/retention-stats.log 2>&1

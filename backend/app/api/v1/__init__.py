@@ -16,6 +16,7 @@ from app.api.v1.endpoints import (
     audit,
     reports,
     fraud,
+    security,
     system,
 )
 
@@ -35,3 +36,4 @@ api_router.include_router(connector.router, prefix="/connector", tags=["Connecto
 api_router.include_router(image_connectors.router, prefix="/image-connectors", tags=["Connector A - Image Connectors"])
 api_router.include_router(system.router, prefix="/system", tags=["System"])
 api_router.include_router(monitoring.router, prefix="/monitoring", tags=["Monitoring"])
+api_router.include_router(security.router, prefix="/security", tags=["Security Incidents"])

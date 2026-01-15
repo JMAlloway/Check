@@ -73,6 +73,7 @@ class DemoSeeder:
             "audit_events": 0,
             "fraud_events": 0,
             "network_alerts": 0,
+            "network_trends": 0,
         }
 
         if reset:
@@ -98,6 +99,7 @@ class DemoSeeder:
         try:
             stats["fraud_events"] = await self._seed_fraud_events()
             stats["network_alerts"] = await self._seed_network_alerts()
+            stats["network_trends"] = await self._seed_network_trend_data()
             await self.db.commit()
         except Exception as e:
             print(f"Warning: Failed to seed fraud data: {e}")
@@ -118,9 +120,10 @@ class DemoSeeder:
         )
 
         # Clear fraud shared artifacts (must clear before fraud events)
+        # Include both demo tenant and fake network tenants
         await self.db.execute(
             delete(FraudSharedArtifact).where(
-                FraudSharedArtifact.tenant_id == "DEMO-TENANT-000000000000000000000000"
+                FraudSharedArtifact.tenant_id.like("DEMO-%")
             )
         )
 
@@ -963,6 +966,107 @@ class DemoSeeder:
             )
             self.db.add(alert)
             count += 1
+
+        await self.db.flush()
+        return count
+
+    async def _seed_network_trend_data(self) -> int:
+        """Seed network-wide fraud trend data from simulated external institutions.
+
+        This creates FraudSharedArtifact records from fake "other" tenants to populate
+        the Network Fraud Trends dashboard with realistic demo data.
+        """
+        count = 0
+
+        # Simulated external financial institutions
+        external_tenants = [
+            "DEMO-NETWORK-BANK-A-00000000000000000001",
+            "DEMO-NETWORK-BANK-B-00000000000000000002",
+            "DEMO-NETWORK-BANK-C-00000000000000000003",
+            "DEMO-NETWORK-CREDIT-UNION-000000000004",
+            "DEMO-NETWORK-REGIONAL-BANK-0000000005",
+        ]
+
+        fraud_types = list(FraudType)
+        channels = list(FraudChannel)
+
+        # Generate data for the last 6 months
+        now = datetime.now(timezone.utc)
+
+        for months_ago in range(6):
+            month_date = now - timedelta(days=30 * months_ago)
+            occurred_month = month_date.strftime("%Y-%m")
+
+            # Each month, create varying amounts of fraud data from different institutions
+            for tenant_id in external_tenants:
+                # Random number of fraud events per institution per month (5-25)
+                num_events = random.randint(5, 25)
+
+                for _ in range(num_events):
+                    fraud_type = random.choice(fraud_types)
+                    channel = random.choice(channels)
+
+                    # Realistic amount distribution
+                    amount = Decimal(str(random.choice([
+                        random.uniform(100, 500),
+                        random.uniform(500, 2000),
+                        random.uniform(2000, 10000),
+                        random.uniform(10000, 50000),
+                    ]))).quantize(Decimal("0.01"))
+
+                    # Random day within the month
+                    day_offset = random.randint(0, 28)
+                    occurred_at = month_date.replace(day=1) + timedelta(days=day_offset)
+
+                    artifact = FraudSharedArtifact(
+                        id=str(uuid.uuid4()),
+                        tenant_id=tenant_id,
+                        fraud_event_id=None,  # No linked fraud event for network data
+                        sharing_level=SharingLevel.AGGREGATE.value,  # Level 1 - aggregate sharing
+                        occurred_at=occurred_at,
+                        occurred_month=occurred_month,
+                        fraud_type=fraud_type,
+                        channel=channel,
+                        amount_bucket=get_amount_bucket(amount),
+                        indicators_json=None,  # No indicators for aggregate sharing
+                        pepper_version=1,
+                        is_active=True,
+                    )
+                    self.db.add(artifact)
+                    count += 1
+
+        # Also create some trend data for the demo tenant to show "your bank" comparison
+        for months_ago in range(6):
+            month_date = now - timedelta(days=30 * months_ago)
+            occurred_month = month_date.strftime("%Y-%m")
+
+            # Fewer events for "your bank" (3-12 per month)
+            num_events = random.randint(3, 12)
+
+            for _ in range(num_events):
+                fraud_type = random.choice(fraud_types)
+                channel = random.choice(channels)
+
+                amount = Decimal(str(random.uniform(500, 25000))).quantize(Decimal("0.01"))
+                day_offset = random.randint(0, 28)
+                occurred_at = month_date.replace(day=1) + timedelta(days=day_offset)
+
+                artifact = FraudSharedArtifact(
+                    id=str(uuid.uuid4()),
+                    tenant_id="DEMO-TENANT-000000000000000000000000",
+                    fraud_event_id=None,
+                    sharing_level=SharingLevel.AGGREGATE.value,
+                    occurred_at=occurred_at,
+                    occurred_month=occurred_month,
+                    fraud_type=fraud_type,
+                    channel=channel,
+                    amount_bucket=get_amount_bucket(amount),
+                    indicators_json=None,
+                    pepper_version=1,
+                    is_active=True,
+                )
+                self.db.add(artifact)
+                count += 1
 
         await self.db.flush()
         return count

@@ -1,7 +1,12 @@
 """Security middleware for token redaction and logging protection.
 
-This module provides middleware to prevent bearer token leakage in logs,
-error traces, and referrer headers. Critical for bank-grade security compliance.
+This module provides middleware to prevent image access token IDs from leaking
+in logs, error traces, and referrer headers. Critical for bank-grade security.
+
+Token Security Model:
+- Image access tokens are one-time-use UUID tokens stored in the database
+- Token IDs must never appear in logs (prevents replay attacks if logs leak)
+- Token IDs must never leak via Referer headers (browser security)
 """
 
 import logging
@@ -12,34 +17,42 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
-# Pattern to match signed URL tokens in paths
-# Matches /api/v1/images/secure/{token} where token is a JWT
-SECURE_IMAGE_PATH_PATTERN = re.compile(r"(/api/v1/images/secure/)([A-Za-z0-9_-]+\.?[A-Za-z0-9_-]*\.?[A-Za-z0-9_-]*)")
+# Pattern to match image access token IDs in paths
+# Matches /api/v1/images/secure/{token_id} where token_id is a UUID
+# UUID format: 8-4-4-4-12 hex chars (e.g., 550e8400-e29b-41d4-a716-446655440000)
+# Also matches legacy JWT format for backwards compatibility during transition
+SECURE_IMAGE_PATH_PATTERN = re.compile(
+    r"(/api/v1/images/secure/)"
+    r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"  # UUID
+    r"|[A-Za-z0-9_-]+\.?[A-Za-z0-9_-]*\.?[A-Za-z0-9_-]*)"  # Legacy JWT fallback
+)
 TOKEN_REDACTED = "[TOKEN_REDACTED]"
 
 
 def redact_token_from_path(path: str) -> str:
-    """Redact bearer tokens from URL paths.
+    """Redact image access token IDs from URL paths.
 
     Args:
-        path: The request path potentially containing a token
+        path: The request path potentially containing a token ID
 
     Returns:
-        Path with tokens replaced by [TOKEN_REDACTED]
+        Path with token IDs replaced by [TOKEN_REDACTED]
     """
     return SECURE_IMAGE_PATH_PATTERN.sub(rf"\1{TOKEN_REDACTED}", path)
 
 
 def is_secure_image_path(path: str) -> bool:
-    """Check if a path is a secure image URL that contains a bearer token."""
+    """Check if a path is a secure image URL that contains a token ID."""
     return path.startswith("/api/v1/images/secure/")
 
 
 class TokenRedactionFilter(logging.Filter):
-    """Logging filter that redacts bearer tokens from log records.
+    """Logging filter that redacts image access token IDs from log records.
 
-    This filter intercepts log messages and redacts any signed URL tokens
-    to prevent token leakage via application logs.
+    This filter intercepts log messages and redacts any token IDs from
+    secure image URLs to prevent token leakage via application logs.
+    Token IDs are one-time-use UUIDs - if they leak, an attacker could
+    replay them before the legitimate user.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
@@ -70,11 +83,11 @@ class TokenRedactionFilter(logging.Filter):
 
 
 class TokenRedactionMiddleware(BaseHTTPMiddleware):
-    """Middleware to add security headers and enable token redaction.
+    """Middleware to add security headers for secure image endpoints.
 
-    For secure image endpoints:
-    - Adds Referrer-Policy: no-referrer to prevent token leakage via referrer
-    - Modifies request scope to use redacted path for logging
+    For secure image endpoints (/api/v1/images/secure/{token_id}):
+    - Adds Referrer-Policy: no-referrer to prevent token ID leakage via referrer
+    - Token IDs are one-time-use, so leaking them enables replay attacks
 
     This middleware should be added early in the middleware stack.
     """
@@ -127,13 +140,13 @@ def install_token_redaction_logging():
 
 
 def redact_exception_args(exc: Exception) -> Exception:
-    """Redact tokens from exception arguments.
+    """Redact image access token IDs from exception arguments.
 
     Args:
         exc: The exception to sanitize
 
     Returns:
-        Exception with redacted token strings in args
+        Exception with redacted token ID strings in args
     """
     if exc.args:
         new_args = tuple(

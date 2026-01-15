@@ -7,6 +7,7 @@
 # 2. Testing authentication
 # 3. Verifying tenant-scoped endpoints
 # 4. Testing security headers
+# 5. Validating one-time-use image access tokens (mint, use, verify one-time)
 #
 # Usage:
 #   ./scripts/smoke-test.sh [BASE_URL]
@@ -234,6 +235,105 @@ test_protected_endpoint() {
     fi
 }
 
+test_image_token_flow() {
+    log_header "Testing One-Time Image Access Token Flow"
+
+    if [[ -z "$ACCESS_TOKEN" ]]; then
+        log_info "Skipping - no access token available"
+        return
+    fi
+
+    # Step 1: Get list of checks to find an image ID
+    CHECKS_RESPONSE=$(curl $CURL_OPTS -X GET "$BASE_URL/api/v1/checks?page_size=1" \
+        -H "Authorization: Bearer $ACCESS_TOKEN" \
+        -H "Content-Type: application/json" 2>/dev/null || echo "")
+
+    if ! echo "$CHECKS_RESPONSE" | grep -q '"items"'; then
+        log_info "No check items available - skipping image token test"
+        return
+    fi
+
+    # Extract first check ID
+    CHECK_ID=$(echo "$CHECKS_RESPONSE" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    if [[ -z "$CHECK_ID" ]]; then
+        log_info "Could not extract check ID - skipping image token test"
+        return
+    fi
+
+    # Step 2: Get check details to find image IDs
+    CHECK_DETAIL=$(curl $CURL_OPTS -X GET "$BASE_URL/api/v1/checks/$CHECK_ID" \
+        -H "Authorization: Bearer $ACCESS_TOKEN" \
+        -H "Content-Type: application/json" 2>/dev/null || echo "")
+
+    IMAGE_ID=$(echo "$CHECK_DETAIL" | grep -o '"images":\[{"id":"[^"]*"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    if [[ -z "$IMAGE_ID" ]]; then
+        log_info "Check has no images - skipping image token test"
+        return
+    fi
+
+    log_info "Found image ID: $IMAGE_ID"
+
+    # Step 3: Mint a one-time token
+    MINT_RESPONSE=$(curl $CURL_OPTS -X POST "$BASE_URL/api/v1/images/tokens" \
+        -H "Authorization: Bearer $ACCESS_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{\"image_id\":\"$IMAGE_ID\"}" \
+        -w "\n%{http_code}" 2>/dev/null || echo "000")
+
+    MINT_CODE=$(echo "$MINT_RESPONSE" | tail -1)
+    MINT_BODY=$(echo "$MINT_RESPONSE" | head -n -1)
+
+    if [[ "$MINT_CODE" != "200" ]]; then
+        log_fail "Failed to mint image token (status: $MINT_CODE)"
+        return
+    fi
+
+    TOKEN_ID=$(echo "$MINT_BODY" | grep -o '"token_id":"[^"]*"' | cut -d'"' -f4)
+    if [[ -z "$TOKEN_ID" ]]; then
+        log_fail "Mint response missing token_id"
+        return
+    fi
+
+    log_pass "Successfully minted one-time token"
+    log_info "Token ID: ${TOKEN_ID:0:8}..."
+
+    # Step 4: Use token to access image (first time - should succeed)
+    FIRST_USE=$(curl $CURL_OPTS -X GET "$BASE_URL/api/v1/images/secure/$TOKEN_ID" \
+        -w "\n%{http_code}" -o /dev/null 2>/dev/null || echo "000")
+
+    FIRST_CODE=$(echo "$FIRST_USE" | tail -1)
+
+    if [[ "$FIRST_CODE" == "200" ]]; then
+        log_pass "First token use succeeded (status: 200)"
+    else
+        log_fail "First token use failed (status: $FIRST_CODE)"
+        return
+    fi
+
+    # Step 5: Try to use same token again (should fail - one-time-use)
+    SECOND_USE=$(curl $CURL_OPTS -X GET "$BASE_URL/api/v1/images/secure/$TOKEN_ID" \
+        -w "\n%{http_code}" -o /dev/null 2>/dev/null || echo "000")
+
+    SECOND_CODE=$(echo "$SECOND_USE" | tail -1)
+
+    if [[ "$SECOND_CODE" == "404" ]]; then
+        log_pass "One-time-use enforced: second use returned 404"
+    elif [[ "$SECOND_CODE" == "200" ]]; then
+        log_fail "SECURITY ISSUE: Token reuse allowed!"
+    else
+        log_warn "Unexpected status on second use: $SECOND_CODE"
+    fi
+
+    # Step 6: Verify security headers on secure image endpoint
+    HEADERS=$(curl $CURL_OPTS -I "$BASE_URL/api/v1/images/secure/$TOKEN_ID" 2>/dev/null || echo "")
+
+    if echo "$HEADERS" | grep -qi "Referrer-Policy.*no-referrer"; then
+        log_pass "Secure image endpoint has Referrer-Policy: no-referrer"
+    else
+        log_warn "Secure image endpoint may lack Referrer-Policy header"
+    fi
+}
+
 test_unauthenticated_access() {
     log_header "Testing Unauthenticated Access Rejection"
 
@@ -353,6 +453,7 @@ main() {
     test_auth_endpoint
     test_unauthenticated_access
     test_admin_login
+    test_image_token_flow    # Tests one-time-use token minting and consumption
     test_image_endpoint_headers
     test_rate_limiting
 

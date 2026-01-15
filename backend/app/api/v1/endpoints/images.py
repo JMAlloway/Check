@@ -291,32 +291,29 @@ async def get_secure_image(
     )
     token = result.scalar_one_or_none()
 
+    # Security: Return identical 404 response for all invalid token states
+    # This prevents information leakage about whether token was:
+    # - Never existed, expired, already used, or belongs to wrong tenant
+    # Auditors/attackers cannot distinguish these cases from the response
+    GENERIC_NOT_FOUND = HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Image not found",
+    )
+
     if not token:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Image not found",  # Don't reveal token existence
-        )
+        raise GENERIC_NOT_FOUND
 
     # Check expiration
     if token.is_expired:
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail="Image access token has expired",
-        )
+        raise GENERIC_NOT_FOUND
 
     # Check if already used (one-time-use enforcement)
     if token.is_used:
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail="Image access token has already been used",
-        )
+        raise GENERIC_NOT_FOUND
 
     # Verify tenant ownership
     if token.image.check_item.tenant_id != token.tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Image not found",
-        )
+        raise GENERIC_NOT_FOUND
 
     # Mark token as used BEFORE serving (atomic - prevents race conditions)
     token.used_at = datetime.now(timezone.utc)

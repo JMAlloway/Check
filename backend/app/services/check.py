@@ -577,13 +577,22 @@ class CheckService:
             user_id: The requesting user's ID (for user-bound signed URLs)
             limit: Maximum number of history items
         """
-        history = await self.adapter.get_check_history(account_id, limit=limit)
-
+        from sqlalchemy import select
+        from app.models.check import CheckHistory
         from app.core.security import generate_signed_url
+
+        # Query database directly for historical checks
+        result = await self.db.execute(
+            select(CheckHistory)
+            .where(CheckHistory.account_id == account_id)
+            .order_by(CheckHistory.check_date.desc())
+            .limit(limit)
+        )
+        history_records = result.scalars().all()
 
         return [
             CheckHistoryResponse(
-                id=h.external_item_id,
+                id=h.external_item_id or h.id,
                 account_id=h.account_id,
                 check_number=h.check_number,
                 amount=h.amount,
@@ -591,10 +600,10 @@ class CheckService:
                 payee_name=h.payee_name,
                 status=h.status,
                 return_reason=h.return_reason,
-                front_image_url=generate_signed_url(h.front_image_id, user_id) if h.front_image_id else None,
-                back_image_url=generate_signed_url(h.back_image_id, user_id) if h.back_image_id else None,
+                front_image_url=generate_signed_url(h.front_image_ref, user_id) if h.front_image_ref else None,
+                back_image_url=generate_signed_url(h.back_image_ref, user_id) if h.back_image_ref else None,
             )
-            for h in history
+            for h in history_records
         ]
 
     async def update_status(

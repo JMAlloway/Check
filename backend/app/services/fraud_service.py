@@ -343,6 +343,29 @@ class FraudService:
         check_item_id: str,
     ) -> NetworkAlertSummary:
         """Check for network matches for a check item."""
+        # First, check for existing alerts in the database (e.g., pre-seeded demo data)
+        existing_alerts = await self.db.execute(
+            select(NetworkMatchAlert).where(
+                NetworkMatchAlert.check_item_id == check_item_id,
+                NetworkMatchAlert.tenant_id == tenant_id,
+            )
+        )
+        existing_alert_list = existing_alerts.scalars().all()
+        if existing_alert_list:
+            # Return existing alerts (useful for demo mode)
+            alert_responses = []
+            highest_severity = None
+            for alert in existing_alert_list:
+                alert_responses.append(await self._build_alert_response(alert))
+                if highest_severity is None or self._severity_rank(alert.severity) > self._severity_rank(highest_severity):
+                    highest_severity = alert.severity
+            return NetworkAlertSummary(
+                has_alerts=len(alert_responses) > 0,
+                total_alerts=len(alert_responses),
+                highest_severity=highest_severity,
+                alerts=alert_responses,
+            )
+
         # Get check item
         result = await self.db.execute(
             select(CheckItem).where(CheckItem.id == check_item_id)

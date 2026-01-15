@@ -94,6 +94,10 @@ class EntitlementService:
         check_item: CheckItem,
     ) -> EntitlementCheckResult:
         """Check if user can make a review recommendation for this item."""
+        # Superusers bypass entitlement checks
+        if user.is_superuser:
+            return EntitlementCheckResult(allowed=True)
+
         entitlements = await self.get_user_entitlements(user, ApprovalEntitlementType.REVIEW)
 
         if not entitlements:
@@ -120,6 +124,10 @@ class EntitlementService:
         This is the key check for dual control workflow - it ensures the
         approver has the appropriate entitlement for the item's characteristics.
         """
+        # Superusers bypass entitlement checks
+        if user.is_superuser:
+            return EntitlementCheckResult(allowed=True)
+
         entitlements = await self.get_user_entitlements(user, ApprovalEntitlementType.APPROVE)
 
         if not entitlements:
@@ -136,6 +144,10 @@ class EntitlementService:
         check_item: CheckItem,
     ) -> EntitlementCheckResult:
         """Check if user can override policy for this item."""
+        # Superusers bypass entitlement checks
+        if user.is_superuser:
+            return EntitlementCheckResult(allowed=True)
+
         entitlements = await self.get_user_entitlements(user, ApprovalEntitlementType.OVERRIDE)
 
         if not entitlements:

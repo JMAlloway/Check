@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table, Text, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -67,11 +67,21 @@ class User(Base, UUIDMixin, TimestampMixin):
 
     __tablename__ = "users"
 
+    # Tenant-scoped unique constraints for email and username
+    # Users are unique WITHIN a tenant, not globally
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "email", name="uq_users_tenant_email"),
+        UniqueConstraint("tenant_id", "username", name="uq_users_tenant_username"),
+        Index("ix_users_tenant_email", "tenant_id", "email"),
+        Index("ix_users_tenant_username", "tenant_id", "username"),
+    )
+
     # Multi-tenant support
     tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
 
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    # Note: unique=False here - uniqueness enforced by composite constraint above
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    username: Mapped[str] = mapped_column(String(50), nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(100), nullable=False)
 

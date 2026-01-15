@@ -978,13 +978,13 @@ class DemoSeeder:
         """
         count = 0
 
-        # Simulated external financial institutions
+        # Simulated external financial institutions (max 36 chars for tenant_id)
         external_tenants = [
-            "DEMO-NETWORK-BANK-A-00000000000000000001",
-            "DEMO-NETWORK-BANK-B-00000000000000000002",
-            "DEMO-NETWORK-BANK-C-00000000000000000003",
-            "DEMO-NETWORK-CREDIT-UNION-000000000004",
-            "DEMO-NETWORK-REGIONAL-BANK-0000000005",
+            "DEMO-NET-BANK-A-0000000000000001",
+            "DEMO-NET-BANK-B-0000000000000002",
+            "DEMO-NET-BANK-C-0000000000000003",
+            "DEMO-NET-CREDIT-000000000000004",
+            "DEMO-NET-REGION-000000000000005",
         ]
 
         fraud_types = list(FraudType)

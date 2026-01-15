@@ -49,8 +49,11 @@ jobs:
       - name: Run tests
         working-directory: ./backend
         env:
+          ENVIRONMENT: development
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/test_db
-          SECRET_KEY: test-secret-key
+          SECRET_KEY: test-secret-key-for-ci-not-production
+          CSRF_SECRET_KEY: test-csrf-secret-for-ci
+          NETWORK_PEPPER: test-network-pepper-for-ci
         run: |
           pytest tests/ -v --cov=app --cov-report=xml
 

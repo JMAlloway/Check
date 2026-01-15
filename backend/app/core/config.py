@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Check Review Console"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
-    ENVIRONMENT: str = "production"
+    ENVIRONMENT: str = "development"  # Must explicitly set to "production" in prod deployments
 
     # Demo Mode - NEVER enable in production
     # Demo mode provides synthetic data for demonstrations without real PII

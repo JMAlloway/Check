@@ -19,7 +19,7 @@ interface CheckImageViewerProps {
   onZoom?: (level: number) => void;
 }
 
-const ZOOM_LEVELS = [50, 75, 100, 150, 200, 300, 400];
+const ZOOM_LEVELS = [50, 75, 100, 125, 150, 200, 300, 400];
 const DEFAULT_ZOOM = 100;
 
 export default function CheckImageViewer({
@@ -42,6 +42,7 @@ export default function CheckImageViewer({
   const [showControls, setShowControls] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -52,6 +53,7 @@ export default function CheckImageViewer({
   useEffect(() => {
     setImageError(null);
     setImageLoaded(false);
+    setPosition({ x: 0, y: 0 });
   }, [activeImage, currentImage?.image_url]);
 
   const handleZoomIn = useCallback(() => {
@@ -81,24 +83,9 @@ export default function CheckImageViewer({
   }, [onZoom]);
 
   const handleFitToScreen = useCallback(() => {
-    if (containerRef.current && imageRef.current) {
-      const containerWidth = containerRef.current.clientWidth;
-      const containerHeight = containerRef.current.clientHeight;
-      const imageWidth = imageRef.current.naturalWidth;
-      const imageHeight = imageRef.current.naturalHeight;
-
-      const scaleX = (containerWidth / imageWidth) * 100;
-      const scaleY = (containerHeight / imageHeight) * 100;
-      const fitZoom = Math.min(scaleX, scaleY, 100);
-
-      const roundedZoom = ZOOM_LEVELS.reduce((prev, curr) =>
-        Math.abs(curr - fitZoom) < Math.abs(prev - fitZoom) ? curr : prev
-      );
-
-      setZoom(roundedZoom);
-      setPosition({ x: 0, y: 0 });
-      onZoom?.(roundedZoom);
-    }
+    setZoom(100);
+    setPosition({ x: 0, y: 0 });
+    onZoom?.(100);
   }, [onZoom]);
 
   // Mouse drag handling
@@ -169,11 +156,17 @@ export default function CheckImageViewer({
     }
   }, [zoom, currentImage]);
 
-  const imageStyle = {
-    transform: `translate(${position.x}px, ${position.y}px) scale(${zoom / 100})`,
-    transformOrigin: 'center center',
-    filter: `brightness(${brightness}%) contrast(${contrast}%) ${invert ? 'invert(1)' : ''}`,
-  };
+  const handleImageLoad = useCallback(() => {
+    setImageLoaded(true);
+    if (imageRef.current) {
+      setImageDimensions({
+        width: imageRef.current.naturalWidth,
+        height: imageRef.current.naturalHeight,
+      });
+    }
+  }, []);
+
+  const imageFilters = `brightness(${brightness}%) contrast(${contrast}%) ${invert ? 'invert(1)' : ''}`;
 
   return (
     <div className="flex flex-col h-full bg-gray-900 rounded-lg overflow-hidden">
@@ -356,7 +349,7 @@ export default function CheckImageViewer({
       {/* Image container */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-hidden relative cursor-grab active:cursor-grabbing"
+        className="flex-1 overflow-hidden relative cursor-grab active:cursor-grabbing flex items-center justify-center"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -366,14 +359,14 @@ export default function CheckImageViewer({
           <>
             {/* Loading indicator */}
             {!imageLoaded && !imageError && (
-              <div className="absolute inset-0 flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center justify-center z-10">
                 <div className="text-gray-400">Loading image...</div>
               </div>
             )}
 
             {/* Error message */}
             {imageError && (
-              <div className="absolute inset-0 flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center justify-center z-10">
                 <div className="text-center text-red-400">
                   <p>Failed to load image</p>
                   <p className="text-xs text-gray-500 mt-1">{imageError}</p>
@@ -381,58 +374,76 @@ export default function CheckImageViewer({
               </div>
             )}
 
-            <img
-              ref={imageRef}
-              src={resolveImageUrl(currentImage.image_url)}
-              alt={`Check ${activeImage}`}
+            {/* Image and ROI wrapper - transforms applied here */}
+            <div
+              className="relative"
               style={{
-                ...imageStyle,
-                opacity: imageLoaded && !imageError ? 1 : 0,
+                transform: `translate(${position.x}px, ${position.y}px) scale(${zoom / 100})`,
+                transformOrigin: 'center center',
+                visibility: imageLoaded && !imageError ? 'visible' : 'hidden',
               }}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-none transition-opacity"
-              draggable={false}
-              onLoad={() => setImageLoaded(true)}
-              onError={(e) => {
-                const img = e.target as HTMLImageElement;
-                setImageError(`URL: ${img.src.substring(0, 80)}...`);
-                console.error('Image load failed:', img.src);
-              }}
-            />
-
-            {/* ROI overlays */}
-            {showROI && roiRegions.map((roi) => (
-              <div
-                key={roi.id}
-                className="absolute border-2 pointer-events-none"
+            >
+              <img
+                ref={imageRef}
+                src={resolveImageUrl(currentImage.image_url)}
+                alt={`Check ${activeImage}`}
                 style={{
-                  left: `calc(50% + ${position.x}px + ${(roi.x - 50) * zoom / 100}%)`,
-                  top: `calc(50% + ${position.y}px + ${(roi.y - 50) * zoom / 100}%)`,
-                  width: `${roi.width * zoom / 100}%`,
-                  height: `${roi.height * zoom / 100}%`,
-                  borderColor: roi.color,
-                  transform: 'translate(-50%, -50%)',
+                  filter: imageFilters,
+                  maxWidth: '100%',
+                  maxHeight: '100%',
                 }}
-              >
-                <span
-                  className="absolute -top-5 left-0 text-xs px-1 rounded"
-                  style={{ backgroundColor: roi.color, color: 'white' }}
+                className="block"
+                draggable={false}
+                onLoad={handleImageLoad}
+                onError={(e) => {
+                  const img = e.target as HTMLImageElement;
+                  setImageError(`URL: ${img.src.substring(0, 80)}...`);
+                  console.error('Image load failed:', img.src);
+                }}
+              />
+
+              {/* ROI overlays - positioned relative to the image */}
+              {showROI && imageLoaded && roiRegions.map((roi) => (
+                <div
+                  key={roi.id}
+                  className="absolute border-2 pointer-events-none"
+                  style={{
+                    left: `${roi.x}%`,
+                    top: `${roi.y}%`,
+                    width: `${roi.width}%`,
+                    height: `${roi.height}%`,
+                    borderColor: roi.color,
+                  }}
                 >
-                  {roi.name}
-                </span>
-              </div>
-            ))}
+                  <span
+                    className="absolute -top-5 left-0 text-xs px-1 rounded whitespace-nowrap"
+                    style={{ backgroundColor: roi.color, color: 'white' }}
+                  >
+                    {roi.name}
+                  </span>
+                </div>
+              ))}
+            </div>
 
             {/* Magnifier */}
-            {showMagnifier && (
+            {showMagnifier && imageLoaded && (
               <div
                 className="magnifier"
                 style={{
+                  position: 'absolute',
                   left: magnifierPos.x - 75,
                   top: magnifierPos.y - 75,
+                  width: 150,
+                  height: 150,
+                  borderRadius: '50%',
+                  border: '2px solid white',
                   backgroundImage: `url(${resolveImageUrl(currentImage.image_url)})`,
                   backgroundPosition: `${-magnifierPos.x * 2 + 75}px ${-magnifierPos.y * 2 + 75}px`,
-                  backgroundSize: `${zoom * 4}%`,
-                  filter: imageStyle.filter,
+                  backgroundSize: `${imageDimensions.width * zoom / 100 * 2}px ${imageDimensions.height * zoom / 100 * 2}px`,
+                  backgroundRepeat: 'no-repeat',
+                  filter: imageFilters,
+                  pointerEvents: 'none',
+                  zIndex: 20,
                 }}
               />
             )}

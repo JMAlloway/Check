@@ -4,7 +4,7 @@ import json
 from functools import lru_cache
 from typing import Any
 
-from pydantic import PostgresDsn, field_validator
+from pydantic import PostgresDsn, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
 
     # Cookie Security (for refresh tokens)
-    COOKIE_SECURE: bool = True  # Set to False for local dev without HTTPS
+    COOKIE_SECURE: bool | None = None  # Auto-detected from ENVIRONMENT (True in prod, False otherwise)
     COOKIE_SAMESITE: str = "lax"  # "strict" breaks OAuth flows, "lax" is good balance
     COOKIE_DOMAIN: str | None = None  # None = current domain only
     CSRF_SECRET_KEY: str = "change-this-csrf-secret-in-production"
@@ -94,6 +94,15 @@ class Settings(BaseSettings):
                 # If not valid JSON, treat as comma-separated
                 return [origin.strip() for origin in v.split(",")]
         return v
+
+    @model_validator(mode="after")
+    def set_computed_defaults(self) -> "Settings":
+        """Set computed defaults based on other settings."""
+        # Auto-detect COOKIE_SECURE from environment if not explicitly set
+        if self.COOKIE_SECURE is None:
+            # Secure cookies only in production (requires HTTPS)
+            object.__setattr__(self, "COOKIE_SECURE", self.ENVIRONMENT == "production")
+        return self
 
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 100

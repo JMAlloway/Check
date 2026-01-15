@@ -28,6 +28,14 @@ class Token(BaseModel):
     expires_in: int
 
 
+class LoginRoleInfo(BaseModel):
+    """Minimal role info included in login response."""
+
+    id: str
+    name: str
+    is_system: bool = False
+
+
 class LoginUserInfo(BaseModel):
     """User info included in login response."""
 
@@ -36,7 +44,7 @@ class LoginUserInfo(BaseModel):
     email: str
     full_name: str | None
     is_superuser: bool
-    roles: list[str]
+    roles: list[LoginRoleInfo]
     permissions: list[str]
 
 

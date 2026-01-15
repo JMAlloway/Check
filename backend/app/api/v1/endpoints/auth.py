@@ -6,7 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 
 from app.api.deps import DBSession, CurrentUser
-from app.schemas.auth import LoginRequest, RefreshTokenRequest, Token, PasswordChangeRequest, LoginResponse, LoginUserInfo
+from app.schemas.auth import LoginRequest, RefreshTokenRequest, Token, PasswordChangeRequest, LoginResponse, LoginUserInfo, LoginRoleInfo
 from app.schemas.common import MessageResponse
 from app.schemas.user import CurrentUserResponse
 from app.services.auth import AuthService
@@ -146,7 +146,10 @@ async def login(
             email=user.email,
             full_name=user.full_name,
             is_superuser=user.is_superuser,
-            roles=[role.name for role in user.roles],
+            roles=[
+                LoginRoleInfo(id=role.id, name=role.name, is_system=role.is_system)
+                for role in user.roles
+            ],
             permissions=permissions,
         ),
     )

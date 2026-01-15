@@ -456,6 +456,7 @@ class DemoSeeder:
             # Create policy
             policy = Policy(
                 id=str(uuid.uuid4()),
+                tenant_id="DEMO-TENANT-000000000000000000000000",
                 name=config["name"],
                 description=config["description"],
                 status=PolicyStatus.ACTIVE,

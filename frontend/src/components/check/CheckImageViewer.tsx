@@ -7,10 +7,12 @@ import {
   AdjustmentsHorizontalIcon,
   EyeIcon,
   SunIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { CheckImage, ROIRegion } from '../../types';
 import { imageApi, resolveImageUrl } from '../../services/api';
+import useImageTokens from '../../hooks/useImageTokens';
 
 interface CheckImageViewerProps {
   images: CheckImage[];
@@ -43,18 +45,64 @@ export default function CheckImageViewer({
   const [imageError, setImageError] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
 
+  // Use one-time image tokens for secure image access
+  const { tokenUrls, isLoading: isLoadingTokens, refreshImageToken, refreshTokens } = useImageTokens(images);
+
   const currentImage = images.find((img) => img.image_type === activeImage);
+
+  // Get the secure URL for the current image
+  // Falls back to image_url from backend if no token is available
+  const getCurrentImageUrl = useCallback(() => {
+    if (!currentImage) return undefined;
+    // Prefer token URL (one-time token), fall back to image_url if available
+    return tokenUrls[currentImage.id] || currentImage.image_url;
+  }, [currentImage, tokenUrls]);
 
   // Reset image state when image changes
   useEffect(() => {
     setImageError(null);
     setImageLoaded(false);
     setPosition({ x: 0, y: 0 });
-  }, [activeImage, currentImage?.image_url]);
+  }, [activeImage, currentImage?.id, tokenUrls[currentImage?.id || '']]);
+
+  // Handle image load error by refreshing the token
+  const handleImageError = useCallback(async (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.target as HTMLImageElement;
+
+    // If we already tried refreshing, show error
+    if (isRefreshing) {
+      setImageError(`Failed to load image after token refresh`);
+      return;
+    }
+
+    // Try to refresh the token for this image
+    if (currentImage?.id) {
+      setIsRefreshing(true);
+      const newUrl = await refreshImageToken(currentImage.id);
+      setIsRefreshing(false);
+
+      if (!newUrl) {
+        setImageError(`Unable to access image. Please refresh the page.`);
+      }
+      // If newUrl is returned, the tokenUrls state will update and trigger re-render
+    } else {
+      setImageError(`URL: ${img.src.substring(0, 80)}...`);
+    }
+  }, [currentImage?.id, refreshImageToken, isRefreshing]);
+
+  // Manual token refresh handler
+  const handleManualRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    setImageError(null);
+    setImageLoaded(false);
+    await refreshTokens();
+    setIsRefreshing(false);
+  }, [refreshTokens]);
 
   const handleZoomIn = useCallback(() => {
     const currentIndex = ZOOM_LEVELS.indexOf(zoom);
@@ -355,78 +403,87 @@ export default function CheckImageViewer({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-        {currentImage?.image_url ? (
+        {(getCurrentImageUrl() || isLoadingTokens) ? (
           <>
             {/* Loading indicator */}
-            {!imageLoaded && !imageError && (
+            {(!imageLoaded && !imageError) || isLoadingTokens || isRefreshing ? (
               <div className="absolute inset-0 flex items-center justify-center z-10">
-                <div className="text-gray-400">Loading image...</div>
+                <div className="text-gray-400 flex flex-col items-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mb-2"></div>
+                  {isLoadingTokens || isRefreshing ? 'Securing image access...' : 'Loading image...'}
+                </div>
               </div>
-            )}
+            ) : null}
 
-            {/* Error message */}
+            {/* Error message with retry button */}
             {imageError && (
               <div className="absolute inset-0 flex items-center justify-center z-10">
                 <div className="text-center text-red-400">
                   <p>Failed to load image</p>
-                  <p className="text-xs text-gray-500 mt-1">{imageError}</p>
+                  <p className="text-xs text-gray-500 mt-1 mb-3">{imageError}</p>
+                  <button
+                    onClick={handleManualRefresh}
+                    disabled={isRefreshing}
+                    className="inline-flex items-center px-3 py-1 text-sm bg-gray-700 text-gray-200 rounded hover:bg-gray-600 disabled:opacity-50"
+                  >
+                    <ArrowPathIcon className={clsx('h-4 w-4 mr-1', isRefreshing && 'animate-spin')} />
+                    Retry
+                  </button>
                 </div>
               </div>
             )}
 
             {/* Image and ROI wrapper - transforms applied here */}
-            <div
-              className="relative"
-              style={{
-                transform: `translate(${position.x}px, ${position.y}px) scale(${zoom / 100})`,
-                transformOrigin: 'center center',
-                visibility: imageLoaded && !imageError ? 'visible' : 'hidden',
-              }}
-            >
-              <img
-                ref={imageRef}
-                src={resolveImageUrl(currentImage.image_url)}
-                alt={`Check ${activeImage}`}
+            {getCurrentImageUrl() && !isLoadingTokens && (
+              <div
+                className="relative"
                 style={{
-                  filter: imageFilters,
-                  maxWidth: '100%',
-                  maxHeight: '100%',
+                  transform: `translate(${position.x}px, ${position.y}px) scale(${zoom / 100})`,
+                  transformOrigin: 'center center',
+                  visibility: imageLoaded && !imageError ? 'visible' : 'hidden',
                 }}
-                className="block"
-                draggable={false}
-                onLoad={handleImageLoad}
-                onError={(e) => {
-                  const img = e.target as HTMLImageElement;
-                  setImageError(`URL: ${img.src.substring(0, 80)}...`);
-                  console.error('Image load failed:', img.src);
-                }}
-              />
-
-              {/* ROI overlays - positioned relative to the image */}
-              {showROI && imageLoaded && roiRegions.map((roi) => (
-                <div
-                  key={roi.id}
-                  className="absolute border-2 pointer-events-none"
+              >
+                <img
+                  ref={imageRef}
+                  src={resolveImageUrl(getCurrentImageUrl())}
+                  alt={`Check ${activeImage}`}
                   style={{
-                    left: `${roi.x}%`,
-                    top: `${roi.y}%`,
-                    width: `${roi.width}%`,
-                    height: `${roi.height}%`,
-                    borderColor: roi.color,
+                    filter: imageFilters,
+                    maxWidth: '100%',
+                    maxHeight: '100%',
                   }}
-                >
-                  <span
-                    className="absolute -top-5 left-0 text-xs px-1 rounded whitespace-nowrap"
-                    style={{ backgroundColor: roi.color, color: 'white' }}
+                  className="block"
+                  draggable={false}
+                  onLoad={handleImageLoad}
+                  onError={handleImageError}
+                />
+
+                {/* ROI overlays - positioned relative to the image */}
+                {showROI && imageLoaded && roiRegions.map((roi) => (
+                  <div
+                    key={roi.id}
+                    className="absolute border-2 pointer-events-none"
+                    style={{
+                      left: `${roi.x}%`,
+                      top: `${roi.y}%`,
+                      width: `${roi.width}%`,
+                      height: `${roi.height}%`,
+                      borderColor: roi.color,
+                    }}
                   >
-                    {roi.name}
-                  </span>
-                </div>
-              ))}
-            </div>
+                    <span
+                      className="absolute -top-5 left-0 text-xs px-1 rounded whitespace-nowrap"
+                      style={{ backgroundColor: roi.color, color: 'white' }}
+                    >
+                      {roi.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Magnifier */}
-            {showMagnifier && imageLoaded && (
+            {showMagnifier && imageLoaded && getCurrentImageUrl() && (
               <div
                 className="magnifier"
                 style={{
@@ -437,7 +494,7 @@ export default function CheckImageViewer({
                   height: 150,
                   borderRadius: '50%',
                   border: '2px solid white',
-                  backgroundImage: `url(${resolveImageUrl(currentImage.image_url)})`,
+                  backgroundImage: `url(${resolveImageUrl(getCurrentImageUrl())})`,
                   backgroundPosition: `${-magnifierPos.x * 2 + 75}px ${-magnifierPos.y * 2 + 75}px`,
                   backgroundSize: `${imageDimensions.width * zoom / 100 * 2}px ${imageDimensions.height * zoom / 100 * 2}px`,
                   backgroundRepeat: 'no-repeat',

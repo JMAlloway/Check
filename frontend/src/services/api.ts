@@ -303,6 +303,44 @@ export const reportsApi = {
 
 // Image API
 export const imageApi = {
+  /**
+   * Mint a one-time-use image access token.
+   *
+   * Security: Tokens are one-time-use, tenant-scoped, and expire after ~90 seconds.
+   * Use this to get a secure URL for displaying a check image.
+   */
+  mintToken: async (imageId: string, isThumbnail = false): Promise<{
+    token_id: string;
+    image_url: string;
+    expires_at: string;
+  }> => {
+    const response = await api.post('/images/tokens', {
+      image_id: imageId,
+      is_thumbnail: isThumbnail,
+    });
+    return response.data;
+  },
+
+  /**
+   * Mint multiple one-time-use image access tokens in a single request.
+   *
+   * More efficient than calling mintToken for each image when loading
+   * a check with multiple images (front, back, etc).
+   */
+  mintTokensBatch: async (imageIds: string[], isThumbnail = false): Promise<{
+    tokens: Array<{
+      token_id: string;
+      image_url: string;
+      expires_at: string;
+    }>;
+  }> => {
+    const response = await api.post('/images/tokens/batch', {
+      image_ids: imageIds,
+      is_thumbnail: isThumbnail,
+    });
+    return response.data;
+  },
+
   logZoom: async (imageId: string, zoomLevel: number, viewId?: string) => {
     const response = await api.post(`/images/${imageId}/zoom`, null, {
       params: { zoom_level: zoomLevel, view_id: viewId },

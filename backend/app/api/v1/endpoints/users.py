@@ -36,7 +36,10 @@ async def list_users(
     search: str | None = None,
 ):
     """List users with pagination and filtering."""
-    query = select(User).options(selectinload(User.roles))
+    # CRITICAL: Filter by tenant_id for multi-tenant isolation
+    query = select(User).options(selectinload(User.roles)).where(
+        User.tenant_id == current_user.tenant_id
+    )
 
     if is_active is not None:
         query = query.where(User.is_active == is_active)
@@ -167,8 +170,12 @@ async def get_user(
     current_user: Annotated[object, Depends(require_permission("user", "view"))],
 ):
     """Get a specific user."""
+    # CRITICAL: Filter by tenant_id for multi-tenant isolation
     result = await db.execute(
-        select(User).options(selectinload(User.roles)).where(User.id == user_id)
+        select(User).options(selectinload(User.roles)).where(
+            User.id == user_id,
+            User.tenant_id == current_user.tenant_id,
+        )
     )
     user = result.scalar_one_or_none()
 
@@ -216,8 +223,12 @@ async def update_user(
     current_user: Annotated[object, Depends(require_permission("user", "update"))],
 ):
     """Update a user."""
+    # CRITICAL: Filter by tenant_id for multi-tenant isolation
     result = await db.execute(
-        select(User).options(selectinload(User.roles)).where(User.id == user_id)
+        select(User).options(selectinload(User.roles)).where(
+            User.id == user_id,
+            User.tenant_id == current_user.tenant_id,
+        )
     )
     user = result.scalar_one_or_none()
 

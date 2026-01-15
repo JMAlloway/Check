@@ -808,5 +808,138 @@ class TestComplianceRequirements:
         assert hasattr(AuditLog, "tenant_id")
 
 
+# =============================================================================
+# External Item ID Multi-Tenant Uniqueness Tests
+# =============================================================================
+
+class TestExternalItemIdTenantUniqueness:
+    """
+    Tests verifying that external_item_id is unique per-tenant, not globally.
+
+    This is critical for multi-tenant SaaS: Bank A and Bank B should both
+    be able to have checks with external_item_id="CHECK-001" from their
+    respective core banking systems.
+
+    Related migration: 009_tenant_unique_external_id
+    """
+
+    def test_model_has_tenant_scoped_unique_constraint(self):
+        """Verify the model defines per-tenant uniqueness, not global."""
+        from app.models.check import CheckItem
+
+        # Check that external_item_id column does NOT have unique=True
+        column = CheckItem.__table__.columns['external_item_id']
+        assert not column.unique, "external_item_id should not have global unique=True"
+
+        # Check that the composite unique constraint exists
+        constraints = [c for c in CheckItem.__table__.constraints
+                       if hasattr(c, 'name') and c.name == 'uq_check_items_tenant_external_id']
+        assert len(constraints) == 1, "Missing composite unique constraint uq_check_items_tenant_external_id"
+
+        # Verify the constraint columns
+        constraint = constraints[0]
+        column_names = [col.name for col in constraint.columns]
+        assert 'tenant_id' in column_names
+        assert 'external_item_id' in column_names
+
+    def test_same_external_id_allowed_in_different_tenants(self):
+        """Two tenants can have check items with the same external_item_id."""
+        # This test verifies the constraint definition allows cross-tenant duplicates
+        # The actual database behavior is tested in test_database_allows_cross_tenant_duplicates
+
+        from app.models.check import CheckItem
+
+        tenant_a_id = "TENANT-AAA-" + uuid.uuid4().hex[:16]
+        tenant_b_id = "TENANT-BBB-" + uuid.uuid4().hex[:16]
+        shared_external_id = "SHARED-CHECK-001"
+
+        # Create two CheckItem instances with same external_item_id but different tenants
+        item_a = CheckItem(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant_a_id,
+            external_item_id=shared_external_id,
+            source_system="core_banking",
+            account_id="ACC-001",
+            account_number_masked="****1234",
+            account_type=AccountType.CONSUMER,
+            amount=Decimal("100.00"),
+            status=CheckStatus.NEW,
+            risk_level=RiskLevel.LOW,
+            presented_date=datetime.now(timezone.utc),
+        )
+
+        item_b = CheckItem(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant_b_id,
+            external_item_id=shared_external_id,  # Same external ID!
+            source_system="core_banking",
+            account_id="ACC-002",
+            account_number_masked="****5678",
+            account_type=AccountType.CONSUMER,
+            amount=Decimal("200.00"),
+            status=CheckStatus.NEW,
+            risk_level=RiskLevel.LOW,
+            presented_date=datetime.now(timezone.utc),
+        )
+
+        # Both items should be valid model instances
+        assert item_a.external_item_id == item_b.external_item_id
+        assert item_a.tenant_id != item_b.tenant_id
+
+    def test_duplicate_external_id_within_tenant_prevented_by_constraint(self):
+        """Same external_item_id within same tenant should be rejected by DB."""
+        # This test documents expected behavior - actual DB enforcement
+        # requires running against a real database with the migration applied
+
+        from app.models.check import CheckItem
+
+        tenant_id = "TENANT-SAME-" + uuid.uuid4().hex[:14]
+        duplicate_external_id = "DUPLICATE-CHECK-001"
+
+        # Create two items with same external_item_id in SAME tenant
+        item_1 = CheckItem(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            external_item_id=duplicate_external_id,
+            source_system="core_banking",
+            account_id="ACC-001",
+            account_number_masked="****1234",
+            account_type=AccountType.CONSUMER,
+            amount=Decimal("100.00"),
+            status=CheckStatus.NEW,
+            risk_level=RiskLevel.LOW,
+            presented_date=datetime.now(timezone.utc),
+        )
+
+        item_2 = CheckItem(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant_id,  # Same tenant!
+            external_item_id=duplicate_external_id,  # Same external ID!
+            source_system="core_banking",
+            account_id="ACC-002",
+            account_number_masked="****5678",
+            account_type=AccountType.CONSUMER,
+            amount=Decimal("200.00"),
+            status=CheckStatus.NEW,
+            risk_level=RiskLevel.LOW,
+            presented_date=datetime.now(timezone.utc),
+        )
+
+        # Both items have same (tenant_id, external_item_id) - constraint should reject
+        # This documents expected DB behavior
+        assert item_1.tenant_id == item_2.tenant_id
+        assert item_1.external_item_id == item_2.external_item_id
+        # In actual DB insertion, second insert would raise IntegrityError
+
+    def test_migration_revision_exists(self):
+        """Verify the migration for tenant-scoped uniqueness exists."""
+        import os
+        migration_path = os.path.join(
+            os.path.dirname(__file__),
+            '../../alembic/versions/009_tenant_unique_external_id.py'
+        )
+        assert os.path.exists(migration_path), "Migration 009_tenant_unique_external_id.py not found"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Convert Markdown technical guide to PDF."""
 
-import markdown
+import markdown2
 from weasyprint import HTML, CSS
 from pathlib import Path
 
@@ -9,92 +9,135 @@ from pathlib import Path
 md_path = Path(__file__).parent / "CHECK_REVIEW_CONSOLE_TECHNICAL_GUIDE.md"
 md_content = md_path.read_text()
 
-# Convert markdown to HTML
-md_extensions = [
-    'tables',
-    'fenced_code',
-    'codehilite',
-    'toc',
-    'nl2br',
-]
+# Convert markdown to HTML using markdown2 with extras
+html_content = markdown2.markdown(
+    md_content,
+    extras=[
+        'tables',
+        'fenced-code-blocks',
+        'code-friendly',
+        'cuddled-lists',
+        'header-ids',
+        'break-on-newline',
+    ]
+)
 
-html_content = markdown.markdown(md_content, extensions=md_extensions)
+print(f"Markdown: {len(md_content)} chars, {md_content.count(chr(10))} lines")
+print(f"HTML: {len(html_content)} chars")
+print(f"H1 tags: {html_content.count('<h1')}")
+print(f"H2 tags: {html_content.count('<h2')}")
+print(f"H3 tags: {html_content.count('<h3')}")
+print(f"Tables: {html_content.count('<table>')}")
 
 # CSS for professional PDF styling
 css = CSS(string='''
 @page {
     size: letter;
-    margin: 1in;
+    margin: 0.75in 0.75in 1in 0.75in;
     @top-center {
         content: "Check Review Console - Technical Guide";
-        font-size: 9pt;
+        font-size: 8pt;
         color: #666;
+        padding-top: 0.25in;
     }
     @bottom-center {
-        content: "Page " counter(page) " of " counter(pages);
-        font-size: 9pt;
+        content: "Page " counter(page);
+        font-size: 8pt;
         color: #666;
     }
 }
 
+@page :first {
+    @top-center { content: none; }
+    @bottom-center { content: none; }
+}
+
 body {
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    font-size: 11pt;
-    line-height: 1.5;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 10pt;
+    line-height: 1.4;
     color: #333;
 }
 
 h1 {
     color: #1a365d;
-    font-size: 24pt;
-    border-bottom: 3px solid #c9a227;
-    padding-bottom: 10px;
-    margin-top: 40px;
+    font-size: 20pt;
+    font-weight: bold;
+    border-bottom: 2px solid #c9a227;
+    padding-bottom: 8px;
+    margin-top: 30px;
+    margin-bottom: 15px;
     page-break-before: always;
 }
 
-h1:first-of-type {
+/* First H1 should not break */
+body > h1:first-child {
     page-break-before: avoid;
+    text-align: center;
+    font-size: 28pt;
+    border-bottom: none;
+    margin-top: 2in;
+}
+
+/* Second element (subtitle) */
+body > h1:first-child + h2 {
+    text-align: center;
+    border-bottom: none;
+    color: #4a5568;
+    font-size: 16pt;
+    margin-bottom: 1in;
+    page-break-before: avoid;
+    page-break-after: always;
 }
 
 h2 {
     color: #2c5282;
-    font-size: 18pt;
-    margin-top: 30px;
-    border-bottom: 1px solid #e2e8f0;
+    font-size: 14pt;
+    font-weight: bold;
+    margin-top: 25px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #cbd5e0;
     padding-bottom: 5px;
+    page-break-before: auto;
 }
 
 h3 {
     color: #2d3748;
-    font-size: 14pt;
-    margin-top: 20px;
+    font-size: 12pt;
+    font-weight: bold;
+    margin-top: 18px;
+    margin-bottom: 8px;
 }
 
 h4 {
     color: #4a5568;
-    font-size: 12pt;
-    margin-top: 15px;
+    font-size: 11pt;
+    font-weight: bold;
+    margin-top: 12px;
+    margin-bottom: 6px;
 }
 
 table {
     width: 100%;
     border-collapse: collapse;
-    margin: 15px 0;
-    font-size: 10pt;
+    margin: 12px 0;
+    font-size: 9pt;
+    page-break-inside: avoid;
 }
 
 th {
     background-color: #1a365d;
     color: white;
-    padding: 10px;
+    padding: 8px 6px;
     text-align: left;
     font-weight: bold;
+    font-size: 9pt;
 }
 
 td {
-    padding: 8px 10px;
+    padding: 6px;
     border-bottom: 1px solid #e2e8f0;
+    vertical-align: top;
 }
 
 tr:nth-child(even) {
@@ -103,44 +146,48 @@ tr:nth-child(even) {
 
 code {
     background-color: #edf2f7;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-family: "Monaco", "Consolas", monospace;
-    font-size: 9pt;
+    padding: 1px 4px;
+    border-radius: 2px;
+    font-family: "Monaco", "Consolas", "Courier New", monospace;
+    font-size: 8.5pt;
 }
 
 pre {
     background-color: #1a202c;
     color: #e2e8f0;
-    padding: 15px;
-    border-radius: 5px;
+    padding: 12px;
+    border-radius: 4px;
     overflow-x: auto;
-    font-size: 9pt;
-    line-height: 1.4;
-    margin: 15px 0;
+    font-size: 8pt;
+    line-height: 1.3;
+    margin: 12px 0;
+    page-break-inside: avoid;
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 pre code {
     background-color: transparent;
     padding: 0;
     color: inherit;
+    font-size: 8pt;
 }
 
 blockquote {
-    border-left: 4px solid #c9a227;
-    padding-left: 15px;
+    border-left: 3px solid #c9a227;
+    padding-left: 12px;
     margin-left: 0;
     color: #4a5568;
     font-style: italic;
 }
 
 ul, ol {
-    margin: 10px 0;
-    padding-left: 25px;
+    margin: 8px 0;
+    padding-left: 20px;
 }
 
 li {
-    margin: 5px 0;
+    margin: 4px 0;
 }
 
 strong {
@@ -149,8 +196,8 @@ strong {
 
 hr {
     border: none;
-    border-top: 2px solid #e2e8f0;
-    margin: 30px 0;
+    border-top: 1px solid #cbd5e0;
+    margin: 20px 0;
 }
 
 a {
@@ -158,28 +205,19 @@ a {
     text-decoration: none;
 }
 
-/* Cover page styling */
-body > h1:first-of-type {
-    text-align: center;
-    font-size: 36pt;
-    border-bottom: none;
-    margin-top: 200px;
+p {
+    margin: 8px 0;
 }
 
-body > h1:first-of-type + h2 {
-    text-align: center;
-    border-bottom: none;
-    color: #4a5568;
-    margin-bottom: 100px;
+/* Prevent orphans and widows */
+p, li {
+    orphans: 3;
+    widows: 3;
 }
 
-/* Keep sections together where possible */
-h2, h3, h4 {
+/* Keep headers with following content */
+h1, h2, h3, h4 {
     page-break-after: avoid;
-}
-
-table, pre {
-    page-break-inside: avoid;
 }
 ''')
 
@@ -201,5 +239,5 @@ full_html = f'''
 pdf_path = Path(__file__).parent / "CHECK_REVIEW_CONSOLE_TECHNICAL_GUIDE.pdf"
 HTML(string=full_html).write_pdf(pdf_path, stylesheets=[css])
 
-print(f"PDF generated successfully: {pdf_path}")
+print(f"\nPDF generated: {pdf_path}")
 print(f"File size: {pdf_path.stat().st_size / 1024:.1f} KB")

@@ -403,21 +403,21 @@ CREATE INDEX idx_fraud_events_detected ON fraud_events(tenant_id, detected_at DE
 ## 5.2 Token Architecture
 
 ### Access Token
-- **Format**: JWT (RS256 signed)
+- **Format**: JWT (HS256 signed)
 - **Lifetime**: 15 minutes
 - **Storage**: JavaScript memory only (not localStorage)
 - **Contains**: user_id, tenant_id, role, permissions, exp
 
 ### Refresh Token
-- **Format**: JWT (RS256 signed)
+- **Format**: JWT (HS256 signed)
 - **Lifetime**: 7 days
-- **Storage**: httpOnly, Secure, SameSite=Strict cookie
+- **Storage**: httpOnly, Secure, SameSite=Lax cookie
 - **Contains**: user_id, tenant_id, token_id (for revocation)
 
 ### CSRF Token
-- **Format**: Random 32-byte hex string
+- **Format**: Random 32-byte URL-safe string
 - **Lifetime**: Matches refresh token
-- **Storage**: httpOnly cookie + X-CSRF-Token header requirement
+- **Storage**: Non-httpOnly cookie (JS must read it) + X-CSRF-Token header requirement
 - **Validation**: Required for all POST/PUT/PATCH/DELETE requests
 
 ## 5.3 Multi-Factor Authentication
@@ -426,7 +426,7 @@ CREATE INDEX idx_fraud_events_detected ON fraud_events(tenant_id, detected_at DE
 - **Period**: 30 seconds
 - **Digits**: 6
 - **Secret Storage**: AES-256-GCM encrypted at rest
-- **Backup Codes**: 10 single-use codes, bcrypt hashed
+- **Backup Codes**: Planned for future release
 
 ### MFA Secret Encryption
 
@@ -522,11 +522,11 @@ Check Review Console implements a secure, one-time-use token system:
 
 | Property | Value | Purpose |
 |----------|-------|---------|
-| Format | 32-byte random hex | Unpredictable |
-| Lifetime | 60 seconds | Minimizes exposure window |
+| Format | UUID v4 | Unpredictable, opaque |
+| Lifetime | 90 seconds | Minimizes exposure window |
 | Usage | Single-use | Cannot be replayed |
-| Storage | Redis with TTL | Fast validation, auto-expiry |
-| Binding | User ID + Check ID | Prevents token theft |
+| Storage | PostgreSQL with expiry check | ACID-compliant, persistent |
+| Binding | User ID + Tenant ID + Image ID | Prevents token theft and cross-tenant access |
 
 ### Security Headers on Image Response
 
@@ -542,69 +542,65 @@ Content-Security-Policy: default-src 'none'
 ## 6.3 Image Access Flow
 
 ```python
-@router.post("/checks/{check_id}/images/{side}/token")
-async def request_image_token(
-    check_id: UUID,
-    side: Literal["front", "back"],
-    current_user: User,
+@router.post("/images/tokens")
+async def mint_image_token(
+    data: TokenMintRequest,
     db: AsyncSession,
+    current_user: User,
 ):
-    # 1. Verify user has access to this check
-    check = await get_check_for_user(db, check_id, current_user)
-    if not check:
-        raise HTTPException(404)
+    # 1. Verify user has access to this image (tenant isolation)
+    image = await get_image_with_tenant_check(db, data.image_id, current_user.tenant_id)
+    if not image:
+        raise HTTPException(404, "Image not found")
 
-    # 2. Generate one-time token
-    token = secrets.token_hex(32)
+    # 2. Generate one-time token (UUID)
+    token_id = str(uuid.uuid4())
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=90)
 
-    # 3. Store in Redis with metadata
-    await redis.setex(
-        f"image_token:{token}",
-        60,  # 60 second TTL
-        json.dumps({
-            "check_id": str(check_id),
-            "side": side,
-            "user_id": str(current_user.id),
-            "tenant_id": str(current_user.tenant_id),
-        })
+    # 3. Store in PostgreSQL with metadata
+    token = ImageAccessToken(
+        id=token_id,
+        tenant_id=current_user.tenant_id,
+        image_id=data.image_id,
+        expires_at=expires_at,
+        created_by_user_id=current_user.id,
     )
+    db.add(token)
 
     # 4. Audit log the token generation
-    await create_audit_log(
-        action="image.token_generated",
-        resource_type="check",
-        resource_id=str(check_id),
-        user=current_user,
+    await audit_service.log(
+        action=AuditAction.IMAGE_TOKEN_CREATED,
+        resource_type="image_access_token",
+        resource_id=token_id,
+        user_id=current_user.id,
     )
+    await db.commit()
 
-    return {"token": token, "expires_in": 60}
+    return {"token_id": token_id, "image_url": f"/api/v1/images/secure/{token_id}"}
 
 
-@router.get("/images/{token}")
-async def get_image(token: str):
-    # 1. Retrieve and DELETE token atomically
-    token_data = await redis.getdel(f"image_token:{token}")
-    if not token_data:
-        raise HTTPException(404, "Invalid or expired token")
+@router.get("/images/secure/{token_id}")
+async def get_secure_image(token_id: str, db: AsyncSession):
+    # 1. Fetch token from database
+    token = await db.get(ImageAccessToken, token_id)
 
-    # 2. Parse token metadata
-    metadata = json.loads(token_data)
+    # 2. Validate: exists, not expired, not used (one-time)
+    if not token or token.is_expired or token.is_used:
+        raise HTTPException(404, "Image not found")
 
-    # 3. Retrieve image from storage
-    image_path = await get_image_path(
-        metadata["check_id"],
-        metadata["side"]
-    )
-    image_bytes = await storage.get(image_path)
+    # 3. Mark token as used BEFORE serving (prevents race conditions)
+    token.used_at = datetime.now(timezone.utc)
+    await db.commit()
 
-    # 4. Return with security headers
+    # 4. Retrieve and return image with security headers
+    image_bytes = await storage.get(token.image.path)
     return Response(
         content=image_bytes,
         media_type="image/jpeg",
         headers={
-            "Cache-Control": "no-store, no-cache, must-revalidate, private",
+            "Cache-Control": "private, no-store, no-cache, must-revalidate",
             "Referrer-Policy": "no-referrer",
-            # ... additional headers
+            "X-Content-Type-Options": "nosniff",
         }
     )
 ```
@@ -1099,8 +1095,11 @@ Permissions-Policy: geolocation=(), microphone=(), camera=()
 |----------|-------|--------|
 | Login | 5 requests | 1 minute |
 | Token refresh | 10 requests | 1 minute |
-| MFA verification | 3 requests | 1 minute |
-| Check image token | 30 requests | 1 minute |
+| MFA setup/verify | 5 requests | 1 minute |
+| MFA disable | 3 requests | 1 minute |
+| Password change | 3 requests | 1 minute |
+| Image token (single) | 60 requests | 1 minute |
+| Image token (batch) | 30 requests | 1 minute |
 | API (general) | 100 requests | 1 minute |
 | Monitoring events | 30 requests | 1 minute |
 

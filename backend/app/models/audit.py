@@ -187,14 +187,24 @@ class AuditLog(Base, UUIDMixin):
 
     # Integrity verification - SHA256 hash of critical fields
     # Used to detect tampering with audit records
-    # Format: SHA256(id|tenant_id|timestamp|user_id|action|resource_type|resource_id|before|after|extra)
+    # Format: SHA256(id|tenant_id|timestamp|user_id|action|resource_type|resource_id|before|after|extra|previous_hash)
     integrity_hash: Mapped[str | None] = mapped_column(String(64), index=True)
 
-    def compute_integrity_hash(self) -> str:
+    # Chain integrity - hash of the previous audit log entry
+    # Creates a blockchain-like chain where tampering with any record breaks the chain
+    # For the first record in a tenant, this will be "genesis"
+    previous_hash: Mapped[str | None] = mapped_column(String(64), index=True)
+
+    def compute_integrity_hash(self, previous_hash: str | None = None) -> str:
         """Compute SHA256 hash of critical audit fields for tamper detection.
 
         The hash includes all fields that, if modified, would indicate tampering.
         This is computed at insert time and can be verified at any point.
+
+        Args:
+            previous_hash: The hash of the previous audit log entry in the chain.
+                          If None, uses self.previous_hash (for verification).
+                          Pass "genesis" for the first entry in a tenant.
         """
         # Serialize values consistently for hashing
         def serialize(v: Any) -> str:
@@ -208,8 +218,12 @@ class AuditLog(Base, UUIDMixin):
                 return str(v.value)
             return str(v)
 
+        # Use provided previous_hash or fall back to stored value
+        prev_hash = previous_hash if previous_hash is not None else self.previous_hash
+
         # Concatenate critical fields with pipe separator
         # Order matters - must be consistent
+        # previous_hash is included to create the chain
         hash_input = "|".join([
             serialize(self.id),
             serialize(self.tenant_id),
@@ -221,6 +235,7 @@ class AuditLog(Base, UUIDMixin):
             serialize(self.before_value),
             serialize(self.after_value),
             serialize(self.extra_data),
+            serialize(prev_hash),
         ])
 
         return hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
@@ -229,10 +244,26 @@ class AuditLog(Base, UUIDMixin):
         """Verify that the audit log entry has not been tampered with.
 
         Returns True if the stored hash matches the computed hash.
+        This verifies a single record's integrity.
         """
         if not self.integrity_hash:
             return False  # No hash means integrity cannot be verified
         return self.integrity_hash == self.compute_integrity_hash()
+
+    def verify_chain_link(self, expected_previous_hash: str) -> bool:
+        """Verify this entry's link to the previous entry in the chain.
+
+        Args:
+            expected_previous_hash: The integrity_hash of the previous entry,
+                                   or "genesis" for the first entry.
+
+        Returns:
+            True if this entry's previous_hash matches the expected value
+            AND this entry's integrity_hash is valid.
+        """
+        if self.previous_hash != expected_previous_hash:
+            return False
+        return self.verify_integrity()
 
     __table_args__ = (
         Index("ix_audit_logs_resource", "resource_type", "resource_id"),

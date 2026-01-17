@@ -47,8 +47,8 @@ async def seed_database():
     print("Tables created successfully!")
 
     async with AsyncSessionLocal() as db:
-        # Check if admin user exists
-        result = await db.execute(select(User).where(User.username == "admin"))
+        # Check if system_admin user exists
+        result = await db.execute(select(User).where(User.username == "system_admin"))
         if result.scalar_one_or_none():
             print("Database already seeded!")
             return

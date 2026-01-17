@@ -59,3 +59,9 @@ python-dateutil==2.8.2
 
 # Rate limiting
 slowapi==0.1.9
+
+# SFTP support for file transfers
+paramiko==3.4.0
+
+# Background task scheduling
+APScheduler==3.10.4

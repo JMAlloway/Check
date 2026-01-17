@@ -17,11 +17,21 @@ from app.models.connector import (
     CommitDecisionType,
     HoldReasonCode,
     BatchStatus,
-    RecordStatus,
-    FileFormat,
+    RecordStatus as CommitRecordStatus,
+    FileFormat as CommitFileFormat,
     DeliveryMethod,
     ErrorCategory,
     AcknowledgementStatus,
+)
+from app.models.item_context_connector import (
+    ItemContextConnector,
+    ItemContextImport,
+    ItemContextImportRecord,
+    ContextConnectorStatus,
+    FileFormat as ContextFileFormat,
+    ImportStatus,
+    RecordStatus as ContextRecordStatus,
+    FIELD_MAPPING_TEMPLATES,
 )
 from app.models.decision import Decision, ReasonCode
 from app.models.fraud import (
@@ -60,11 +70,20 @@ __all__ = [
     "CommitDecisionType",
     "HoldReasonCode",
     "BatchStatus",
-    "RecordStatus",
-    "FileFormat",
+    "CommitRecordStatus",
+    "CommitFileFormat",
     "DeliveryMethod",
     "ErrorCategory",
     "AcknowledgementStatus",
+    # Connector C (Item Context SFTP)
+    "ItemContextConnector",
+    "ItemContextImport",
+    "ItemContextImportRecord",
+    "ContextConnectorStatus",
+    "ContextFileFormat",
+    "ImportStatus",
+    "ContextRecordStatus",
+    "FIELD_MAPPING_TEMPLATES",
     # Decision
     "Decision",
     "ReasonCode",

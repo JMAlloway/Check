@@ -153,3 +153,8 @@ def migrate_mfa_secret(value: str | None) -> str | None:
         return value  # Already encrypted
 
     return encrypt_field(value)
+
+
+# Aliases for cleaner API in other modules
+encrypt_value = encrypt_field
+decrypt_value = decrypt_field

@@ -38,7 +38,6 @@ pyotp==2.9.0  # TOTP MFA
 # Logging and monitoring
 structlog==24.1.0
 python-json-logger==2.0.7
-prometheus-client==0.19.0
 
 # Testing
 pytest==7.4.4

@@ -343,42 +343,23 @@ DEMO_ROUTING_NUMBERS = [
 ]
 
 # Demo user credentials info (for display purposes)
-# Roles per Technical Guide Section 2.2
 DEMO_CREDENTIALS = {
     "reviewer": {
         "username": "reviewer_demo",
         "password": "DemoReviewer123!",
         "role": "reviewer",
-        "description": "View queue, review checks, make decisions",
+        "description": "Check reviewer with standard permissions",
     },
-    "senior_reviewer": {
-        "username": "senior_reviewer_demo",
-        "password": "DemoSenior123!",
-        "role": "senior_reviewer",
-        "description": "All reviewer permissions + dual control approval",
+    "approver": {
+        "username": "approver_demo",
+        "password": "DemoApprover123!",
+        "role": "approver",
+        "description": "Dual control approver with elevated permissions",
     },
-    "supervisor": {
-        "username": "supervisor_demo",
-        "password": "DemoSupervisor123!",
-        "role": "supervisor",
-        "description": "All senior permissions + queue management, reassignment",
-    },
-    "administrator": {
-        "username": "administrator_demo",
+    "admin": {
+        "username": "admin_demo",
         "password": "DemoAdmin123!",
-        "role": "administrator",
-        "description": "All supervisor permissions + user management, policies",
-    },
-    "auditor": {
-        "username": "auditor_demo",
-        "password": "DemoAuditor123!",
-        "role": "auditor",
-        "description": "Read-only access to all data and audit logs",
-    },
-    "system_admin": {
-        "username": "system_admin_demo",
-        "password": "DemoSysAdmin123!",
-        "role": "system_admin",
-        "description": "Full system access including configuration",
+        "role": "admin",
+        "description": "Administrator with full system access",
     },
 }

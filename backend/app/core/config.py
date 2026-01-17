@@ -71,11 +71,8 @@ class Settings(BaseSettings):
     HIGH_PRIORITY_THRESHOLD: float = 10000.0
     DUAL_CONTROL_THRESHOLD: float = 5000.0
 
-    # Audit and Log Retention settings
+    # Audit settings
     AUDIT_LOG_RETENTION_YEARS: int = 7
-    AUDIT_LOG_RETENTION_DAYS: int = 2555  # 7 years (7 * 365)
-    ACCESS_LOG_RETENTION_DAYS: int = 90   # Access logs (item_views)
-    SESSION_RETENTION_DAYS: int = 90      # User sessions
 
     # Integration settings
     INTEGRATION_TIMEOUT_SECONDS: int = 30
@@ -111,11 +108,6 @@ class Settings(BaseSettings):
 
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 100
-
-    # Monitoring Infrastructure URLs
-    PROMETHEUS_URL: str = "http://localhost:9090"
-    ALERTMANAGER_URL: str = "http://localhost:9093"
-    GRAFANA_URL: str = "http://localhost:3001"
 
     # Image Connector (Connector A) - JWT token signing
     # RSA private key for signing JWT tokens for image connector requests

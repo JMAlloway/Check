@@ -2,8 +2,6 @@
 
 from datetime import datetime, timedelta, timezone
 import hashlib
-import ipaddress
-import logging
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,57 +17,6 @@ from app.core.security import (
 )
 from app.models.user import User, UserSession, Role
 from app.schemas.auth import Token
-
-logger = logging.getLogger("security.auth")
-
-
-def check_ip_allowed(ip_address: str | None, allowed_ips: list[str] | None) -> bool:
-    """Check if an IP address is in the allowed list.
-
-    Supports:
-    - Exact IP match (e.g., "192.168.1.100")
-    - CIDR notation (e.g., "192.168.1.0/24")
-    - IPv4 and IPv6
-
-    Args:
-        ip_address: The client IP to check
-        allowed_ips: List of allowed IPs or CIDRs (None means all allowed)
-
-    Returns:
-        True if IP is allowed, False otherwise
-    """
-    # No restrictions if allowed_ips is empty/None
-    if not allowed_ips:
-        return True
-
-    # Must have an IP address if restrictions exist
-    if not ip_address:
-        return False
-
-    try:
-        client_ip = ipaddress.ip_address(ip_address)
-    except ValueError:
-        # Invalid IP format - deny access
-        logger.warning(f"Invalid IP address format: {ip_address}")
-        return False
-
-    for allowed in allowed_ips:
-        try:
-            # Try as network (CIDR notation)
-            if "/" in allowed:
-                network = ipaddress.ip_network(allowed, strict=False)
-                if client_ip in network:
-                    return True
-            else:
-                # Exact IP match
-                if client_ip == ipaddress.ip_address(allowed):
-                    return True
-        except ValueError:
-            # Invalid allowed_ip entry - skip it but log
-            logger.warning(f"Invalid IP allowlist entry: {allowed}")
-            continue
-
-    return False
 
 
 class AuthService:
@@ -123,13 +70,9 @@ class AuthService:
             return None, "Account is deactivated"
 
         # Check IP restrictions (allowed_ips is JSONB array)
-        # Supports exact IP and CIDR notation (e.g., "192.168.1.0/24")
-        if not check_ip_allowed(ip_address, user.allowed_ips):
-            logger.warning(
-                f"IP allowlist violation: user={user.username} ip={ip_address} "
-                f"allowed={user.allowed_ips}"
-            )
-            return None, "Access denied from this IP address"
+        if user.allowed_ips:
+            if ip_address and ip_address not in user.allowed_ips:
+                return None, "Access denied from this IP address"
 
         # Reset failed attempts and update last login
         user.failed_login_attempts = 0
@@ -226,18 +169,6 @@ class AuthService:
         user = result.scalar_one_or_none()
 
         if not user or not user.is_active:
-            return None
-
-        # Validate IP allowlist on refresh (prevent session hijacking from unauthorized IP)
-        if not check_ip_allowed(ip_address, user.allowed_ips):
-            logger.warning(
-                f"IP allowlist violation on token refresh: user={user.username} "
-                f"ip={ip_address} allowed={user.allowed_ips}"
-            )
-            # Revoke the session since it may be compromised
-            session.is_active = False
-            session.revoked_at = datetime.now(timezone.utc)
-            await self.db.commit()
             return None
 
         # Preserve device fingerprint from old session

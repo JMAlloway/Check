@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+}
+
+body {
+  @apply bg-gray-50 text-gray-900;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400;
+}
+
+/* Check image viewer styles */
+.check-viewer {
+  @apply relative overflow-hidden bg-gray-900 rounded-lg;
+}
+
+.check-viewer img {
+  @apply max-w-none;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* Magnifier glass effect */
+.magnifier {
+  @apply absolute pointer-events-none border-2 border-white rounded-full shadow-lg overflow-hidden;
+  width: 150px;
+  height: 150px;
+}
+
+/* Risk level badges */
+.risk-low {
+  @apply bg-green-100 text-green-800;
+}
+
+.risk-medium {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+.risk-high {
+  @apply bg-orange-100 text-orange-800;
+}
+
+.risk-critical {
+  @apply bg-red-100 text-red-800;
+}
+
+/* Status badges */
+.status-new {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.status-in_review {
+  @apply bg-purple-100 text-purple-800;
+}
+
+.status-pending_approval {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+.status-approved {
+  @apply bg-green-100 text-green-800;
+}
+
+.status-rejected {
+  @apply bg-red-100 text-red-800;
+}
+
+.status-returned {
+  @apply bg-orange-100 text-orange-800;
+}
+
+/* Animation for SLA warning */
+@keyframes pulse-warning {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.sla-warning {
+  animation: pulse-warning 2s ease-in-out infinite;
+}

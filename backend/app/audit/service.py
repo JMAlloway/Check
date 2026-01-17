@@ -2,7 +2,6 @@
 
 from datetime import datetime, timezone
 import json
-import re
 from typing import Any
 
 from sqlalchemy import select
@@ -11,153 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.audit import AuditAction, AuditLog, ItemView
 
 
-# =============================================================================
-# PII Redaction for Audit Logs
-# =============================================================================
-
-# Fields that should always be redacted
-PII_FIELDS = {
-    # Account/routing information
-    "account_number", "routing_number", "micr_line", "micr_account", "micr_routing",
-    "aba_number", "bank_account",
-    # Personal identifiers
-    "ssn", "social_security", "tax_id", "ein", "tin",
-    # Contact information
-    "phone", "phone_number", "mobile", "telephone",
-    # Financial data
-    "card_number", "credit_card", "debit_card", "cvv", "pin",
-    # Authentication secrets
-    "password", "hashed_password", "mfa_secret", "secret_key", "api_key",
-    # Full address components
-    "street_address", "address_line",
-}
-
-# Patterns to detect and redact PII values
-PII_PATTERNS = [
-    # SSN: XXX-XX-XXXX or XXXXXXXXX
-    (re.compile(r'\b\d{3}-\d{2}-\d{4}\b'), "[SSN_REDACTED]"),
-    (re.compile(r'\b\d{9}\b(?!\d)'), "[SSN_REDACTED]"),
-    # Account numbers (9-17 digits, common bank account lengths)
-    (re.compile(r'\b\d{9,17}\b'), "[ACCOUNT_REDACTED]"),
-    # Routing numbers (9 digits starting with 0-3)
-    (re.compile(r'\b[0-3]\d{8}\b'), "[ROUTING_REDACTED]"),
-    # Credit card numbers (13-19 digits, possibly with spaces/dashes)
-    (re.compile(r'\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{1,7}\b'), "[CARD_REDACTED]"),
-    # Phone numbers (various formats)
-    (re.compile(r'\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b'), "[PHONE_REDACTED]"),
-    (re.compile(r'\(\d{3}\)\s?\d{3}[-.\s]?\d{4}'), "[PHONE_REDACTED]"),
-]
-
-
-def redact_pii_value(value: Any) -> Any:
-    """Redact PII from a single value.
-
-    Handles strings, dicts, and lists recursively.
-    """
-    if value is None:
-        return None
-
-    if isinstance(value, str):
-        result = value
-        for pattern, replacement in PII_PATTERNS:
-            result = pattern.sub(replacement, result)
-        return result
-
-    if isinstance(value, dict):
-        return redact_pii_dict(value)
-
-    if isinstance(value, list):
-        return [redact_pii_value(item) for item in value]
-
-    # For other types (int, float, bool), return as-is
-    return value
-
-
-def redact_pii_dict(data: dict | None) -> dict | None:
-    """Redact PII from a dictionary.
-
-    - Redacts values of known PII field names
-    - Scans string values for PII patterns
-    - Recursively handles nested dicts and lists
-    """
-    if not data:
-        return data
-
-    result = {}
-    for key, value in data.items():
-        key_lower = key.lower()
-
-        # Check if field name indicates PII
-        if key_lower in PII_FIELDS:
-            if value is not None:
-                # Preserve type indicator but redact value
-                if isinstance(value, str) and len(value) > 4:
-                    # Show last 4 chars for account numbers
-                    result[key] = f"****{value[-4:]}"
-                else:
-                    result[key] = "[REDACTED]"
-            else:
-                result[key] = None
-        elif isinstance(value, dict):
-            result[key] = redact_pii_dict(value)
-        elif isinstance(value, list):
-            result[key] = [redact_pii_value(item) for item in value]
-        elif isinstance(value, str):
-            # Scan string values for PII patterns
-            result[key] = redact_pii_value(value)
-        else:
-            result[key] = value
-
-    return result
-
-
 class AuditService:
     """
     Service for recording and querying audit logs.
 
     All audit entries are immutable and designed for compliance requirements.
-    Implements blockchain-like chain integrity via previous_hash linking.
     """
-
-    # Genesis marker for the first entry in a tenant's audit chain
-    GENESIS_HASH = "genesis"
 
     def __init__(self, db: AsyncSession):
         self.db = db
-
-    async def _get_previous_hash(self, tenant_id: str | None) -> str:
-        """Get the integrity_hash of the most recent audit log entry for a tenant.
-
-        This creates the chain link for blockchain-like integrity verification.
-        For the first entry in a tenant (or system-level entries), returns "genesis".
-
-        Args:
-            tenant_id: The tenant ID to get the previous hash for.
-                      If None, looks for system-level entries (tenant_id IS NULL).
-
-        Returns:
-            The integrity_hash of the previous entry, or "genesis" if no previous entry.
-        """
-        if tenant_id:
-            query = (
-                select(AuditLog.integrity_hash)
-                .where(AuditLog.tenant_id == tenant_id)
-                .order_by(AuditLog.timestamp.desc(), AuditLog.id.desc())
-                .limit(1)
-            )
-        else:
-            # System-level entries (no tenant)
-            query = (
-                select(AuditLog.integrity_hash)
-                .where(AuditLog.tenant_id.is_(None))
-                .order_by(AuditLog.timestamp.desc(), AuditLog.id.desc())
-                .limit(1)
-            )
-
-        result = await self.db.execute(query)
-        previous_hash = result.scalar_one_or_none()
-
-        return previous_hash if previous_hash else self.GENESIS_HASH
 
     async def log(
         self,
@@ -176,10 +37,7 @@ class AuditService:
         tenant_id: str | None = None,  # Multi-tenant support
     ) -> AuditLog:
         """
-        Create an immutable audit log entry with chain integrity.
-
-        The entry is linked to the previous entry via previous_hash, creating
-        a blockchain-like chain that enables detection of any tampering.
+        Create an immutable audit log entry.
 
         Args:
             action: The type of action being logged
@@ -194,20 +52,10 @@ class AuditService:
             after_value: State after the action (for changes)
             metadata: Additional context as JSON
             session_id: The user's session ID
-            tenant_id: The tenant ID for multi-tenant isolation
 
         Returns:
-            The created AuditLog entry with integrity_hash and previous_hash set
+            The created AuditLog entry
         """
-        # SECURITY: Redact PII from before_value, after_value, and metadata
-        # This prevents sensitive data from being stored in audit logs
-        redacted_before = redact_pii_dict(before_value) if before_value else None
-        redacted_after = redact_pii_dict(after_value) if after_value else None
-        redacted_metadata = redact_pii_dict(metadata) if metadata else None
-
-        # Get the previous entry's hash for chain integrity
-        previous_hash = await self._get_previous_hash(tenant_id)
-
         log_entry = AuditLog(
             tenant_id=tenant_id,  # Multi-tenant isolation
             timestamp=datetime.now(timezone.utc),
@@ -219,19 +67,13 @@ class AuditService:
             resource_type=resource_type,
             resource_id=resource_id,
             description=description,
-            before_value=json.dumps(redacted_before) if redacted_before else None,
-            after_value=json.dumps(redacted_after) if redacted_after else None,
-            extra_data=json.dumps(redacted_metadata) if redacted_metadata else None,
+            before_value=json.dumps(before_value) if before_value else None,
+            after_value=json.dumps(after_value) if after_value else None,
+            extra_data=json.dumps(metadata) if metadata else None,
             session_id=session_id,
-            previous_hash=previous_hash,  # Chain link to previous entry
         )
 
         self.db.add(log_entry)
-        await self.db.flush()
-
-        # Compute and store integrity hash after flush (when ID is assigned)
-        # This hash includes the previous_hash, completing the chain link
-        log_entry.integrity_hash = log_entry.compute_integrity_hash(previous_hash)
         await self.db.flush()
 
         return log_entry
@@ -754,108 +596,3 @@ class AuditService:
                 "exported": exported,
             },
         )
-
-    # =========================================================================
-    # Chain Integrity Verification
-    # =========================================================================
-
-    async def verify_chain_integrity(
-        self,
-        tenant_id: str,
-        start_date: datetime | None = None,
-        end_date: datetime | None = None,
-        limit: int = 10000,
-    ) -> dict:
-        """
-        Verify the integrity of the audit log chain for a tenant.
-
-        This performs a blockchain-like verification:
-        1. Fetches audit logs in chronological order
-        2. Verifies each entry's integrity_hash matches its computed hash
-        3. Verifies each entry's previous_hash matches the prior entry's integrity_hash
-        4. Returns a report of any integrity violations
-
-        Args:
-            tenant_id: The tenant ID to verify
-            start_date: Optional start date for verification range
-            end_date: Optional end date for verification range
-            limit: Maximum number of entries to verify (default 10000)
-
-        Returns:
-            Dict with verification results:
-            {
-                "verified": bool,
-                "entries_checked": int,
-                "first_entry_id": str,
-                "last_entry_id": str,
-                "violations": [
-                    {"entry_id": str, "type": str, "details": str}
-                ]
-            }
-        """
-        from sqlalchemy import and_
-
-        # Build query for chronological order
-        conditions = [AuditLog.tenant_id == tenant_id]
-        if start_date:
-            conditions.append(AuditLog.timestamp >= start_date)
-        if end_date:
-            conditions.append(AuditLog.timestamp <= end_date)
-
-        query = (
-            select(AuditLog)
-            .where(and_(*conditions))
-            .order_by(AuditLog.timestamp.asc(), AuditLog.id.asc())
-            .limit(limit)
-        )
-
-        result = await self.db.execute(query)
-        logs = list(result.scalars().all())
-
-        if not logs:
-            return {
-                "verified": True,
-                "entries_checked": 0,
-                "first_entry_id": None,
-                "last_entry_id": None,
-                "violations": [],
-            }
-
-        violations = []
-        expected_previous_hash = self.GENESIS_HASH
-
-        for i, log_entry in enumerate(logs):
-            # Skip entries without previous_hash (pre-migration records)
-            if log_entry.previous_hash is None:
-                expected_previous_hash = log_entry.integrity_hash
-                continue
-
-            # Verify chain link (previous_hash matches expected)
-            if log_entry.previous_hash != expected_previous_hash:
-                violations.append({
-                    "entry_id": str(log_entry.id),
-                    "type": "chain_break",
-                    "details": f"Entry {i}: previous_hash mismatch. "
-                               f"Expected '{expected_previous_hash[:16]}...', "
-                               f"got '{log_entry.previous_hash[:16] if log_entry.previous_hash else 'None'}...'",
-                })
-
-            # Verify entry integrity (integrity_hash is correct)
-            if not log_entry.verify_integrity():
-                violations.append({
-                    "entry_id": str(log_entry.id),
-                    "type": "integrity_failure",
-                    "details": f"Entry {i}: integrity_hash verification failed. "
-                               f"Record may have been tampered with.",
-                })
-
-            # Update expected previous hash for next iteration
-            expected_previous_hash = log_entry.integrity_hash or expected_previous_hash
-
-        return {
-            "verified": len(violations) == 0,
-            "entries_checked": len(logs),
-            "first_entry_id": str(logs[0].id),
-            "last_entry_id": str(logs[-1].id),
-            "violations": violations,
-        }

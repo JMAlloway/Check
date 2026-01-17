@@ -2,7 +2,6 @@
 
 from app.models.audit import AuditLog, ItemView
 from app.models.check import CheckItem, CheckImage, CheckHistory
-from app.models.image_token import ImageAccessToken
 from app.models.image_connector import (
     ImageConnector,
     ConnectorAuditLog,
@@ -47,7 +46,6 @@ __all__ = [
     "CheckItem",
     "CheckImage",
     "CheckHistory",
-    "ImageAccessToken",
     # Connector A (Image Connector)
     "ImageConnector",
     "ConnectorAuditLog",

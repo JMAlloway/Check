@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.api.deps import DBSession, CurrentUser, require_permission, require_role, get_tenant_id
+from app.api.deps import DBSession, CurrentUser, require_permission, require_role
 from app.models.fraud import FraudType, FraudEventStatus, SharingLevel
 from app.schemas.fraud import (
     FraudEventCreate,
@@ -30,13 +30,19 @@ from app.models.audit import AuditAction
 
 router = APIRouter()
 
+# Default tenant ID for single-tenant mode (would come from auth in multi-tenant)
+DEFAULT_TENANT_ID = "default-tenant"
+
+
+def get_tenant_id(current_user: CurrentUser) -> str:
+    """Get tenant ID from current user (placeholder for multi-tenant)."""
+    # In a real multi-tenant system, this would come from the user's organization
+    return getattr(current_user, "tenant_id", DEFAULT_TENANT_ID)
+
 
 # ============================================================================
 # Fraud Event Endpoints
 # ============================================================================
-# NOTE: get_tenant_id is now imported from app.api.deps
-# It validates that tenant_id exists and raises an error if missing
-# This eliminates the dangerous DEFAULT_TENANT_ID fallback
 
 @router.post("/fraud-events", response_model=FraudEventResponse, status_code=status.HTTP_201_CREATED)
 async def create_fraud_event(

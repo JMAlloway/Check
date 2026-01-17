@@ -53,259 +53,113 @@ async def seed_database():
             print("Database already seeded!")
             return
 
-        # Default tenant for seeded users
-        default_tenant_id = "default-tenant"
-
         # Create permissions
-        # Check item permissions
-        perm_check_view = Permission(name="check_item:view", resource="check_item", action="view", description="View check items")
-        perm_check_review = Permission(name="check_item:review", resource="check_item", action="review", description="Review check items")
-        perm_check_approve = Permission(name="check_item:approve", resource="check_item", action="approve", description="Approve check items")
-        perm_check_dual_control = Permission(name="check_item:dual_control", resource="check_item", action="dual_control", description="Perform dual control approval")
-        perm_check_reassign = Permission(name="check_item:reassign", resource="check_item", action="reassign", description="Reassign check items to other reviewers")
-
-        # Queue permissions
-        perm_queue_view = Permission(name="queue:view", resource="queue", action="view", description="View queues")
-        perm_queue_create = Permission(name="queue:create", resource="queue", action="create", description="Create queues")
-        perm_queue_update = Permission(name="queue:update", resource="queue", action="update", description="Update queues")
-        perm_queue_assign = Permission(name="queue:assign", resource="queue", action="assign", description="Assign users to queues")
-        perm_queue_manage = Permission(name="queue:manage", resource="queue", action="manage", description="Manage queues")
-
-        # User permissions
-        perm_user_view = Permission(name="user:view", resource="user", action="view", description="View users")
-        perm_user_create = Permission(name="user:create", resource="user", action="create", description="Create users")
-        perm_user_update = Permission(name="user:update", resource="user", action="update", description="Update users")
-        perm_user_manage = Permission(name="user:manage", resource="user", action="manage", description="Manage users")
-
-        # Role permissions
-        perm_role_view = Permission(name="role:view", resource="role", action="view", description="View roles")
-        perm_role_create = Permission(name="role:create", resource="role", action="create", description="Create roles")
-
-        # Permission permissions
-        perm_permission_view = Permission(name="permission:view", resource="permission", action="view", description="View permissions")
-
-        # Audit permissions
-        perm_audit_view = Permission(name="audit:view", resource="audit", action="view", description="View audit logs")
-        perm_audit_export = Permission(name="audit:export", resource="audit", action="export", description="Export audit data")
-
-        # Policy permissions
-        perm_policy_view = Permission(name="policy:view", resource="policy", action="view", description="View policies")
-        perm_policy_create = Permission(name="policy:create", resource="policy", action="create", description="Create policies")
-        perm_policy_update = Permission(name="policy:update", resource="policy", action="update", description="Update policies")
-        perm_policy_activate = Permission(name="policy:activate", resource="policy", action="activate", description="Activate policies")
-        perm_policy_manage = Permission(name="policy:manage", resource="policy", action="manage", description="Manage policies")
-
-        # Report permissions
-        perm_report_view = Permission(name="report:view", resource="report", action="view", description="View reports")
-
-        # Fraud Intelligence permissions
-        perm_fraud_view = Permission(name="fraud:view", resource="fraud", action="view", description="View fraud events and alerts")
-        perm_fraud_create = Permission(name="fraud:create", resource="fraud", action="create", description="Create fraud events")
-        perm_fraud_submit = Permission(name="fraud:submit", resource="fraud", action="submit", description="Submit fraud events to network")
-        perm_fraud_withdraw = Permission(name="fraud:withdraw", resource="fraud", action="withdraw", description="Withdraw fraud events")
-        perm_fraud_config = Permission(name="fraud:config", resource="fraud", action="config", description="Configure fraud settings")
-
-        # Collect all permissions
-        all_permissions = [
-            perm_check_view, perm_check_review, perm_check_approve, perm_check_dual_control, perm_check_reassign,
-            perm_queue_view, perm_queue_create, perm_queue_update, perm_queue_assign, perm_queue_manage,
-            perm_user_view, perm_user_create, perm_user_update, perm_user_manage,
-            perm_role_view, perm_role_create,
-            perm_permission_view,
-            perm_audit_view, perm_audit_export,
-            perm_policy_view, perm_policy_create, perm_policy_update, perm_policy_activate, perm_policy_manage,
-            perm_report_view,
-            perm_fraud_view, perm_fraud_create, perm_fraud_submit, perm_fraud_withdraw, perm_fraud_config,
+        permissions = [
+            Permission(name="check_item:view", resource="check_item", action="view", description="View check items"),
+            Permission(name="check_item:review", resource="check_item", action="review", description="Review check items"),
+            Permission(name="check_item:approve", resource="check_item", action="approve", description="Approve check items"),
+            # Queue permissions
+            Permission(name="queue:view", resource="queue", action="view", description="View queues"),
+            Permission(name="queue:create", resource="queue", action="create", description="Create queues"),
+            Permission(name="queue:update", resource="queue", action="update", description="Update queues"),
+            Permission(name="queue:assign", resource="queue", action="assign", description="Assign users to queues"),
+            Permission(name="queue:manage", resource="queue", action="manage", description="Manage queues"),
+            # User permissions
+            Permission(name="user:view", resource="user", action="view", description="View users"),
+            Permission(name="user:create", resource="user", action="create", description="Create users"),
+            Permission(name="user:update", resource="user", action="update", description="Update users"),
+            Permission(name="user:manage", resource="user", action="manage", description="Manage users"),
+            # Role permissions
+            Permission(name="role:view", resource="role", action="view", description="View roles"),
+            Permission(name="role:create", resource="role", action="create", description="Create roles"),
+            # Permission permissions
+            Permission(name="permission:view", resource="permission", action="view", description="View permissions"),
+            # Audit permissions
+            Permission(name="audit:view", resource="audit", action="view", description="View audit logs"),
+            Permission(name="audit:export", resource="audit", action="export", description="Export audit data"),
+            # Policy permissions
+            Permission(name="policy:view", resource="policy", action="view", description="View policies"),
+            Permission(name="policy:create", resource="policy", action="create", description="Create policies"),
+            Permission(name="policy:update", resource="policy", action="update", description="Update policies"),
+            Permission(name="policy:activate", resource="policy", action="activate", description="Activate policies"),
+            Permission(name="policy:manage", resource="policy", action="manage", description="Manage policies"),
+            # Report permissions
+            Permission(name="report:view", resource="report", action="view", description="View reports"),
+            # Fraud Intelligence permissions
+            Permission(name="fraud:view", resource="fraud", action="view", description="View fraud events and alerts"),
+            Permission(name="fraud:create", resource="fraud", action="create", description="Create fraud events"),
+            Permission(name="fraud:submit", resource="fraud", action="submit", description="Submit fraud events to network"),
+            Permission(name="fraud:withdraw", resource="fraud", action="withdraw", description="Withdraw fraud events"),
+            Permission(name="fraud:config", resource="fraud", action="config", description="Configure fraud settings"),
         ]
 
-        for perm in all_permissions:
+        for perm in permissions:
             db.add(perm)
         await db.flush()
 
-        # =============================================================================
-        # Create roles per Technical Guide Section 2.2 and 5.4
-        # =============================================================================
+        # Create roles
+        admin_role = Role(
+            name="admin",
+            description="Full system access",
+            is_system=True,
+        )
+        admin_role.permissions = permissions
+        db.add(admin_role)
 
-        # 1. Reviewer: View queue, review checks, make decisions
         reviewer_role = Role(
             name="reviewer",
-            description="View queue, review checks, make decisions",
+            description="Can review check items",
             is_system=True,
         )
-        reviewer_role.permissions = [
-            perm_check_view, perm_check_review,
-            perm_queue_view,
-            perm_user_view, perm_role_view, perm_permission_view,
-            perm_policy_view, perm_report_view, perm_fraud_view,
-        ]
+        reviewer_role.permissions = [p for p in permissions if p.action in ["view", "review"]]
         db.add(reviewer_role)
 
-        # 2. Senior Reviewer: All reviewer permissions + dual control approval
-        senior_reviewer_role = Role(
-            name="senior_reviewer",
-            description="All reviewer permissions + dual control approval",
+        approver_role = Role(
+            name="approver",
+            description="Can approve check items",
             is_system=True,
         )
-        senior_reviewer_role.permissions = [
-            # Reviewer permissions
-            perm_check_view, perm_check_review,
-            perm_queue_view,
-            perm_user_view, perm_role_view, perm_permission_view,
-            perm_policy_view, perm_report_view, perm_fraud_view,
-            # Senior reviewer additions
-            perm_check_approve, perm_check_dual_control,
-        ]
-        db.add(senior_reviewer_role)
-
-        # 3. Supervisor: All senior permissions + queue management, reassignment
-        supervisor_role = Role(
-            name="supervisor",
-            description="All senior permissions + queue management, reassignment",
-            is_system=True,
-        )
-        supervisor_role.permissions = [
-            # Senior reviewer permissions
-            perm_check_view, perm_check_review, perm_check_approve, perm_check_dual_control,
-            perm_queue_view,
-            perm_user_view, perm_role_view, perm_permission_view,
-            perm_policy_view, perm_report_view, perm_fraud_view,
-            # Supervisor additions
-            perm_check_reassign,
-            perm_queue_create, perm_queue_update, perm_queue_assign, perm_queue_manage,
-            perm_audit_view,
-        ]
-        db.add(supervisor_role)
-
-        # 4. Administrator: All supervisor permissions + user management, policies
-        administrator_role = Role(
-            name="administrator",
-            description="All supervisor permissions + user management, policies",
-            is_system=True,
-        )
-        administrator_role.permissions = [
-            # Supervisor permissions
-            perm_check_view, perm_check_review, perm_check_approve, perm_check_dual_control, perm_check_reassign,
-            perm_queue_view, perm_queue_create, perm_queue_update, perm_queue_assign, perm_queue_manage,
-            perm_user_view, perm_role_view, perm_permission_view,
-            perm_policy_view, perm_report_view, perm_fraud_view,
-            perm_audit_view,
-            # Administrator additions
-            perm_user_create, perm_user_update, perm_user_manage,
-            perm_role_create,
-            perm_policy_create, perm_policy_update, perm_policy_activate, perm_policy_manage,
-            perm_audit_export,
-            perm_fraud_create, perm_fraud_submit, perm_fraud_withdraw, perm_fraud_config,
-        ]
-        db.add(administrator_role)
-
-        # 5. Auditor: Read-only access to all data and audit logs
-        auditor_role = Role(
-            name="auditor",
-            description="Read-only access to all data and audit logs",
-            is_system=True,
-        )
-        auditor_role.permissions = [
-            # Read-only permissions (NO review, approve, or dual_control)
-            perm_check_view,
-            perm_queue_view,
-            perm_user_view, perm_role_view, perm_permission_view,
-            perm_policy_view, perm_report_view, perm_fraud_view,
-            # Audit access
-            perm_audit_view, perm_audit_export,
-        ]
-        db.add(auditor_role)
-
-        # 6. System Admin: Full system access including configuration
-        system_admin_role = Role(
-            name="system_admin",
-            description="Full system access including configuration",
-            is_system=True,
-        )
-        system_admin_role.permissions = all_permissions
-        db.add(system_admin_role)
+        approver_role.permissions = [p for p in permissions if p.action in ["view", "review", "approve"]]
+        db.add(approver_role)
 
         await db.flush()
 
-        # =============================================================================
-        # Create test users (one per role) with tenant_id
-        # =============================================================================
-
-        # System Admin user
-        system_admin_user = User(
-            tenant_id=default_tenant_id,
-            username="system_admin",
-            email="system_admin@example.com",
-            hashed_password=get_password_hash("sysadmin123"),
-            full_name="System Administrator",
+        # Create test users
+        admin_user = User(
+            username="admin",
+            email="admin@example.com",
+            hashed_password=get_password_hash("admin123"),
+            full_name="Admin User",
             is_active=True,
             is_superuser=True,
         )
-        system_admin_user.roles = [system_admin_role]
-        db.add(system_admin_user)
+        admin_user.roles = [admin_role]
+        db.add(admin_user)
 
-        # Administrator user
-        administrator_user = User(
-            tenant_id=default_tenant_id,
-            username="administrator",
-            email="administrator@example.com",
-            hashed_password=get_password_hash("admin123"),
-            full_name="Bank Administrator",
-            is_active=True,
-        )
-        administrator_user.roles = [administrator_role]
-        db.add(administrator_user)
-
-        # Supervisor user
-        supervisor_user = User(
-            tenant_id=default_tenant_id,
-            username="supervisor",
-            email="supervisor@example.com",
-            hashed_password=get_password_hash("supervisor123"),
-            full_name="Review Supervisor",
-            is_active=True,
-        )
-        supervisor_user.roles = [supervisor_role]
-        db.add(supervisor_user)
-
-        # Senior Reviewer user
-        senior_reviewer_user = User(
-            tenant_id=default_tenant_id,
-            username="senior_reviewer",
-            email="senior_reviewer@example.com",
-            hashed_password=get_password_hash("senior123"),
-            full_name="Senior Check Reviewer",
-            is_active=True,
-        )
-        senior_reviewer_user.roles = [senior_reviewer_role]
-        db.add(senior_reviewer_user)
-
-        # Reviewer user
         reviewer_user = User(
-            tenant_id=default_tenant_id,
             username="reviewer",
             email="reviewer@example.com",
             hashed_password=get_password_hash("reviewer123"),
-            full_name="Check Reviewer",
+            full_name="Test Reviewer",
             is_active=True,
         )
         reviewer_user.roles = [reviewer_role]
         db.add(reviewer_user)
 
-        # Auditor user
-        auditor_user = User(
-            tenant_id=default_tenant_id,
-            username="auditor",
-            email="auditor@example.com",
-            hashed_password=get_password_hash("auditor123"),
-            full_name="Compliance Auditor",
+        approver_user = User(
+            username="approver",
+            email="approver@example.com",
+            hashed_password=get_password_hash("approver123"),
+            full_name="Test Approver",
             is_active=True,
         )
-        auditor_user.roles = [auditor_role]
-        db.add(auditor_user)
+        approver_user.roles = [approver_role]
+        db.add(approver_user)
 
         await db.flush()
 
-        # Create tenant fraud configuration (using same default_tenant_id from above)
+        # Create tenant fraud configuration
+        default_tenant_id = "default-tenant"
         fraud_config = TenantFraudConfig(
             tenant_id=default_tenant_id,
             default_sharing_level=SharingLevel.NETWORK_MATCH,
@@ -391,16 +245,10 @@ async def seed_database():
         await db.commit()
 
         print("Database seeded successfully!")
-        print(f"\nTenant: {default_tenant_id}")
-        print("\nTest accounts (per Technical Guide Section 2.2):")
-        print("  system_admin    / sysadmin123   (System Admin - full system access)")
-        print("  administrator   / admin123      (Administrator - user mgmt, policies)")
-        print("  supervisor      / supervisor123 (Supervisor - queue mgmt, reassign)")
-        print("  senior_reviewer / senior123     (Senior Reviewer - dual control)")
-        print("  reviewer        / reviewer123   (Reviewer - view, review checks)")
-        print("  auditor         / auditor123    (Auditor - read-only audit access)")
-        print("\nRoles created: reviewer, senior_reviewer, supervisor, administrator, auditor, system_admin")
-        print(f"Permissions created: {len(all_permissions)} (including dual_control, reassign)")
+        print("\nTest accounts:")
+        print("  admin    / admin123    (full access)")
+        print("  reviewer / reviewer123 (review only)")
+        print("  approver / approver123 (review + approve)")
         print("\nFraud Intelligence:")
         print(f"  Tenant config created for: {default_tenant_id}")
         print(f"  Sample network artifacts: {len(sample_artifacts)} indicators")

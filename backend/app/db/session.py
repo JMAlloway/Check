@@ -27,24 +27,11 @@ Base = declarative_base()
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """
-    Dependency to get database session.
-
-    IMPORTANT: This does NOT auto-commit. Endpoints that modify data must
-    explicitly call `await db.commit()` to persist changes. This prevents
-    accidental data persistence from read-only operations.
-
-    For write operations, use the pattern:
-        await db.add(obj)
-        await db.commit()
-        await db.refresh(obj)
-
-    For read-only operations, no commit is needed.
-    """
+    """Dependency to get database session."""
     async with AsyncSessionLocal() as session:
         try:
             yield session
-            # NO AUTO-COMMIT: Endpoints must explicitly commit writes
+            await session.commit()
         except Exception:
             await session.rollback()
             raise

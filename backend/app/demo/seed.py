@@ -199,7 +199,7 @@ class DemoSeeder:
                 hashed_password=get_password_hash(creds["password"]),
                 full_name=f"Demo {role.title()} User",
                 is_active=True,
-                is_superuser=(role == "system_admin"),
+                is_superuser=(role == "admin"),
                 department="Demo Department",
                 branch="Demo Branch",
                 employee_id=f"DEMO-EMP-{role.upper()}",
@@ -314,7 +314,7 @@ class DemoSeeder:
                 return super().default(obj)
 
         count = 0
-        admin_user = self.demo_users.get("system_admin")
+        admin_user = self.demo_users.get("admin")
         admin_id = admin_user.id if admin_user else "DEMO-USER-ADMIN-00000001"
 
         policy_configs = [
@@ -456,7 +456,6 @@ class DemoSeeder:
             # Create policy
             policy = Policy(
                 id=str(uuid.uuid4()),
-                tenant_id="DEMO-TENANT-000000000000000000000000",
                 name=config["name"],
                 description=config["description"],
                 status=PolicyStatus.ACTIVE,
@@ -507,7 +506,7 @@ class DemoSeeder:
     async def _seed_image_connectors(self) -> int:
         """Create demo image connector configuration."""
         count = 0
-        admin_user = self.demo_users.get("system_admin")
+        admin_user = self.demo_users.get("admin")
         admin_id = admin_user.id if admin_user else "DEMO-USER-ADMIN-00000001"
 
         # Demo RSA public key (NOT for production use - just for demo display)
@@ -913,10 +912,10 @@ mwIDAQAB
 
             # Assign reviewers for non-new items
             if status != CheckStatus.NEW:
-                check_item.assigned_reviewer_id = self.demo_users.get("reviewer", self.demo_users.get("system_admin")).id
+                check_item.assigned_reviewer_id = self.demo_users.get("reviewer", self.demo_users.get("admin")).id
 
             if status == CheckStatus.PENDING_DUAL_CONTROL:
-                check_item.assigned_approver_id = self.demo_users.get("senior_reviewer", self.demo_users.get("system_admin")).id
+                check_item.assigned_approver_id = self.demo_users.get("approver", self.demo_users.get("admin")).id
 
             self.db.add(check_item)
             self.demo_checks.append(check_item)
@@ -1011,7 +1010,7 @@ mwIDAQAB
                     CheckStatus.RETURNED: DecisionAction.RETURN,
                 }
 
-                reviewer = self.demo_users.get("reviewer", self.demo_users.get("system_admin"))
+                reviewer = self.demo_users.get("reviewer", self.demo_users.get("admin"))
                 decision = Decision(
                     id=str(uuid.uuid4()),
                     tenant_id="DEMO-TENANT-000000000000000000000000",
@@ -1030,7 +1029,7 @@ mwIDAQAB
 
                 # Add approver decision for dual control items
                 if check.requires_dual_control:
-                    approver = self.demo_users.get("senior_reviewer", self.demo_users.get("system_admin"))
+                    approver = self.demo_users.get("approver", self.demo_users.get("admin"))
                     approval_decision = Decision(
                         id=str(uuid.uuid4()),
                         tenant_id="DEMO-TENANT-000000000000000000000000",
@@ -1057,7 +1056,7 @@ mwIDAQAB
 
         for check in self.demo_checks[:20]:  # Limit to first 20 for performance
             # Login event
-            reviewer = self.demo_users.get("reviewer", self.demo_users.get("system_admin"))
+            reviewer = self.demo_users.get("reviewer", self.demo_users.get("admin"))
             login_time = check.presented_date - timedelta(minutes=random.randint(5, 60))
 
             audit_log = AuditLog(
@@ -1158,7 +1157,7 @@ mwIDAQAB
         rejected_checks = [c for c in self.demo_checks if c.status == CheckStatus.REJECTED]
         fraud_check_pool = list(set(high_risk_checks + rejected_checks))[:15]  # Limit to 15
 
-        reviewer = self.demo_users.get("reviewer", self.demo_users.get("system_admin"))
+        reviewer = self.demo_users.get("reviewer", self.demo_users.get("admin"))
 
         for i, check in enumerate(fraud_check_pool):
             scenario = fraud_scenarios[i % len(fraud_scenarios)]
@@ -1278,7 +1277,7 @@ mwIDAQAB
                 earliest_match_date=datetime.now(timezone.utc) - timedelta(days=random.randint(30, 180)),
                 latest_match_date=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 30)),
                 dismissed_at=datetime.now(timezone.utc) if random.random() < 0.2 else None,  # 20% dismissed
-                dismissed_by_user_id=self.demo_users.get("reviewer", self.demo_users.get("system_admin")).id if random.random() < 0.2 else None,
+                dismissed_by_user_id=self.demo_users.get("reviewer", self.demo_users.get("admin")).id if random.random() < 0.2 else None,
                 dismissed_reason="False positive - verified with customer" if random.random() < 0.2 else None,
                 last_checked_at=datetime.now(timezone.utc),
             )

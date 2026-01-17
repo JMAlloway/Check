@@ -255,7 +255,7 @@ users
 ├── email (String, unique per tenant)
 ├── hashed_password (String)
 ├── full_name (String)
-├── role (Enum: reviewer, senior_reviewer, supervisor, admin, auditor)
+├── role (Enum: reviewer, senior_reviewer, supervisor, administrator, auditor, system_admin)
 ├── is_active (Boolean)
 ├── mfa_enabled (Boolean)
 ├── mfa_secret (String, AES-256-GCM encrypted)
@@ -449,25 +449,29 @@ ciphertext = AESGCM(key).encrypt(nonce, plaintext, None)
 
 ### Permission Matrix
 
-| Permission | Reviewer | Senior | Supervisor | Admin | Auditor |
-|------------|----------|--------|------------|-------|---------|
-| view_queue | Yes | Yes | Yes | Yes | Yes |
-| review_check | Yes | Yes | Yes | Yes | No |
-| dual_control | No | Yes | Yes | Yes | No |
-| reassign_check | No | No | Yes | Yes | No |
-| manage_users | No | No | No | Yes | No |
-| view_audit | No | No | Yes | Yes | Yes |
-| export_audit | No | No | No | Yes | Yes |
-| manage_policies | No | No | No | Yes | No |
+| Permission | Reviewer | Senior | Supervisor | Administrator | Auditor | System Admin |
+|------------|----------|--------|------------|---------------|---------|--------------|
+| queue:view | Yes | Yes | Yes | Yes | Yes | Yes |
+| check_item:review | Yes | Yes | Yes | Yes | No | Yes |
+| check_item:dual_control | No | Yes | Yes | Yes | No | Yes |
+| check_item:reassign | No | No | Yes | Yes | No | Yes |
+| user:manage | No | No | No | Yes | No | Yes |
+| audit:view | No | No | Yes | Yes | Yes | Yes |
+| audit:export | No | No | No | Yes | Yes | Yes |
+| policy:manage | No | No | No | Yes | No | Yes |
 
 ### Permission Enforcement
 
+Permissions follow the `resource:action` naming convention (e.g., `queue:view`, `check_item:review`).
+
 ```python
 def require_permission(resource: str, action: str):
+    """Decorator to enforce permission checks using resource:action format."""
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, current_user: User, **kwargs):
-            if not has_permission(current_user.role, resource, action):
+            permission_name = f"{resource}:{action}"
+            if not has_permission(current_user.roles, permission_name):
                 raise HTTPException(403, "Insufficient permissions")
             return await func(*args, current_user=current_user, **kwargs)
         return wrapper

@@ -1,0 +1,177 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run daily at 2am UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  python-audit:
+    name: Python Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          pip install pip-audit
+
+      - name: Run pip-audit
+        run: |
+          cd backend
+          pip-audit --format=json --output=pip-audit-results.json || true
+          pip-audit --format=markdown >> $GITHUB_STEP_SUMMARY || true
+
+      - name: Upload audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-results
+          path: backend/pip-audit-results.json
+
+      - name: Fail on critical vulnerabilities
+        run: |
+          cd backend
+          # Fail if any vulnerabilities found
+          VULN_COUNT=$(pip-audit --format=json 2>/dev/null | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" || echo "0")
+          if [ "$VULN_COUNT" -gt 0 ]; then
+            echo "::error::Found $VULN_COUNT vulnerable Python packages"
+            exit 1
+          fi
+
+  node-audit:
+    name: Node.js Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run npm audit
+        run: |
+          cd frontend
+          npm audit --json > npm-audit-results.json || true
+          npm audit --omit=dev >> $GITHUB_STEP_SUMMARY || true
+
+      - name: Upload audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-results
+          path: frontend/npm-audit-results.json
+
+      - name: Fail on high/critical vulnerabilities
+        run: |
+          cd frontend
+          # npm audit returns non-zero if vulnerabilities found
+          npm audit --audit-level=high --omit=dev
+
+  container-scan:
+    name: Container Image Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: |
+          docker build -t check-review-backend:scan -f docker/Dockerfile.backend .
+
+      - name: Run Trivy on backend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'check-review-backend:scan'
+          format: 'sarif'
+          output: 'trivy-backend-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-backend-results.sarif'
+
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python, javascript
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  sast-semgrep:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/python
+            p/typescript
+
+  security-summary:
+    name: Security Summary
+    needs: [python-audit, node-audit, container-scan, secret-scan]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          echo "## Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Python Audit | ${{ needs.python-audit.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Node.js Audit | ${{ needs.node-audit.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Container Scan | ${{ needs.container-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secret Scan | ${{ needs.secret-scan.result }} |" >> $GITHUB_STEP_SUMMARY

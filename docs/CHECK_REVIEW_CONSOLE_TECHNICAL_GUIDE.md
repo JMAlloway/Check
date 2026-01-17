@@ -74,7 +74,7 @@ The platform is designed to support compliance with:
 - Real-time queue of checks requiring human review
 - Configurable priority rules based on amount, account age, risk score
 - Automatic load balancing across available reviewers
-- Queue status: `new`, `in_review`, `pending_dual_control`, `approved`, `rejected`, `returned`
+- Queue status: `new`, `in_review`, `escalated`, `pending_dual_control`, `approved`, `rejected`, `returned`, `closed`
 
 ### High-Resolution Image Viewer
 - Secure, time-limited access to check images (front and back)
@@ -270,21 +270,30 @@ check_items
 ├── id (UUID, PK)
 ├── tenant_id (UUID, FK)
 ├── external_item_id (String) - Core banking reference
-├── account_number (String, last 4 visible)
+├── account_number_masked (String) - Last 4 digits visible
 ├── routing_number (String)
 ├── amount (Decimal, precision 2)
 ├── check_number (String)
 ├── payee_name (String)
-├── payer_name (String)
-├── deposit_date (Date)
-├── status (Enum: new, in_review, pending_dual_control, approved, rejected, returned)
-├── risk_score (Integer, 0-100)
-├── risk_factors (JSON)
-├── front_image_path (String) - S3/MinIO path
-├── back_image_path (String)
-├── assigned_to (UUID, FK to users)
-├── assigned_at (DateTime)
+├── micr_line (String) - Full MICR data
+├── presented_date (DateTime) - When check was deposited
+├── check_date (DateTime) - Date written on check
+├── status (Enum: new, in_review, escalated, pending_dual_control, approved, rejected, returned, closed)
+├── risk_level (Enum: low, medium, high, critical)
+├── priority (Integer) - Queue ordering priority
 ├── queue_id (UUID, FK to queues)
+├── assigned_reviewer_id (UUID, FK to users)
+├── assigned_approver_id (UUID, FK to users) - For dual control
+├── sla_due_at (DateTime)
+├── sla_breached (Boolean)
+├── requires_dual_control (Boolean)
+├── dual_control_reason (String)
+├── has_ai_flags (Boolean)
+├── ai_risk_score (Decimal)
+├── ai_recommendation (String)
+├── ai_confidence (Decimal)
+├── ai_explanation (Text)
+├── images (Relationship to CheckImage) - Front/back images
 ├── created_at (DateTime)
 └── updated_at (DateTime)
 ```
@@ -294,15 +303,21 @@ check_items
 decisions
 ├── id (UUID, PK)
 ├── tenant_id (UUID, FK)
-├── check_id (UUID, FK to check_items)
-├── reviewer_id (UUID, FK to users)
-├── action (Enum: approve, reject, return, escalate, needs_more_info)
-├── reason_code (String)
+├── check_item_id (UUID, FK to check_items)
+├── user_id (UUID, FK to users)
+├── decision_type (Enum: review_recommendation, approval_decision, escalation)
+├── action (Enum: approve, return, reject, hold, escalate, needs_more_info)
+├── reason_codes (JSON Array) - Multiple reason codes allowed
 ├── notes (Text)
-├── is_dual_control (Boolean)
-├── dual_control_reviewer_id (UUID, FK to users)
-├── dual_control_action (Enum)
-├── dual_control_at (DateTime)
+├── ai_assisted (Boolean) - Whether AI influenced decision
+├── ai_flags_reviewed (JSON) - Which AI flags were considered
+├── previous_status (String)
+├── new_status (String)
+├── is_dual_control_required (Boolean)
+├── dual_control_approver_id (UUID, FK to users)
+├── dual_control_approved_at (DateTime)
+├── evidence_snapshot (JSONB) - Point-in-time state for audit
+├── policy_version_id (UUID, FK to policy_versions)
 ├── created_at (DateTime)
 └── updated_at (DateTime)
 ```
@@ -311,37 +326,91 @@ decisions
 ```
 audit_logs
 ├── id (UUID, PK)
-├── tenant_id (UUID, FK)
+├── tenant_id (UUID, FK) - Nullable for system events
+├── timestamp (DateTime)
 ├── user_id (UUID, FK to users)
-├── action (String) - e.g., "check.approved", "user.login"
-├── resource_type (String)
-├── resource_id (String)
-├── old_values (JSON)
-├── new_values (JSON)
+├── username (String) - Denormalized for historical reference
 ├── ip_address (String)
 ├── user_agent (String)
-├── request_id (UUID) - Correlation ID
+├── session_id (String)
+├── action (AuditAction Enum) - e.g., LOGIN, DECISION_APPROVED, ITEM_VIEWED
+├── resource_type (String)
+├── resource_id (String)
+├── description (Text) - Human-readable description
+├── before_value (JSONB) - State before change
+├── after_value (JSONB) - State after change
+├── extra_data (JSONB) - Additional structured data
 ├── integrity_hash (String, SHA-256)
-├── previous_hash (String) - Chain integrity
-├── timestamp (DateTime)
-└── created_at (DateTime)
+├── previous_hash (String) - Chain integrity verification
+└── is_demo (Boolean)
 ```
+
+Note: Audit logs are immutable. The `integrity_hash` and `previous_hash` fields enable
+cryptographic verification of log chain integrity for compliance audits.
 
 ### Fraud Event
 ```
 fraud_events
 ├── id (UUID, PK)
 ├── tenant_id (UUID, FK)
-├── check_id (UUID, FK to check_items, nullable)
+├── check_item_id (UUID, FK to check_items, nullable)
+├── case_id (String) - For case management integration
+├── event_date (DateTime) - When fraud occurred
+├── amount (Decimal) - Actual amount
+├── amount_bucket (Enum: under_100, 100_to_500, ..., over_50000)
 ├── fraud_type (Enum: check_kiting, counterfeit_check, forged_signature, ...)
 ├── channel (Enum: branch, atm, mobile, rdc, mail, online, other)
-├── amount_bucket (Enum: under_100, 100_to_500, ..., over_50000)
-├── detected_at (DateTime)
-├── reported_at (DateTime)
+├── confidence (Integer, 1-5) - Fraud confidence level
+├── narrative_private (Text) - Internal notes, never shared
+├── narrative_shareable (Text) - Safe for network sharing
+├── sharing_level (Integer: 0=private, 1=aggregate, 2=network_match)
 ├── status (Enum: draft, submitted, withdrawn)
-├── sar_filed (Boolean)
-├── sar_number (String)
-├── notes (Text)
+├── created_by_user_id (UUID, FK to users)
+├── submitted_at (DateTime)
+├── submitted_by_user_id (UUID, FK to users)
+├── withdrawn_at (DateTime)
+├── withdrawn_by_user_id (UUID, FK to users)
+├── withdrawn_reason (Text)
+├── created_at (DateTime)
+└── updated_at (DateTime)
+```
+
+### Fraud Shared Artifact (Network Intelligence)
+```
+fraud_shared_artifacts
+├── id (UUID, PK)
+├── tenant_id (String) - Originating institution
+├── fraud_event_id (UUID, FK, nullable)
+├── sharing_level (Enum: aggregate, network_match)
+├── occurred_at (DateTime)
+├── occurred_month (String) - YYYY-MM for aggregation
+├── fraud_type (Enum)
+├── channel (Enum)
+├── amount_bucket (Enum)
+├── indicators_json (JSONB) - Hashed indicators for matching
+├── pepper_version (Integer) - For indicator hashing rotation
+├── is_active (Boolean)
+├── created_at (DateTime)
+└── updated_at (DateTime)
+```
+
+### Network Match Alert
+```
+network_match_alerts
+├── id (UUID, PK)
+├── tenant_id (UUID, FK)
+├── check_item_id (UUID, FK to check_items)
+├── matched_artifact_ids (JSON Array) - References to matched artifacts
+├── match_reasons (JSONB) - Details of why match triggered
+├── severity (Enum: low, medium, high)
+├── total_matches (Integer)
+├── distinct_institutions (Integer)
+├── earliest_match_date (DateTime)
+├── latest_match_date (DateTime)
+├── dismissed_at (DateTime)
+├── dismissed_by_user_id (UUID, FK to users)
+├── dismissed_reason (Text)
+├── last_checked_at (DateTime)
 ├── created_at (DateTime)
 └── updated_at (DateTime)
 ```
@@ -353,7 +422,7 @@ Critical indexes for query performance:
 ```sql
 -- Queue processing
 CREATE INDEX idx_check_items_tenant_status ON check_items(tenant_id, status);
-CREATE INDEX idx_check_items_assigned ON check_items(assigned_to, status);
+CREATE INDEX idx_check_items_assigned ON check_items(assigned_reviewer_id, status);
 CREATE INDEX idx_check_items_queue ON check_items(queue_id, status);
 
 -- Audit queries
@@ -363,7 +432,11 @@ CREATE INDEX idx_audit_logs_user ON audit_logs(tenant_id, user_id, timestamp DES
 
 -- Fraud analysis
 CREATE INDEX idx_fraud_events_tenant_type ON fraud_events(tenant_id, fraud_type);
-CREATE INDEX idx_fraud_events_detected ON fraud_events(tenant_id, detected_at DESC);
+CREATE INDEX idx_fraud_events_event_date ON fraud_events(tenant_id, event_date DESC);
+
+-- Network intelligence
+CREATE INDEX idx_fraud_artifacts_month ON fraud_shared_artifacts(occurred_month, fraud_type);
+CREATE INDEX idx_network_alerts_check ON network_match_alerts(check_item_id, severity);
 ```
 
 ## 4.3 Data Retention

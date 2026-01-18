@@ -9,7 +9,7 @@ A bank-grade web application for community bank operations teams to review prese
 - **ROI Overlays**: User-defined regions of interest for amount box, signature, MICR line, etc.
 - **Side-by-Side Comparison**: Compare current check with historical checks from the same account
 - **Context Panel**: Account tenure, balance, check behavior stats, returned item history
-- **AI Flags**: Explainable rule-based flags with confidence levels and explanations
+- **Detection Flags**: Explainable rule-based flags with confidence levels and explanations
 
 ### Workflow
 - **Dual Control**: Configurable thresholds for two-person approval
@@ -184,7 +184,7 @@ python -m app.demo.seed --reset --count 60
 ### Demo Features
 
 - **Synthetic Check Items**: 60+ check items with various scenarios (routine, suspicious, fraud)
-- **Mock AI Analysis**: Deterministic AI recommendations based on scenarios
+- **Mock Detection Analysis**: Deterministic rule-based recommendations based on scenarios
 - **Demo Images**: Watermarked check images clearly marked as "DEMO - NOT A REAL CHECK"
 - **Sample Workflows**: Items in various workflow states for demonstration
 - **Visual Indicators**: Banner and badges clearly indicate demo mode
@@ -208,7 +208,7 @@ python -m app.demo.seed --reset --count 60
 | `DEBUG` | Enable debug mode | `false` |
 | `CORS_ORIGINS` | Allowed CORS origins | `["http://localhost:3000"]` |
 | `DUAL_CONTROL_THRESHOLD` | Amount requiring dual control | `5000.0` |
-| `AI_ENABLED` | Enable AI features | `false` |
+| `AI_ENABLED` | Enable detection rules engine | `false` |
 | `DEMO_MODE` | Enable demo mode with synthetic data | `false` |
 | `DEMO_DATA_COUNT` | Number of demo items to seed | `60` |
 

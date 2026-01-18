@@ -43,7 +43,7 @@ Permission {
 - Export audit packets
 - Manage users or roles
 - Configure policies or queues
-- Override AI decisions without supervisor approval
+- Override detection rule decisions without supervisor approval
 
 ---
 
@@ -55,7 +55,7 @@ Permission {
 | check_item | view, view_images | - |
 | check_item | decide | `amount_max: 25000` (configurable) |
 | check_item | approve_dual_control | - |
-| check_item | override_ai | with justification |
+| check_item | override_detection | with justification |
 | check_item | add_note, view_history | - |
 | queue | view, claim_item, reassign | all queues |
 | fraud_alert | view, dismiss | - |
@@ -130,7 +130,7 @@ Permission {
 | Decide (within limit) | ✅ | ✅ | ✅ | ❌ |
 | Decide (any amount) | ❌ | ❌ | ✅ | ❌ |
 | Dual control approval | ❌ | ✅ | ✅ | ❌ |
-| Override AI decision | ❌ | ✅ | ✅ | ❌ |
+| Override detection rules | ❌ | ✅ | ✅ | ❌ |
 | Add notes | ✅ | ✅ | ✅ | ❌ |
 | **Queues** |
 | View queues | ✅ | ✅ | ✅ | ✅ |

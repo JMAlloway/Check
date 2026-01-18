@@ -1,5 +1,37 @@
 import clsx from 'clsx';
-import { CheckStatus, RiskLevel } from '../../types';
+import { CheckStatus, RiskLevel, ItemType } from '../../types';
+
+interface ItemTypeBadgeProps {
+  itemType: ItemType;
+}
+
+const itemTypeConfig: Record<ItemType, { label: string; description: string; className: string }> = {
+  on_us: {
+    label: 'On Us',
+    description: 'Check drawn on our customer',
+    className: 'bg-blue-100 text-blue-800 border border-blue-300',
+  },
+  transit: {
+    label: 'Transit',
+    description: 'Check deposited by our customer',
+    className: 'bg-emerald-100 text-emerald-800 border border-emerald-300',
+  },
+};
+
+export function ItemTypeBadge({ itemType }: ItemTypeBadgeProps) {
+  const config = itemTypeConfig[itemType];
+  return (
+    <span
+      className={clsx(
+        'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold',
+        config.className
+      )}
+      title={config.description}
+    >
+      {config.label}
+    </span>
+  );
+}
 
 interface StatusBadgeProps {
   status: CheckStatus;

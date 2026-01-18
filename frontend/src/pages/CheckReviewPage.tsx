@@ -13,7 +13,7 @@ import CheckHistoryPanel from '../components/check/CheckHistoryPanel';
 import DecisionPanel from '../components/decision/DecisionPanel';
 import NetworkIntelligencePanel from '../components/fraud/NetworkIntelligencePanel';
 import FraudReportModal from '../components/fraud/FraudReportModal';
-import { StatusBadge, RiskBadge } from '../components/common/StatusBadge';
+import { StatusBadge, RiskBadge, ItemTypeBadge } from '../components/common/StatusBadge';
 import toast from 'react-hot-toast';
 
 // Default ROI regions for check image
@@ -107,6 +107,7 @@ export default function CheckReviewPage() {
               Check Review: {item.account_number_masked}
             </h1>
             <div className="flex items-center space-x-2 mt-1">
+              <ItemTypeBadge itemType={item.item_type} />
               <StatusBadge status={item.status} />
               <RiskBadge level={item.risk_level} />
               {item.requires_dual_control && (

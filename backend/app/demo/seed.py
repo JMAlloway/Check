@@ -31,7 +31,7 @@ from app.demo.scenarios import (
     DemoScenario,
 )
 from app.models.audit import AuditLog, AuditAction
-from app.models.check import CheckHistory, CheckImage, CheckItem, CheckStatus, RiskLevel, AccountType
+from app.models.check import CheckHistory, CheckImage, CheckItem, CheckStatus, RiskLevel, AccountType, ItemType
 from app.models.decision import Decision, DecisionAction, DecisionType, ReasonCode
 from app.models.fraud import (
     FraudEvent,
@@ -861,11 +861,15 @@ mwIDAQAB
                 "non_profit": AccountType.NON_PROFIT,
             }
 
+            # Randomly assign item type (40% on_us, 60% transit)
+            item_type = ItemType.ON_US if random.random() < 0.4 else ItemType.TRANSIT
+
             check_item = CheckItem(
                 id=str(uuid.uuid4()),
                 tenant_id="DEMO-TENANT-000000000000000000000000",
                 external_item_id=f"DEMO-CHECK-{i+1:04d}-{uuid.uuid4().hex[:8]}",
                 source_system="demo",
+                item_type=item_type,
                 account_id=account.account_id,
                 account_number_masked=account.account_number_masked,
                 account_type=account_type_map.get(account.account_type, AccountType.CONSUMER),

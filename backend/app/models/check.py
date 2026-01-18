@@ -66,6 +66,23 @@ class AccountType(str, Enum):
     NON_PROFIT = "non_profit"
 
 
+class ItemType(str, Enum):
+    """
+    Check item type - critical for processing workflow.
+
+    ON_US: Check drawn on our bank's customer account.
+           The maker (writer) is our customer. We are the paying bank.
+           Example: Our customer writes a check that gets deposited elsewhere.
+
+    TRANSIT: Check from another bank being deposited into our customer's account.
+             The depositor is our customer. We are the collecting bank.
+             Example: Our customer deposits a check from another bank.
+    """
+
+    ON_US = "on_us"
+    TRANSIT = "transit"
+
+
 class CheckItem(Base, UUIDMixin, TimestampMixin):
     """Check item presented for review."""
 
@@ -77,6 +94,15 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     # External identifiers (unique per tenant, not globally)
     external_item_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     source_system: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g., "q2", "fiserv"
+
+    # Item type - critical for processing workflow
+    item_type: Mapped[ItemType] = mapped_column(
+        SQLEnum(ItemType, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=ItemType.TRANSIT,
+        index=True,
+        comment="on_us=check drawn on our customer, transit=check deposited by our customer"
+    )
 
     # Account information
     account_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)

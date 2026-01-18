@@ -1,4 +1,5 @@
 import { CheckItem } from '../../types';
+import { ItemTypeBadge } from '../common/StatusBadge';
 import clsx from 'clsx';
 
 interface CheckContextPanelProps {
@@ -46,6 +47,10 @@ export default function CheckContextPanel({ item }: CheckContextPanelProps) {
       {/* Check Details */}
       <SectionTitle>Check Details</SectionTitle>
       <div className="space-y-1">
+        <div className="flex justify-between py-1">
+          <span className="text-gray-500 text-sm">Type</span>
+          <ItemTypeBadge itemType={item.item_type} />
+        </div>
         <ContextRow label="Amount" value={formatCurrency(item.amount)} />
         <ContextRow label="Check #" value={item.check_number || '-'} />
         <ContextRow label="Payee" value={item.payee_name || '-'} />

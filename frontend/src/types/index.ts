@@ -14,6 +14,11 @@ export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
 export type AccountType = 'consumer' | 'business' | 'commercial' | 'non_profit';
 
+// Item type - critical for processing workflow
+// on_us: Check drawn on our bank's customer account (we are the paying bank)
+// transit: Check from another bank being deposited (we are the collecting bank)
+export type ItemType = 'on_us' | 'transit';
+
 export interface CheckImage {
   id: string;
   image_type: 'front' | 'back';
@@ -54,6 +59,7 @@ export interface CheckItem {
   id: string;
   external_item_id: string;
   source_system: string;
+  item_type: ItemType;
   account_id: string;
   account_number_masked: string;
   account_type: AccountType;

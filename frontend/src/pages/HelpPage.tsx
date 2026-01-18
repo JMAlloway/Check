@@ -144,8 +144,8 @@ function DefinitionsTab() {
     { term: 'Reason Code', definition: 'A standardized code explaining why a check was approved, returned, or held. Used for audit trails and reporting.' },
     { term: 'Risk Level', definition: 'Assessment of potential fraud or loss risk: Low (standard), Medium (careful review), High (may require dual control), Critical (immediate attention).' },
     { term: 'Network Alert', definition: 'Notification from the inter-bank fraud sharing network that this check or related indicators have been flagged by another institution.' },
-    { term: 'Audit Packet', definition: 'A comprehensive record including check images, MICR data, decision history, notes, AI analysis, and any fraud alerts.' },
-    { term: 'Override', definition: 'When a reviewer makes a decision that differs from an AI recommendation. Requires documented justification.' },
+    { term: 'Audit Packet', definition: 'A comprehensive record including check images, MICR data, decision history, notes, detection analysis, and any fraud alerts.' },
+    { term: 'Override', definition: 'When a reviewer makes a decision that differs from a detection rule recommendation. Requires documented justification.' },
     { term: 'Presented Date', definition: 'The date a check was submitted for deposit or cashing - when the item enters the processing queue.' },
     { term: 'Posted Date', definition: 'The date a check was officially credited to or debited from an account. May differ from presented date.' },
     { term: 'Account Tenure', definition: 'How long the account has been open. New accounts (< 90 days) often receive additional scrutiny.' },
@@ -208,7 +208,7 @@ function WorkflowsTab() {
           </li>
           <li>
             <strong>Check risk indicators</strong>
-            <p className="text-sm text-gray-500">Review AI flags, network alerts, and account history</p>
+            <p className="text-sm text-gray-500">Review detection flags, network alerts, and account history</p>
           </li>
           <li>
             <strong>Make decision</strong>
@@ -223,7 +223,7 @@ function WorkflowsTab() {
 
       <Section title="Dual Control Workflow">
         <div className="bg-amber-50 p-3 rounded-lg mb-3 text-sm">
-          <strong>When required:</strong> High-value items, high-risk flags, network alerts, AI overrides
+          <strong>When required:</strong> High-value items, high-risk flags, network alerts, detection rule overrides
         </div>
         <ol className="list-decimal ml-4 space-y-2">
           <li><strong>First reviewer</strong> makes initial decision (Approve/Return/Hold)</li>
@@ -316,7 +316,7 @@ function RolesTab() {
               { name: 'View check items & images', reviewer: true, approver: true, admin: true, auditor: true },
               { name: 'Make decisions (within limit)', reviewer: true, approver: true, admin: true, auditor: false },
               { name: 'Dual control approval', reviewer: false, approver: true, admin: true, auditor: false },
-              { name: 'Override AI decisions', reviewer: false, approver: true, admin: true, auditor: false },
+              { name: 'Override detection rules', reviewer: false, approver: true, admin: true, auditor: false },
               { name: 'Dismiss fraud alerts', reviewer: false, approver: true, admin: true, auditor: false },
               { name: 'Export audit packets', reviewer: false, approver: true, admin: true, auditor: true },
               { name: 'View all audit logs', reviewer: false, approver: true, admin: true, auditor: true },
@@ -364,11 +364,11 @@ function RolesTab() {
         <dl className="space-y-4">
           <div>
             <dt className="font-semibold">Reviewer</dt>
-            <dd className="text-sm">Day-to-day check processor. Reviews items, makes decisions within their limit, adds notes. Cannot approve dual control items or override AI.</dd>
+            <dd className="text-sm">Day-to-day check processor. Reviews items, makes decisions within their limit, adds notes. Cannot approve dual control items or override detection rules.</dd>
           </div>
           <div>
             <dt className="font-semibold">Approver (Senior Reviewer)</dt>
-            <dd className="text-sm">Experienced reviewer with elevated limits. Can approve dual control items, override AI recommendations, dismiss fraud alerts, and export audit packets.</dd>
+            <dd className="text-sm">Experienced reviewer with elevated limits. Can approve dual control items, override detection rule recommendations, dismiss fraud alerts, and export audit packets.</dd>
           </div>
           <div>
             <dt className="font-semibold">Administrator</dt>

@@ -119,9 +119,9 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
       errors.push('Notes are required for the selected reason code(s)');
     }
 
-    // Check AI acknowledgment
+    // Check detection flags acknowledgment
     if (item.ai_flags.length > 0 && !acknowledgeAI) {
-      errors.push('Please acknowledge the AI flags before submitting');
+      errors.push('Please acknowledge the detection flags before submitting');
     }
 
     return errors;
@@ -375,7 +375,7 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
           />
         </div>
 
-        {/* AI Acknowledgment */}
+        {/* Detection Flags Acknowledgment */}
         {item.ai_flags.length > 0 && (
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <label className="flex items-start cursor-pointer">
@@ -390,8 +390,8 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
                 className="mt-1 rounded border-gray-300 text-primary-600"
               />
               <span className="ml-2 text-sm text-blue-800">
-                <strong>Advisory:</strong> I have reviewed the {item.ai_flags.length} AI-generated flag(s)
-                for this item. I understand AI analysis is advisory only and the final decision is mine.
+                <strong>Advisory:</strong> I have reviewed the {item.ai_flags.length} detection flag(s)
+                for this item. I understand detection rules are advisory only and the final decision is mine.
               </span>
             </label>
           </div>

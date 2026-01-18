@@ -231,7 +231,7 @@ function QueueBucket({
                 <td className="px-4 py-3 whitespace-nowrap">
                   <StatusBadge status={item.status} />
                   {item.has_ai_flags && (
-                    <span className="ml-1 text-xs text-orange-600">AI</span>
+                    <span className="ml-1 text-xs text-orange-600">Flagged</span>
                   )}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">

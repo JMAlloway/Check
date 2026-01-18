@@ -116,10 +116,10 @@ export default function CheckContextPanel({ item }: CheckContextPanelProps) {
         />
       </div>
 
-      {/* AI Flags */}
+      {/* Detection Flags */}
       {item.ai_flags.length > 0 && (
         <>
-          <SectionTitle>AI Flags</SectionTitle>
+          <SectionTitle>Detection Flags</SectionTitle>
           <div className="space-y-2">
             {item.ai_flags.map((flag) => (
               <div

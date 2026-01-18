@@ -77,7 +77,7 @@ export default function DemoBanner({ variant = 'full', dismissible = true }: Dem
               <DemoFeatureTag label="Synthetic Checks" />
             )}
             {status.features.mock_ai_analysis && (
-              <DemoFeatureTag label="Mock AI" />
+              <DemoFeatureTag label="Detection Rules" />
             )}
             {status.features.demo_images && (
               <DemoFeatureTag label="Demo Images" />

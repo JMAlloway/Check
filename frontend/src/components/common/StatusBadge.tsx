@@ -20,6 +20,8 @@ const itemTypeConfig: Record<ItemType, { label: string; description: string; cla
 
 export function ItemTypeBadge({ itemType }: ItemTypeBadgeProps) {
   const config = itemTypeConfig[itemType];
+  // Handle missing item_type (e.g., before migration is applied)
+  if (!config) return null;
   return (
     <span
       className={clsx(

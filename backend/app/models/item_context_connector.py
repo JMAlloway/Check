@@ -392,6 +392,9 @@ class ItemContextImportRecord(Base, UUIDMixin, TimestampMixin):
     # Raw row data (for debugging, optional)
     raw_row_data: Mapped[str | None] = mapped_column(Text)
 
+    # Relationships
+    import_job: Mapped["ItemContextImport"] = relationship(back_populates="records")
+
     __table_args__ = (
         Index("ix_item_context_import_records_import_status", "import_id", "status"),
         Index("ix_item_context_import_records_check_item", "check_item_id"),

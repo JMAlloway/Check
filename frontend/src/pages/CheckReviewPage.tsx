@@ -145,50 +145,50 @@ export default function CheckReviewPage() {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="grid grid-cols-12 gap-4" style={{ height: 'calc(100vh - 200px)' }}>
-        {/* Check Image Viewer */}
-        <div className={showComparison ? 'col-span-4' : 'col-span-6'}>
-          <CheckImageViewer
-            images={item.images}
-            roiRegions={defaultROIRegions}
-            showROI={true}
-          />
+      {/* Main Content - Horizontal Layout */}
+      <div className="flex flex-col gap-4" style={{ height: 'calc(100vh - 200px)' }}>
+        {/* Top Row: Check Image Viewer (full width, optimized for horizontal checks) */}
+        <div className="flex-shrink-0" style={{ height: showComparison ? '45%' : '50%' }}>
+          <div className={`grid gap-4 h-full ${showComparison ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <CheckImageViewer
+              images={item.images}
+              roiRegions={defaultROIRegions}
+              showROI={true}
+            />
+
+            {/* Comparison View (side-by-side when active) */}
+            {showComparison && comparisonItem && (
+              <div className="bg-gray-900 rounded-lg h-full flex flex-col">
+                <div className="px-4 py-2 bg-gray-800 border-b border-gray-700 flex justify-between items-center">
+                  <span className="text-white text-sm font-medium">
+                    Historical Check - {new Date(comparisonItem.check_date).toLocaleDateString()}
+                  </span>
+                  <button
+                    onClick={() => setShowComparison(false)}
+                    className="text-gray-400 hover:text-white text-sm"
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className="flex-1 flex items-center justify-center">
+                  {comparisonItem.front_image_url ? (
+                    <img
+                      src={resolveImageUrl(comparisonItem.front_image_url)}
+                      alt="Historical check"
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  ) : (
+                    <p className="text-gray-500">No image available</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Comparison View (conditional) */}
-        {showComparison && comparisonItem && (
-          <div className="col-span-4">
-            <div className="bg-gray-900 rounded-lg h-full flex flex-col">
-              <div className="px-4 py-2 bg-gray-800 border-b border-gray-700 flex justify-between items-center">
-                <span className="text-white text-sm font-medium">
-                  Historical Check - {new Date(comparisonItem.check_date).toLocaleDateString()}
-                </span>
-                <button
-                  onClick={() => setShowComparison(false)}
-                  className="text-gray-400 hover:text-white text-sm"
-                >
-                  Close
-                </button>
-              </div>
-              <div className="flex-1 flex items-center justify-center">
-                {comparisonItem.front_image_url ? (
-                  <img
-                    src={resolveImageUrl(comparisonItem.front_image_url)}
-                    alt="Historical check"
-                    className="max-w-full max-h-full object-contain"
-                  />
-                ) : (
-                  <p className="text-gray-500">No image available</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Right Panel - Context, History, Network Intel, Decision */}
-        <div className={showComparison ? 'col-span-4' : 'col-span-6'}>
-          <div className="grid gap-4 h-full" style={{ gridTemplateRows: '1fr 1fr 0.8fr 1.2fr' }}>
+        {/* Bottom Row: Context Panels (horizontal layout) */}
+        <div className="flex-1 min-h-0">
+          <div className="grid grid-cols-4 gap-4 h-full">
             {/* Context Panel */}
             <div className="overflow-hidden">
               <CheckContextPanel item={item} />

@@ -26,6 +26,18 @@ class Settings(BaseSettings):
     # Demo Mode - NEVER enable in production
     # Demo mode provides synthetic data for demonstrations without real PII
     DEMO_MODE: bool = False
+
+    @field_validator("DEMO_MODE", mode="before")
+    @classmethod
+    def parse_demo_mode(cls, v: Any) -> bool:
+        """Parse DEMO_MODE, stripping whitespace to handle Windows .env files."""
+        if isinstance(v, str):
+            v = v.strip().lower()
+            if v in ("true", "1", "yes", "on"):
+                return True
+            if v in ("false", "0", "no", "off", ""):
+                return False
+        return v
     DEMO_DATA_COUNT: int = 60  # Number of demo check items to seed
 
     # API

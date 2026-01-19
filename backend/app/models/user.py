@@ -27,15 +27,25 @@ role_permissions = Table(
 
 
 class Permission(Base, UUIDMixin, TimestampMixin):
-    """Permission model for granular access control."""
+    """Permission model for granular access control.
+
+    System permissions (is_system=True, tenant_id=None) are shared across all tenants.
+    Tenant-specific permissions have tenant_id set and are isolated per tenant.
+    """
 
     __tablename__ = "permissions"
 
-    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    # Multi-tenant support - null means system-wide permission
+    tenant_id: Mapped[str | None] = mapped_column(String(36), index=True)
+
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     resource: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g., "check_item", "queue"
     action: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g., "view", "approve", "export"
     conditions: Mapped[str | None] = mapped_column(Text)  # JSON conditions like {"amount_max": 10000}
+
+    # System permissions cannot be modified by tenants
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
 
     roles: Mapped[list["Role"]] = relationship(
         secondary=role_permissions,
@@ -44,11 +54,18 @@ class Permission(Base, UUIDMixin, TimestampMixin):
 
 
 class Role(Base, UUIDMixin, TimestampMixin):
-    """Role model for RBAC."""
+    """Role model for RBAC.
+
+    System roles (is_system=True, tenant_id=None) are shared across all tenants.
+    Tenant-specific roles have tenant_id set and are isolated per tenant.
+    """
 
     __tablename__ = "roles"
 
-    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    # Multi-tenant support - null means system-wide role
+    tenant_id: Mapped[str | None] = mapped_column(String(36), index=True)
+
+    name: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     is_system: Mapped[bool] = mapped_column(Boolean, default=False)  # System roles cannot be deleted
 

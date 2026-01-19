@@ -34,8 +34,11 @@ async def list_policies(
     current_user: Annotated[object, Depends(require_permission("policy", "view"))],
     status_filter: PolicyStatus | None = None,
 ):
-    """List all policies."""
-    query = select(Policy).options(selectinload(Policy.versions))
+    """List all policies for the current tenant."""
+    # CRITICAL: Filter by tenant_id for multi-tenant security
+    query = select(Policy).options(selectinload(Policy.versions)).where(
+        Policy.tenant_id == current_user.tenant_id
+    )
 
     if status_filter:
         query = query.where(Policy.status == status_filter)
@@ -68,8 +71,9 @@ async def create_policy(
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("policy", "create"))],
 ):
-    """Create a new policy."""
+    """Create a new policy for the current tenant."""
     policy = Policy(
+        tenant_id=current_user.tenant_id,  # CRITICAL: Set tenant_id for multi-tenant isolation
         name=policy_data.name,
         description=policy_data.description,
         status=PolicyStatus.DRAFT,
@@ -147,12 +151,13 @@ async def get_policy(
     current_user: Annotated[object, Depends(require_permission("policy", "view"))],
 ):
     """Get a specific policy with all versions."""
+    # CRITICAL: Filter by tenant_id for multi-tenant security
     result = await db.execute(
         select(Policy)
         .options(
             selectinload(Policy.versions).selectinload(PolicyVersion.rules)
         )
-        .where(Policy.id == policy_id)
+        .where(Policy.id == policy_id, Policy.tenant_id == current_user.tenant_id)
     )
     policy = result.scalar_one_or_none()
 
@@ -229,8 +234,11 @@ async def create_policy_version(
     current_user: Annotated[object, Depends(require_permission("policy", "update"))],
 ):
     """Create a new version of a policy."""
+    # CRITICAL: Filter by tenant_id for multi-tenant security
     result = await db.execute(
-        select(Policy).options(selectinload(Policy.versions)).where(Policy.id == policy_id)
+        select(Policy).options(selectinload(Policy.versions)).where(
+            Policy.id == policy_id, Policy.tenant_id == current_user.tenant_id
+        )
     )
     policy = result.scalar_one_or_none()
 
@@ -320,8 +328,11 @@ async def activate_policy(
     version_id: str | None = None,
 ):
     """Activate a policy (or specific version)."""
+    # CRITICAL: Filter by tenant_id for multi-tenant security
     result = await db.execute(
-        select(Policy).options(selectinload(Policy.versions)).where(Policy.id == policy_id)
+        select(Policy).options(selectinload(Policy.versions)).where(
+            Policy.id == policy_id, Policy.tenant_id == current_user.tenant_id
+        )
     )
     policy = result.scalar_one_or_none()
 

@@ -54,9 +54,16 @@ class RuleConditionOperator(str, Enum):
 
 
 class Policy(Base, UUIDMixin, TimestampMixin):
-    """Policy definition."""
+    """Policy definition.
+
+    Policies are tenant-specific to allow different banks to have different
+    approval thresholds, escalation rules, and business logic.
+    """
 
     __tablename__ = "policies"
+
+    # Multi-tenant support - REQUIRED for policies (no shared policies)
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
 
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)

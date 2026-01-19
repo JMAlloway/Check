@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
-from app.models.check import AccountType, CheckStatus, RiskLevel
+from app.models.check import AccountType, CheckStatus, ItemType, RiskLevel
 from app.schemas.common import BaseSchema, TimestampSchema
 
 
@@ -91,6 +91,7 @@ class CheckItemResponse(CheckItemBase, TimestampSchema):
     external_item_id: str
     source_system: str
     account_id: str
+    item_type: ItemType
     routing_number: str | None = None
     micr_line: str | None = None
     presented_date: datetime
@@ -118,6 +119,7 @@ class CheckItemListResponse(BaseSchema):
     external_item_id: str
     account_number_masked: str
     account_type: AccountType
+    item_type: ItemType
     amount: Decimal
     check_number: str | None = None
     payee_name: str | None = None

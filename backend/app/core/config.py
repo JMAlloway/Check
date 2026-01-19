@@ -145,8 +145,14 @@ def _validate_production_secrets(s: Settings) -> None:
     This prevents accidental deployment with insecure defaults.
     Called during settings initialization.
 
+    Secrets validated:
+    - SECRET_KEY: JWT signing key (min 32 chars)
+    - CSRF_SECRET_KEY: CSRF token signing (min 32 chars)
+    - NETWORK_PEPPER: Fraud indicator hashing (min 32 chars)
+    - CONNECTOR_JWT_PRIVATE_KEY: Connector A RS256 signing key (min 100 chars for RSA)
+
     Validates:
-    - Minimum length (32 characters for adequate entropy)
+    - Minimum length for adequate entropy
     - No known default values
     - No common placeholder patterns
     """
@@ -158,6 +164,7 @@ def _validate_production_secrets(s: Settings) -> None:
         "SECRET_KEY": 32,
         "CSRF_SECRET_KEY": 32,
         "NETWORK_PEPPER": 32,
+        "CONNECTOR_JWT_PRIVATE_KEY": 100,  # RSA private key minimum length
     }
 
     # Known default/placeholder secrets that MUST be changed
@@ -165,6 +172,7 @@ def _validate_production_secrets(s: Settings) -> None:
         "SECRET_KEY": "change-this-in-production-use-secure-random-key",
         "CSRF_SECRET_KEY": "change-this-csrf-secret-in-production",
         "NETWORK_PEPPER": "change-this-network-pepper-in-production",
+        "CONNECTOR_JWT_PRIVATE_KEY": "",  # Empty is insecure
     }
 
     # Common placeholder patterns that indicate non-production secrets

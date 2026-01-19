@@ -75,6 +75,11 @@ class EvidenceSnapshot(BaseModel):
     - Vendor risk assessment: prove decision was informed
     - Regulatory compliance: demonstrate controls worked
     - Internal audit: verify consistency
+
+    Evidence sealing provides cryptographic integrity:
+    - evidence_hash: SHA-256 of canonical snapshot content
+    - previous_evidence_hash: Links to previous decision for chain integrity
+    - seal_timestamp: When the cryptographic seal was computed
     """
 
     snapshot_version: str = "1.0"
@@ -90,6 +95,12 @@ class EvidenceSnapshot(BaseModel):
 
     # Decision details
     decision_context: dict[str, Any] = {}  # Additional context
+
+    # Cryptographic seal for tamper-evidence (set after snapshot creation)
+    seal_version: str | None = None  # e.g., "sha256-v1"
+    evidence_hash: str | None = None  # SHA-256 of canonical snapshot content
+    previous_evidence_hash: str | None = None  # Hash chain to previous decision
+    seal_timestamp: datetime | None = None  # When seal was computed
 
 
 class ReasonCodeBase(BaseModel):

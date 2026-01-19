@@ -33,6 +33,7 @@ from app.audit.service import AuditService
 from app.models.audit import AuditAction
 from app.policy.engine import PolicyEngine
 from app.services.entitlement_service import EntitlementService
+from app.services.evidence_seal import seal_evidence_snapshot, get_previous_evidence_hash
 
 router = APIRouter()
 
@@ -387,7 +388,19 @@ async def create_decision(
         ai_flags_reviewed=decision_data.ai_flags_reviewed,
     )
 
-    # Create decision record with evidence snapshot
+    # Seal the evidence with cryptographic hash chain
+    # This provides tamper-evidence and links to previous decisions
+    previous_hash = await get_previous_evidence_hash(
+        db=db,
+        check_item_id=item.id,
+        tenant_id=current_user.tenant_id,
+    )
+    evidence_snapshot = seal_evidence_snapshot(
+        snapshot_data=evidence_snapshot,
+        previous_evidence_hash=previous_hash,
+    )
+
+    # Create decision record with sealed evidence snapshot
     decision = Decision(
         tenant_id=current_user.tenant_id,  # CRITICAL: Multi-tenant isolation
         check_item_id=item.id,
@@ -756,3 +769,37 @@ async def get_decision_history(
         )
 
     return responses
+
+
+@router.get("/{item_id}/verify-evidence-chain")
+async def verify_evidence_chain_endpoint(
+    item_id: str,
+    db: DBSession,
+    current_user: Annotated[object, Depends(require_permission("audit", "view"))],
+):
+    """
+    Verify the cryptographic integrity of the evidence chain for a check item.
+
+    This endpoint is for audit compliance - it verifies that:
+    1. All evidence snapshots have valid SHA-256 hashes (tamper-evidence)
+    2. Each snapshot's previous_evidence_hash correctly links to the prior decision (chain integrity)
+
+    Requires audit:view permission.
+
+    Returns verification results for each decision in the chain.
+    """
+    from app.services.evidence_seal import verify_evidence_chain
+
+    # CRITICAL: Filter by tenant_id for multi-tenant security
+    chain_valid, verification_results = await verify_evidence_chain(
+        db=db,
+        check_item_id=item_id,
+        tenant_id=current_user.tenant_id,
+    )
+
+    return {
+        "check_item_id": item_id,
+        "chain_valid": chain_valid,
+        "total_decisions": len(verification_results),
+        "verification_results": verification_results,
+    }

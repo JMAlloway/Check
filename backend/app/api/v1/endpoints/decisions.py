@@ -38,6 +38,17 @@ from app.services.evidence_seal import get_previous_evidence_hash, seal_evidence
 router = APIRouter()
 
 
+def _safe_json_loads(value: str | None) -> list:
+    """Safely parse JSON, returning empty list on failure."""
+    if not value:
+        return []
+    try:
+        result = json.loads(value)
+        return result if isinstance(result, list) else []
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+
 def build_evidence_snapshot(
     check_item: CheckItem,
     policy_result: PolicyEvaluationResult,
@@ -75,8 +86,8 @@ def build_evidence_snapshot(
         returned_item_count_90d=check_item.returned_item_count_90d,
         exception_count_90d=check_item.exception_count_90d,
         risk_level=check_item.risk_level.value if check_item.risk_level else None,
-        risk_flags=json.loads(check_item.risk_flags) if check_item.risk_flags else [],
-        upstream_flags=json.loads(check_item.upstream_flags) if check_item.upstream_flags else [],
+        risk_flags=_safe_json_loads(check_item.risk_flags),
+        upstream_flags=_safe_json_loads(check_item.upstream_flags),
     )
 
     # Build image references

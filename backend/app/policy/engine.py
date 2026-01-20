@@ -44,11 +44,13 @@ class PolicyEngine:
                 | Policy.applies_to_account_types.contains(account_type)
             )
 
-        # Prefer default policy
-        query = query.order_by(Policy.is_default.desc())
+        # Prefer default policy, then by most recent effective date
+        query = query.order_by(Policy.is_default.desc(), PolicyVersion.effective_date.desc())
 
         result = await self.db.execute(query)
-        return result.scalar_one_or_none()
+        # Use scalars().first() to safely get first matching policy
+        # (handles multiple matches gracefully)
+        return result.scalars().first()
 
     async def evaluate(self, check_item: CheckItem) -> PolicyEvaluationResult:
         """

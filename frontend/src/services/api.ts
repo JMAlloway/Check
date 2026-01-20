@@ -220,6 +220,19 @@ export const checkApi = {
     });
     return response.data;
   },
+
+  getAdjacentItems: async (itemId: string, params?: {
+    status?: string[];
+    risk_level?: string[];
+  }) => {
+    const response = await api.get(`/checks/${itemId}/adjacent`, { params });
+    return response.data as {
+      previous_id: string | null;
+      next_id: string | null;
+      position: number;
+      total: number;
+    };
+  },
 };
 
 // Decision API

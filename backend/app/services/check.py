@@ -622,6 +622,129 @@ class CheckService:
             for h in history_records
         ]
 
+    async def get_adjacent_items(
+        self,
+        item_id: str,
+        user_id: str,
+        tenant_id: str,
+        status: list[CheckStatus] | None = None,
+        risk_level: list[RiskLevel] | None = None,
+    ) -> dict:
+        """Get IDs of adjacent items in queue for navigation.
+
+        Returns previous and next item IDs based on priority/date ordering,
+        allowing reviewers to navigate directly between items.
+
+        Args:
+            item_id: Current item ID
+            user_id: The requesting user's ID
+            tenant_id: Required for multi-tenant isolation
+            status: Filter by statuses (default: reviewable statuses)
+            risk_level: Filter by risk levels (optional)
+        """
+        # Get the current item first
+        result = await self.db.execute(
+            select(CheckItem).where(
+                CheckItem.id == item_id,
+                CheckItem.tenant_id == tenant_id,
+            )
+        )
+        current_item = result.scalar_one_or_none()
+
+        if not current_item:
+            return {"previous_id": None, "next_id": None, "position": 0, "total": 0}
+
+        # Build base conditions
+        conditions = [CheckItem.tenant_id == tenant_id]
+
+        if status:
+            conditions.append(CheckItem.status.in_(status))
+
+        if risk_level:
+            conditions.append(CheckItem.risk_level.in_(risk_level))
+
+        # Get total count
+        count_query = select(func.count()).where(and_(*conditions))
+        total_result = await self.db.execute(count_query)
+        total = total_result.scalar() or 0
+
+        # Find items with higher priority (previous in the queue)
+        # Items are ordered by priority DESC, presented_date DESC
+        # "Previous" = higher priority or same priority with later date
+        prev_conditions = conditions + [
+            or_(
+                CheckItem.priority > current_item.priority,
+                and_(
+                    CheckItem.priority == current_item.priority,
+                    CheckItem.presented_date > current_item.presented_date,
+                ),
+                and_(
+                    CheckItem.priority == current_item.priority,
+                    CheckItem.presented_date == current_item.presented_date,
+                    CheckItem.id < current_item.id,  # Tie-breaker
+                ),
+            )
+        ]
+        prev_query = (
+            select(CheckItem.id)
+            .where(and_(*prev_conditions))
+            .order_by(CheckItem.priority.asc(), CheckItem.presented_date.asc())
+            .limit(1)
+        )
+        prev_result = await self.db.execute(prev_query)
+        prev_id = prev_result.scalar_one_or_none()
+
+        # Find items with lower priority (next in the queue)
+        # "Next" = lower priority or same priority with earlier date
+        next_conditions = conditions + [
+            or_(
+                CheckItem.priority < current_item.priority,
+                and_(
+                    CheckItem.priority == current_item.priority,
+                    CheckItem.presented_date < current_item.presented_date,
+                ),
+                and_(
+                    CheckItem.priority == current_item.priority,
+                    CheckItem.presented_date == current_item.presented_date,
+                    CheckItem.id > current_item.id,  # Tie-breaker
+                ),
+            )
+        ]
+        next_query = (
+            select(CheckItem.id)
+            .where(and_(*next_conditions))
+            .order_by(CheckItem.priority.desc(), CheckItem.presented_date.desc())
+            .limit(1)
+        )
+        next_result = await self.db.execute(next_query)
+        next_id = next_result.scalar_one_or_none()
+
+        # Calculate position (1-indexed)
+        position_conditions = conditions + [
+            or_(
+                CheckItem.priority > current_item.priority,
+                and_(
+                    CheckItem.priority == current_item.priority,
+                    CheckItem.presented_date > current_item.presented_date,
+                ),
+                and_(
+                    CheckItem.priority == current_item.priority,
+                    CheckItem.presented_date == current_item.presented_date,
+                    CheckItem.id <= current_item.id,
+                ),
+            )
+        ]
+        position_query = select(func.count()).where(and_(*position_conditions))
+        position_result = await self.db.execute(position_query)
+        position = position_result.scalar() or 1
+
+        return {
+            "previous_id": prev_id,
+            "next_id": next_id,
+            "position": position,
+            "total": total,
+        }
+
     async def update_status(
         self,
         item_id: str,

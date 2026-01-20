@@ -1,13 +1,22 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { LockClosedIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
+import { LockClosedIcon, ExclamationCircleIcon, KeyIcon } from '@heroicons/react/24/outline';
 import { CheckItem, ReasonCode, DecisionAction } from '../../types';
 import { decisionApi } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
 import ConfirmationModal from '../common/ConfirmationModal';
 import clsx from 'clsx';
+
+// Keyboard shortcut mapping for actions
+const ACTION_SHORTCUTS: Record<string, DecisionAction> = {
+  a: 'approve',
+  r: 'return',
+  j: 'reject', // J because R is taken by Return
+  e: 'escalate',
+  i: 'needs_more_info', // I for Info
+};
 
 interface DecisionPanelProps {
   item: CheckItem;
@@ -82,9 +91,11 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
       });
       queryClient.invalidateQueries({ queryKey: ['checkItem', item.id] });
       queryClient.invalidateQueries({ queryKey: ['checkItems'] });
+      queryClient.invalidateQueries({ queryKey: ['adjacentItems'] });
       setShowConfirmation(false);
+      // Call onDecisionMade which handles auto-advance navigation
+      // If auto-advance is disabled, user stays on page or uses navigation buttons
       onDecisionMade?.();
-      navigate('/queue');
     },
     onError: (error: Error) => {
       setShowConfirmation(false);
@@ -153,6 +164,53 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
       handleConfirmedSubmit();
     }
   }, [validateForm, selectedAction]);
+
+  // Keyboard shortcuts for decision actions
+  useEffect(() => {
+    if (isLocked || (!canReview && !canApprove)) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if typing in an input/textarea
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
+      // Don't trigger with modifier keys (except for submit with Enter)
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      const key = e.key.toLowerCase();
+      const action = ACTION_SHORTCUTS[key];
+
+      if (action) {
+        // Check if action is available based on current mode
+        const availableActions = isAwaitingApproval && canApprove ? approvalActions : reviewActions;
+        const isAvailable = availableActions.some(a => a.action === action);
+
+        if (isAvailable) {
+          e.preventDefault();
+          setSelectedAction(action);
+          setSelectedReasonCodes([]);
+          setValidationErrors([]);
+          toast.success(`Selected: ${action.charAt(0).toUpperCase() + action.slice(1)}`, {
+            duration: 1500,
+            icon: '⌨️',
+          });
+        }
+      }
+
+      // Enter to submit when action is selected
+      if (e.key === 'Enter' && selectedAction && !e.shiftKey) {
+        e.preventDefault();
+        handleSubmitClick();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLocked, canReview, canApprove, isAwaitingApproval, selectedAction, handleSubmitClick]);
 
   const handleConfirmedSubmit = useCallback(() => {
     if (!selectedAction) return;
@@ -281,31 +339,40 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
             Select Action
           </label>
           <div className="grid grid-cols-2 gap-2">
-            {actions.map(({ action, label, color }) => (
-              <button
-                key={action}
-                onClick={() => {
-                  setSelectedAction(action);
-                  setSelectedReasonCodes([]);
-                  setValidationErrors([]);
-                }}
-                disabled={isSubmitting}
-                className={clsx(
-                  'px-4 py-2 text-sm font-medium rounded-lg border transition-colors',
-                  isSubmitting && 'opacity-50 cursor-not-allowed',
-                  selectedAction === action
-                    ? `bg-${color}-100 border-${color}-500 text-${color}-700`
-                    : 'border-gray-300 text-gray-700 hover:bg-gray-50',
-                  color === 'green' && selectedAction === action && 'bg-green-100 border-green-500 text-green-700',
-                  color === 'orange' && selectedAction === action && 'bg-orange-100 border-orange-500 text-orange-700',
-                  color === 'red' && selectedAction === action && 'bg-red-100 border-red-500 text-red-700',
-                  color === 'purple' && selectedAction === action && 'bg-purple-100 border-purple-500 text-purple-700',
-                  color === 'blue' && selectedAction === action && 'bg-blue-100 border-blue-500 text-blue-700'
-                )}
-              >
-                {label}
-              </button>
-            ))}
+            {actions.map(({ action, label, color }) => {
+              // Get shortcut key for this action
+              const shortcut = Object.entries(ACTION_SHORTCUTS).find(([, a]) => a === action)?.[0]?.toUpperCase();
+              return (
+                <button
+                  key={action}
+                  onClick={() => {
+                    setSelectedAction(action);
+                    setSelectedReasonCodes([]);
+                    setValidationErrors([]);
+                  }}
+                  disabled={isSubmitting}
+                  className={clsx(
+                    'px-4 py-2 text-sm font-medium rounded-lg border transition-colors relative',
+                    isSubmitting && 'opacity-50 cursor-not-allowed',
+                    selectedAction === action
+                      ? `bg-${color}-100 border-${color}-500 text-${color}-700`
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50',
+                    color === 'green' && selectedAction === action && 'bg-green-100 border-green-500 text-green-700',
+                    color === 'orange' && selectedAction === action && 'bg-orange-100 border-orange-500 text-orange-700',
+                    color === 'red' && selectedAction === action && 'bg-red-100 border-red-500 text-red-700',
+                    color === 'purple' && selectedAction === action && 'bg-purple-100 border-purple-500 text-purple-700',
+                    color === 'blue' && selectedAction === action && 'bg-blue-100 border-blue-500 text-blue-700'
+                  )}
+                >
+                  {label}
+                  {shortcut && (
+                    <span className="absolute top-0.5 right-1 text-[10px] text-gray-400 font-mono">
+                      {shortcut}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -434,9 +501,21 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
               Processing...
             </span>
           ) : (
-            'Submit Decision'
+            <>Submit Decision <span className="text-xs opacity-70">(Enter)</span></>
           )}
         </button>
+
+        {/* Keyboard Shortcuts Legend */}
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <div className="flex items-center text-xs text-gray-400">
+            <KeyIcon className="h-3 w-3 mr-1" />
+            <span>Shortcuts: </span>
+            <span className="ml-1 font-mono">A</span><span className="mx-0.5">Approve</span>
+            <span className="ml-2 font-mono">R</span><span className="mx-0.5">Return</span>
+            <span className="ml-2 font-mono">J</span><span className="mx-0.5">Reject</span>
+            <span className="ml-2 font-mono">E</span><span className="mx-0.5">Escalate</span>
+          </div>
+        </div>
       </div>
 
       {/* Confirmation Modal */}

@@ -1,9 +1,18 @@
-import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeftIcon, DocumentArrowDownIcon, ShieldExclamationIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowLeftIcon,
+  DocumentArrowDownIcon,
+  ShieldExclamationIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  PlayIcon,
+  PauseIcon,
+} from '@heroicons/react/24/outline';
 import { checkApi, auditApi, resolveImageUrl } from '../services/api';
 import { CheckItem, CheckHistory, ROIRegion } from '../types';
+import { useReviewSettings } from '../stores/reviewSettingsStore';
 
 // Image URL refresh interval (60 seconds - before 90s TTL expires)
 const IMAGE_URL_REFRESH_INTERVAL = 60 * 1000;
@@ -27,6 +36,8 @@ const defaultROIRegions: ROIRegion[] = [
 
 export default function CheckReviewPage() {
   const { itemId } = useParams<{ itemId: string }>();
+  const navigate = useNavigate();
+  const { autoAdvance, setAutoAdvance } = useReviewSettings();
   const [comparisonItem, setComparisonItem] = useState<CheckHistory | null>(null);
   const [showComparison, setShowComparison] = useState(false);
   const [showFraudModal, setShowFraudModal] = useState(false);
@@ -41,6 +52,60 @@ export default function CheckReviewPage() {
     // Only refetch when window is focused (save bandwidth when tab is hidden)
     refetchIntervalInBackground: false,
   });
+
+  // Get adjacent items for navigation
+  const { data: adjacentItems } = useQuery({
+    queryKey: ['adjacentItems', itemId],
+    queryFn: () => checkApi.getAdjacentItems(itemId!),
+    enabled: !!itemId,
+  });
+
+  // Navigation handlers
+  const goToPrevious = useCallback(() => {
+    if (adjacentItems?.previous_id) {
+      navigate(`/review/${adjacentItems.previous_id}`);
+    }
+  }, [adjacentItems?.previous_id, navigate]);
+
+  const goToNext = useCallback(() => {
+    if (adjacentItems?.next_id) {
+      navigate(`/review/${adjacentItems.next_id}`);
+    }
+  }, [adjacentItems?.next_id, navigate]);
+
+  // Handle decision completion - auto-advance to next item
+  const handleDecisionMade = useCallback(() => {
+    if (autoAdvance && adjacentItems?.next_id) {
+      // Small delay to show success toast before navigating
+      setTimeout(() => {
+        navigate(`/review/${adjacentItems.next_id}`);
+      }, 500);
+    }
+  }, [autoAdvance, adjacentItems?.next_id, navigate]);
+
+  // Keyboard navigation (N for next, P for previous)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if typing in an input/textarea
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
+      if (e.key.toLowerCase() === 'n' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        goToNext();
+      } else if (e.key.toLowerCase() === 'p' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        goToPrevious();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [goToNext, goToPrevious]);
 
   const [isGeneratingPacket, setIsGeneratingPacket] = useState(false);
 
@@ -102,6 +167,33 @@ export default function CheckReviewPage() {
             Back to Queue
           </Link>
           <div className="h-6 w-px bg-gray-300" />
+
+          {/* Navigation Controls */}
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={goToPrevious}
+              disabled={!adjacentItems?.previous_id}
+              className="p-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Previous item (P)"
+            >
+              <ChevronLeftIcon className="h-5 w-5" />
+            </button>
+            {adjacentItems && (
+              <span className="text-sm text-gray-500 min-w-[80px] text-center">
+                {adjacentItems.position} of {adjacentItems.total}
+              </span>
+            )}
+            <button
+              onClick={goToNext}
+              disabled={!adjacentItems?.next_id}
+              className="p-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Next item (N)"
+            >
+              <ChevronRightIcon className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="h-6 w-px bg-gray-300" />
           <div>
             <h1 className="text-xl font-bold text-gray-900">
               Check Review: {item.account_number_masked}
@@ -118,7 +210,25 @@ export default function CheckReviewPage() {
             </div>
           </div>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex items-center space-x-3">
+          {/* Auto-Advance Toggle */}
+          <button
+            onClick={() => setAutoAdvance(!autoAdvance)}
+            className={`flex items-center px-3 py-2 rounded-lg border transition-colors ${
+              autoAdvance
+                ? 'bg-green-50 border-green-300 text-green-700'
+                : 'bg-gray-50 border-gray-300 text-gray-600'
+            }`}
+            title={autoAdvance ? 'Auto-advance enabled' : 'Auto-advance disabled'}
+          >
+            {autoAdvance ? (
+              <PlayIcon className="h-4 w-4 mr-1.5" />
+            ) : (
+              <PauseIcon className="h-4 w-4 mr-1.5" />
+            )}
+            <span className="text-sm font-medium">Auto-Advance</span>
+          </button>
+
           <button
             onClick={() => setShowFraudModal(true)}
             className="flex items-center px-3 py-2 text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
@@ -214,7 +324,7 @@ export default function CheckReviewPage() {
 
             {/* Decision Panel */}
             <div className="overflow-hidden">
-              <DecisionPanel item={item} />
+              <DecisionPanel item={item} onDecisionMade={handleDecisionMade} />
             </div>
           </div>
         </div>

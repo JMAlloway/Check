@@ -269,6 +269,36 @@ async def update_check_status(
     return await check_service.get_check_item(item_id, current_user.id, current_user.tenant_id)
 
 
+@router.get("/{item_id}/adjacent")
+async def get_adjacent_items(
+    item_id: str,
+    db: DBSession,
+    current_user: Annotated[object, Depends(require_permission("check_item", "view"))],
+    status: list[CheckStatus] | None = Query(None),
+    risk_level: list[RiskLevel] | None = Query(None),
+):
+    """Get IDs of previous and next items in queue for navigation.
+
+    Returns the adjacent item IDs based on the same filters as the queue view,
+    allowing reviewers to navigate directly between items without returning to queue.
+    """
+    check_service = CheckService(db)
+
+    # Default to reviewable statuses if not specified
+    if status is None:
+        status = [CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL, CheckStatus.ESCALATED]
+
+    adjacent = await check_service.get_adjacent_items(
+        item_id=item_id,
+        user_id=current_user.id,
+        tenant_id=current_user.tenant_id,
+        status=status,
+        risk_level=risk_level,
+    )
+
+    return adjacent
+
+
 @router.post("/sync")
 async def sync_presented_items(
     db: DBSession,

@@ -22,7 +22,7 @@ import {
   ChartBarSquareIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
-import { userApi, queueAdminApi, policyApi, auditLogApi, imageConnectorApi, systemApi, reportsApi } from '../services/api';
+import { userApi, queueAdminApi, policyApi, auditLogApi, imageConnectorApi, systemApi, reportsApi, operationsApi } from '../services/api';
 import { format } from 'date-fns';
 
 const adminNav = [
@@ -2190,6 +2190,20 @@ function SystemMetricsAdmin() {
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
+  const { data: systemHealth, isLoading: healthLoading } = useQuery({
+    queryKey: ['system-health'],
+    queryFn: () => operationsApi.getSystemHealth(),
+    refetchInterval: 15000, // Refresh every 15 seconds
+    retry: false, // Don't retry on failure
+  });
+
+  const { data: performanceMetrics } = useQuery({
+    queryKey: ['performance-metrics'],
+    queryFn: () => operationsApi.getPerformanceMetrics(),
+    refetchInterval: 30000,
+    retry: false,
+  });
+
   const { data: demoMode } = useQuery({
     queryKey: ['demo-mode'],
     queryFn: () => systemApi.getDemoMode(),
@@ -2211,6 +2225,24 @@ function SystemMetricsAdmin() {
     queryFn: () => reportsApi.getReviewerPerformance(30),
   });
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'healthy': return 'bg-green-100 text-green-800';
+      case 'degraded': return 'bg-yellow-100 text-yellow-800';
+      case 'unhealthy': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getOverallStatusColor = (status: string) => {
+    switch (status) {
+      case 'healthy': return 'text-green-600';
+      case 'degraded': return 'text-yellow-600';
+      case 'unhealthy': return 'text-red-600';
+      default: return 'text-gray-600';
+    }
+  };
+
   if (statusLoading || dashboardLoading) {
     return (
       <div className="flex justify-center py-12">
@@ -2221,9 +2253,83 @@ function SystemMetricsAdmin() {
 
   return (
     <div className="space-y-6">
+      {/* Service Health Status */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Service Health</h2>
+          {systemHealth && (
+            <span className={clsx('text-sm font-medium', getOverallStatusColor(systemHealth.overall_status))}>
+              Overall: {systemHealth.overall_status?.toUpperCase()}
+            </span>
+          )}
+        </div>
+        {healthLoading ? (
+          <div className="flex justify-center py-4">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+          </div>
+        ) : systemHealth?.services ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {systemHealth.services.map((service: any) => (
+              <div key={service.name} className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-gray-700">{service.name}</p>
+                  <span className={clsx('px-2 py-0.5 rounded-full text-xs font-medium', getStatusColor(service.status))}>
+                    {service.status}
+                  </span>
+                </div>
+                {service.latency_ms !== null && (
+                  <p className="text-xs text-gray-500">Latency: {service.latency_ms}ms</p>
+                )}
+                {service.details?.connections !== undefined && (
+                  <p className="text-xs text-gray-500">Connections: {service.details.connections}</p>
+                )}
+                {service.details?.used_memory_mb !== undefined && (
+                  <p className="text-xs text-gray-500">Memory: {service.details.used_memory_mb}MB</p>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">Health check unavailable</p>
+        )}
+      </div>
+
+      {/* Performance Metrics */}
+      {performanceMetrics && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Performance Metrics</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
+              <p className="text-sm text-purple-600">Requests/Min</p>
+              <p className="text-2xl font-bold text-purple-700">
+                {performanceMetrics.requests_per_minute?.toFixed(1) || 'N/A'}
+              </p>
+            </div>
+            <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+              <p className="text-sm text-indigo-600">P95 Latency</p>
+              <p className="text-2xl font-bold text-indigo-700">
+                {performanceMetrics.p95_latency_ms ? `${performanceMetrics.p95_latency_ms.toFixed(0)}ms` : 'N/A'}
+              </p>
+            </div>
+            <div className="p-4 bg-pink-50 rounded-lg border border-pink-100">
+              <p className="text-sm text-pink-600">Error Rate</p>
+              <p className="text-2xl font-bold text-pink-700">
+                {performanceMetrics.error_rate_percent !== null ? `${performanceMetrics.error_rate_percent.toFixed(2)}%` : 'N/A'}
+              </p>
+            </div>
+            <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-100">
+              <p className="text-sm text-cyan-600">Active Users</p>
+              <p className="text-2xl font-bold text-cyan-700">
+                {performanceMetrics.active_users || 0}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* System Status Card */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">System Status</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">System Information</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="p-4 bg-gray-50 rounded-lg">
             <p className="text-sm text-gray-500">Environment</p>

@@ -751,3 +751,26 @@ export const systemApi = {
     return response.data;
   },
 };
+
+// Operations API - System health and performance metrics
+export const operationsApi = {
+  getSystemHealth: async () => {
+    const response = await api.get('/operations/health');
+    return response.data;
+  },
+
+  getPerformanceMetrics: async () => {
+    const response = await api.get('/operations/metrics');
+    return response.data;
+  },
+
+  getActiveAlerts: async () => {
+    const response = await api.get('/operations/alerts');
+    return response.data;
+  },
+
+  getDRStatus: async () => {
+    const response = await api.get('/operations/dr-status');
+    return response.data;
+  },
+};

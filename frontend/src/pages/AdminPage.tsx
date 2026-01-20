@@ -19,12 +19,14 @@ import {
   TrashIcon,
   ClipboardDocumentIcon,
   ExclamationTriangleIcon,
+  ChartBarSquareIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
-import { userApi, queueAdminApi, policyApi, auditLogApi, imageConnectorApi } from '../services/api';
+import { userApi, queueAdminApi, policyApi, auditLogApi, imageConnectorApi, systemApi, reportsApi } from '../services/api';
 import { format } from 'date-fns';
 
 const adminNav = [
+  { name: 'System Metrics', href: '/admin/metrics', icon: ChartBarSquareIcon },
   { name: 'Users', href: '/admin/users', icon: UsersIcon },
   { name: 'Queues', href: '/admin/queues', icon: QueueListIcon },
   { name: 'Policies', href: '/admin/policies', icon: DocumentTextIcon },
@@ -2178,6 +2180,216 @@ function KeyManagementModal({
 }
 
 // ============================================================================
+// System Metrics Component
+// ============================================================================
+
+function SystemMetricsAdmin() {
+  const { data: systemStatus, isLoading: statusLoading } = useQuery({
+    queryKey: ['system-status'],
+    queryFn: () => systemApi.getStatus(),
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  const { data: demoMode } = useQuery({
+    queryKey: ['demo-mode'],
+    queryFn: () => systemApi.getDemoMode(),
+  });
+
+  const { data: dashboard, isLoading: dashboardLoading } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: () => reportsApi.getDashboard(),
+    refetchInterval: 60000, // Refresh every minute
+  });
+
+  const { data: throughput } = useQuery({
+    queryKey: ['throughput', 7],
+    queryFn: () => reportsApi.getThroughput(7),
+  });
+
+  const { data: reviewerPerformance } = useQuery({
+    queryKey: ['reviewer-performance', 30],
+    queryFn: () => reportsApi.getReviewerPerformance(30),
+  });
+
+  if (statusLoading || dashboardLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* System Status Card */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">System Status</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <p className="text-sm text-gray-500">Environment</p>
+            <p className="text-lg font-semibold text-gray-900 capitalize">
+              {systemStatus?.environment || 'Unknown'}
+            </p>
+          </div>
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <p className="text-sm text-gray-500">Version</p>
+            <p className="text-lg font-semibold text-gray-900">
+              {systemStatus?.version || '1.0.0'}
+            </p>
+          </div>
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <p className="text-sm text-gray-500">Demo Mode</p>
+            <p className={clsx(
+              'text-lg font-semibold',
+              systemStatus?.demo_mode_enabled ? 'text-amber-600' : 'text-green-600'
+            )}>
+              {systemStatus?.demo_mode_enabled ? 'Enabled' : 'Disabled'}
+            </p>
+          </div>
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <p className="text-sm text-gray-500">Database</p>
+            <p className="text-lg font-semibold text-green-600">
+              {systemStatus?.database_type || 'PostgreSQL'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Key Metrics */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Key Metrics</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+            <p className="text-sm text-blue-600">Pending Items</p>
+            <p className="text-2xl font-bold text-blue-700">
+              {dashboard?.pending_items || 0}
+            </p>
+          </div>
+          <div className="p-4 bg-green-50 rounded-lg border border-green-100">
+            <p className="text-sm text-green-600">Approved Today</p>
+            <p className="text-2xl font-bold text-green-700">
+              {dashboard?.approved_today || 0}
+            </p>
+          </div>
+          <div className="p-4 bg-red-50 rounded-lg border border-red-100">
+            <p className="text-sm text-red-600">Rejected Today</p>
+            <p className="text-2xl font-bold text-red-700">
+              {dashboard?.rejected_today || 0}
+            </p>
+          </div>
+          <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
+            <p className="text-sm text-amber-600">Escalated</p>
+            <p className="text-2xl font-bold text-amber-700">
+              {dashboard?.escalated_items || 0}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Throughput Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">7-Day Throughput</h2>
+          {throughput?.daily_stats ? (
+            <div className="space-y-3">
+              {throughput.daily_stats.slice(-7).map((day: any, index: number) => (
+                <div key={index} className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">{day.date}</span>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium text-gray-900">
+                      {day.total_reviewed || 0} reviewed
+                    </span>
+                    <div className="w-32 bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-primary-600 h-2 rounded-full"
+                        style={{ width: `${Math.min((day.total_reviewed || 0) / 50 * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm">No throughput data available</p>
+          )}
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Reviewer Performance</h2>
+          {reviewerPerformance?.reviewers ? (
+            <div className="space-y-3">
+              {reviewerPerformance.reviewers.slice(0, 5).map((reviewer: any, index: number) => (
+                <div key={index} className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">{reviewer.username}</span>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium text-gray-900">
+                      {reviewer.total_decisions || 0} decisions
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {reviewer.avg_time_seconds ? `${Math.round(reviewer.avg_time_seconds)}s avg` : ''}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm">No reviewer data available</p>
+          )}
+        </div>
+      </div>
+
+      {/* Queue Summary */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Queue Summary</h2>
+        {dashboard?.queue_summary ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Queue</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Pending</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">In Progress</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Completed Today</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {dashboard.queue_summary.map((queue: any, index: number) => (
+                  <tr key={index}>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{queue.name}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-600">{queue.pending || 0}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-600">{queue.in_progress || 0}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-600">{queue.completed_today || 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-gray-500 text-sm">No queue data available</p>
+        )}
+      </div>
+
+      {/* Demo Mode Info (if enabled) */}
+      {demoMode?.enabled && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-amber-800 mb-2">Demo Mode Active</h2>
+          <ul className="space-y-1">
+            {demoMode.notices?.map((notice: string, index: number) => (
+              <li key={index} className="text-sm text-amber-700">• {notice}</li>
+            ))}
+          </ul>
+          <div className="mt-4 pt-4 border-t border-amber-200">
+            <p className="text-sm text-amber-700">
+              Demo Data Count: <span className="font-semibold">{demoMode.demo_data_count}</span> items
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
 // Main Admin Page Component
 // ============================================================================
 
@@ -2216,7 +2428,8 @@ export default function AdminPage() {
         {/* Content Area */}
         <div className="flex-1">
           <Routes>
-            <Route path="/" element={<UsersAdmin />} />
+            <Route path="/" element={<SystemMetricsAdmin />} />
+            <Route path="/metrics" element={<SystemMetricsAdmin />} />
             <Route path="/users" element={<UsersAdmin />} />
             <Route path="/queues" element={<QueuesAdmin />} />
             <Route path="/policies" element={<PoliciesAdmin />} />

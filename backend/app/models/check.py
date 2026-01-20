@@ -206,6 +206,48 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     exception_count_90d: Mapped[int | None] = mapped_column(Integer)
     relationship_id: Mapped[str | None] = mapped_column(String(50))
 
+    # Enhanced account context for comprehensive policy rules
+    # Overdraft history (separate from generic returns)
+    overdraft_count_30d: Mapped[int | None] = mapped_column(Integer)
+    overdraft_count_90d: Mapped[int | None] = mapped_column(Integer)
+    nsf_count_90d: Mapped[int | None] = mapped_column(Integer)  # Non-sufficient funds
+    last_overdraft_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Transaction velocity (more granular windows)
+    check_count_7d: Mapped[int | None] = mapped_column(Integer)
+    check_count_14d: Mapped[int | None] = mapped_column(Integer)
+    total_check_amount_7d: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    total_check_amount_14d: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+
+    # Customer/relationship context
+    relationship_tenure_years: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    is_payroll_account: Mapped[bool | None] = mapped_column(Boolean)
+    has_direct_deposit: Mapped[bool | None] = mapped_column(Boolean)
+    deposit_regularity_score: Mapped[int | None] = mapped_column(Integer)  # 0-100
+
+    # Check number sequence tracking
+    last_check_number_used: Mapped[int | None] = mapped_column(Integer)
+    check_number_gap: Mapped[int | None] = mapped_column(Integer)  # Gap from last used
+    is_duplicate_check_number: Mapped[bool | None] = mapped_column(Boolean)
+    is_out_of_sequence: Mapped[bool | None] = mapped_column(Boolean)
+
+    # Check age/staleness
+    check_age_days: Mapped[int | None] = mapped_column(Integer)  # Days since check_date
+    is_stale_dated: Mapped[bool | None] = mapped_column(Boolean)  # > 180 days old
+    is_post_dated: Mapped[bool | None] = mapped_column(Boolean)  # Future dated
+
+    # Image quality and alteration signals
+    has_micr_anomaly: Mapped[bool | None] = mapped_column(Boolean)
+    micr_confidence_score: Mapped[int | None] = mapped_column(Integer)  # 0-100
+    has_alteration_flag: Mapped[bool | None] = mapped_column(Boolean)
+    signature_match_score: Mapped[int | None] = mapped_column(Integer)  # 0-100
+
+    # Prior review history
+    prior_review_count: Mapped[int | None] = mapped_column(Integer)  # Times account reviewed
+    prior_approval_count: Mapped[int | None] = mapped_column(Integer)
+    prior_rejection_count: Mapped[int | None] = mapped_column(Integer)
+    last_review_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     # Policy tracking
     policy_version_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("policy_versions.id")

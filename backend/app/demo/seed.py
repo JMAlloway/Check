@@ -536,6 +536,445 @@ class DemoSeeder:
                     },
                 ],
             },
+            # Comprehensive policy using all available fields
+            {
+                "name": "Demo Overdraft Risk Policy",
+                "description": "Enhanced scrutiny for accounts with overdraft history",
+                "is_default": False,
+                "rules": [
+                    {
+                        "name": "Recent Overdraft Activity",
+                        "rule_type": RuleType.ESCALATION,
+                        "priority": 85,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "overdraft_count_30d",
+                                    "operator": "greater_or_equal",
+                                    "value": 2,
+                                    "value_type": "number",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "add_flag", "params": {"flag": "RECENT_OVERDRAFTS"}},
+                                {"action": "set_risk_level", "params": {"level": "medium"}},
+                            ]
+                        ),
+                    },
+                    {
+                        "name": "Chronic Overdraft Pattern",
+                        "rule_type": RuleType.DUAL_CONTROL,
+                        "priority": 90,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "overdraft_count_90d",
+                                    "operator": "greater_or_equal",
+                                    "value": 5,
+                                    "value_type": "number",
+                                },
+                                {
+                                    "field": "amount",
+                                    "operator": "greater_or_equal",
+                                    "value": 2500,
+                                    "value_type": "number",
+                                },
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "require_dual_control", "params": {}},
+                                {"action": "add_flag", "params": {"flag": "CHRONIC_OVERDRAFTS"}},
+                            ]
+                        ),
+                    },
+                    {
+                        "name": "NSF History Alert",
+                        "rule_type": RuleType.ESCALATION,
+                        "priority": 80,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "nsf_count_90d",
+                                    "operator": "greater_or_equal",
+                                    "value": 3,
+                                    "value_type": "number",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "add_flag", "params": {"flag": "NSF_HISTORY"}},
+                                {"action": "escalate", "params": {"notify": True}},
+                            ]
+                        ),
+                    },
+                ],
+            },
+            {
+                "name": "Demo Velocity & Balance Policy",
+                "description": "Monitor unusual transaction velocity and balance patterns",
+                "is_default": False,
+                "rules": [
+                    {
+                        "name": "High Velocity 7-Day",
+                        "rule_type": RuleType.ESCALATION,
+                        "priority": 75,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "check_count_7d",
+                                    "operator": "greater_or_equal",
+                                    "value": 10,
+                                    "value_type": "number",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "add_flag", "params": {"flag": "HIGH_VELOCITY"}},
+                                {"action": "set_risk_level", "params": {"level": "medium"}},
+                            ]
+                        ),
+                    },
+                    {
+                        "name": "Amount Exceeds Balance",
+                        "rule_type": RuleType.DUAL_CONTROL,
+                        "priority": 95,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "amount_vs_balance_ratio",
+                                    "operator": "greater_or_equal",
+                                    "value": 0.8,
+                                    "value_type": "number",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "require_dual_control", "params": {}},
+                                {"action": "add_flag", "params": {"flag": "EXCEEDS_BALANCE"}},
+                            ]
+                        ),
+                    },
+                    {
+                        "name": "Unusual Amount vs Average",
+                        "rule_type": RuleType.ESCALATION,
+                        "priority": 70,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "amount_vs_avg_ratio",
+                                    "operator": "greater_or_equal",
+                                    "value": 5,
+                                    "value_type": "number",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "add_flag", "params": {"flag": "UNUSUAL_AMOUNT"}},
+                                {"action": "escalate", "params": {}},
+                            ]
+                        ),
+                    },
+                ],
+            },
+            {
+                "name": "Demo Check Anomaly Policy",
+                "description": "Detect check number sequences, staleness, and MICR issues",
+                "is_default": False,
+                "rules": [
+                    {
+                        "name": "Out of Sequence Check",
+                        "rule_type": RuleType.ESCALATION,
+                        "priority": 80,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "is_out_of_sequence",
+                                    "operator": "equals",
+                                    "value": True,
+                                    "value_type": "boolean",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "add_flag", "params": {"flag": "OUT_OF_SEQUENCE"}},
+                                {"action": "set_risk_level", "params": {"level": "medium"}},
+                            ]
+                        ),
+                    },
+                    {
+                        "name": "Duplicate Check Number",
+                        "rule_type": RuleType.DUAL_CONTROL,
+                        "priority": 95,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "is_duplicate_check_number",
+                                    "operator": "equals",
+                                    "value": True,
+                                    "value_type": "boolean",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "require_dual_control", "params": {}},
+                                {"action": "add_flag", "params": {"flag": "DUPLICATE_CHECK"}},
+                                {"action": "set_risk_level", "params": {"level": "high"}},
+                            ]
+                        ),
+                    },
+                    {
+                        "name": "Stale Dated Check",
+                        "rule_type": RuleType.ESCALATION,
+                        "priority": 75,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "is_stale_dated",
+                                    "operator": "equals",
+                                    "value": True,
+                                    "value_type": "boolean",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "add_flag", "params": {"flag": "STALE_DATED"}},
+                                {
+                                    "action": "require_reason",
+                                    "params": {"reason_category": "date"},
+                                },
+                            ]
+                        ),
+                    },
+                    {
+                        "name": "Post-Dated Check",
+                        "rule_type": RuleType.ESCALATION,
+                        "priority": 70,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "is_post_dated",
+                                    "operator": "equals",
+                                    "value": True,
+                                    "value_type": "boolean",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "add_flag", "params": {"flag": "POST_DATED"}},
+                            ]
+                        ),
+                    },
+                    {
+                        "name": "MICR Anomaly Detected",
+                        "rule_type": RuleType.DUAL_CONTROL,
+                        "priority": 90,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "has_micr_anomaly",
+                                    "operator": "equals",
+                                    "value": True,
+                                    "value_type": "boolean",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "require_dual_control", "params": {}},
+                                {"action": "add_flag", "params": {"flag": "MICR_ANOMALY"}},
+                                {"action": "set_risk_level", "params": {"level": "high"}},
+                            ]
+                        ),
+                    },
+                    {
+                        "name": "Low MICR Confidence",
+                        "rule_type": RuleType.ESCALATION,
+                        "priority": 85,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "micr_confidence_score",
+                                    "operator": "less_than",
+                                    "value": 70,
+                                    "value_type": "number",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "add_flag", "params": {"flag": "LOW_MICR_CONFIDENCE"}},
+                                {"action": "escalate", "params": {}},
+                            ]
+                        ),
+                    },
+                    {
+                        "name": "Alteration Detected",
+                        "rule_type": RuleType.DUAL_CONTROL,
+                        "priority": 100,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "has_alteration_flag",
+                                    "operator": "equals",
+                                    "value": True,
+                                    "value_type": "boolean",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "require_dual_control", "params": {}},
+                                {"action": "add_flag", "params": {"flag": "ALTERATION_DETECTED"}},
+                                {"action": "set_risk_level", "params": {"level": "critical"}},
+                                {"action": "escalate", "params": {"queue": "fraud_review"}},
+                            ]
+                        ),
+                    },
+                    {
+                        "name": "Signature Mismatch",
+                        "rule_type": RuleType.ESCALATION,
+                        "priority": 88,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "signature_match_score",
+                                    "operator": "less_than",
+                                    "value": 60,
+                                    "value_type": "number",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "add_flag", "params": {"flag": "SIGNATURE_MISMATCH"}},
+                                {"action": "set_risk_level", "params": {"level": "high"}},
+                                {
+                                    "action": "require_reason",
+                                    "params": {"reason_category": "signature"},
+                                },
+                            ]
+                        ),
+                    },
+                ],
+            },
+            {
+                "name": "Demo Customer Relationship Policy",
+                "description": "Rules based on customer tenure and deposit patterns",
+                "is_default": False,
+                "rules": [
+                    {
+                        "name": "Long-Term Customer Benefit",
+                        "rule_type": RuleType.THRESHOLD,
+                        "priority": 50,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "relationship_tenure_years",
+                                    "operator": "greater_or_equal",
+                                    "value": 5,
+                                    "value_type": "number",
+                                },
+                                {
+                                    "field": "has_direct_deposit",
+                                    "operator": "equals",
+                                    "value": True,
+                                    "value_type": "boolean",
+                                },
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "add_flag", "params": {"flag": "TRUSTED_CUSTOMER"}},
+                            ]
+                        ),
+                    },
+                    {
+                        "name": "No Direct Deposit Warning",
+                        "rule_type": RuleType.ESCALATION,
+                        "priority": 60,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "has_direct_deposit",
+                                    "operator": "equals",
+                                    "value": False,
+                                    "value_type": "boolean",
+                                },
+                                {
+                                    "field": "amount",
+                                    "operator": "greater_or_equal",
+                                    "value": 5000,
+                                    "value_type": "number",
+                                },
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "add_flag", "params": {"flag": "NO_DIRECT_DEPOSIT"}},
+                            ]
+                        ),
+                    },
+                    {
+                        "name": "Low Deposit Regularity",
+                        "rule_type": RuleType.ESCALATION,
+                        "priority": 65,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "deposit_regularity_score",
+                                    "operator": "less_than",
+                                    "value": 40,
+                                    "value_type": "number",
+                                },
+                                {
+                                    "field": "amount",
+                                    "operator": "greater_or_equal",
+                                    "value": 3000,
+                                    "value_type": "number",
+                                },
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "add_flag", "params": {"flag": "IRREGULAR_DEPOSITS"}},
+                                {"action": "set_risk_level", "params": {"level": "medium"}},
+                            ]
+                        ),
+                    },
+                    {
+                        "name": "Prior Rejections Flag",
+                        "rule_type": RuleType.ESCALATION,
+                        "priority": 78,
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "prior_rejection_count",
+                                    "operator": "greater_or_equal",
+                                    "value": 1,
+                                    "value_type": "number",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "add_flag", "params": {"flag": "PRIOR_REJECTIONS"}},
+                                {"action": "set_risk_level", "params": {"level": "medium"}},
+                            ]
+                        ),
+                    },
+                ],
+            },
         ]
 
         for config in policy_configs:
@@ -1029,6 +1468,35 @@ mwIDAQAB
                 avg_check_amount_365d=account.avg_check_amount * Decimal("0.90"),
                 check_frequency_30d=account.check_frequency,
                 returned_item_count_90d=account.returned_items,
+                # Enhanced account context fields
+                overdraft_count_30d=random.randint(0, 3) if account.returned_items > 0 else 0,
+                overdraft_count_90d=random.randint(0, 5) if account.returned_items > 0 else 0,
+                nsf_count_90d=random.randint(0, 2) if account.returned_items > 0 else 0,
+                check_count_7d=random.randint(1, 5),
+                check_count_14d=random.randint(2, 10),
+                total_check_amount_7d=amount * Decimal(str(random.uniform(1.5, 4.0))),
+                total_check_amount_14d=amount * Decimal(str(random.uniform(3.0, 8.0))),
+                relationship_tenure_years=Decimal(str(account.tenure_days / 365)).quantize(
+                    Decimal("0.01")
+                ),
+                is_payroll_account=random.random() < 0.3,  # 30% are payroll accounts
+                has_direct_deposit=random.random() < 0.6,  # 60% have direct deposit
+                deposit_regularity_score=random.randint(60, 100) if random.random() < 0.7 else random.randint(20, 60),
+                check_number_gap=random.randint(0, 5) if random.random() < 0.1 else 0,
+                is_duplicate_check_number=scenario == DemoScenario.DUPLICATE_CHECK,
+                is_out_of_sequence=random.random() < 0.05,  # 5% out of sequence
+                check_age_days=(
+                    (presented_date - check_date).days if check_date else None
+                ),
+                is_stale_dated=scenario == DemoScenario.STALE_DATED,
+                is_post_dated=scenario == DemoScenario.POST_DATED,
+                has_micr_anomaly=scenario in [DemoScenario.COUNTERFEIT_CHECK, DemoScenario.ALTERED_AMOUNT],
+                micr_confidence_score=random.randint(85, 100) if scenario not in [DemoScenario.COUNTERFEIT_CHECK] else random.randint(40, 70),
+                has_alteration_flag=scenario in [DemoScenario.ALTERED_AMOUNT, DemoScenario.FORGED_SIGNATURE],
+                signature_match_score=random.randint(85, 100) if scenario not in [DemoScenario.FORGED_SIGNATURE, DemoScenario.MISMATCHED_SIGNATURE] else random.randint(30, 60),
+                prior_review_count=random.randint(0, 5),
+                prior_approval_count=random.randint(0, 3),
+                prior_rejection_count=random.randint(0, 1) if account.returned_items > 0 else 0,
                 is_demo=True,  # Mark as demo data
             )
 

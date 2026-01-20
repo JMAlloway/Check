@@ -198,26 +198,74 @@ class PolicyEngine:
 
         Note: Numeric fields are converted to float for consistent comparisons.
         """
+        # Helper to safely convert Decimal to float
+        def to_float(val):
+            return float(val) if val is not None else None
+
         # Convert Decimal/numeric fields to float for consistent comparisons
         field_mapping = {
-            "amount": float(item.amount) if item.amount is not None else None,
+            # Basic check info
+            "amount": to_float(item.amount),
             "account_type": item.account_type.value if item.account_type else None,
+            "item_type": item.item_type.value if item.item_type else None,
             "risk_level": item.risk_level.value if item.risk_level else None,
-            "account_tenure_days": item.account_tenure_days,
-            "current_balance": (
-                float(item.current_balance) if item.current_balance is not None else None
-            ),
-            "avg_check_amount_30d": (
-                float(item.avg_check_amount_30d) if item.avg_check_amount_30d is not None else None
-            ),
-            "avg_check_amount_90d": (
-                float(item.avg_check_amount_90d) if item.avg_check_amount_90d is not None else None
-            ),
-            "returned_item_count_90d": item.returned_item_count_90d,
-            "exception_count_90d": item.exception_count_90d,
-            "check_frequency_30d": item.check_frequency_30d,
             "payee_name": item.payee_name,
             "memo": item.memo,
+
+            # Account tenure and balance
+            "account_tenure_days": item.account_tenure_days,
+            "current_balance": to_float(item.current_balance),
+            "average_balance_30d": to_float(item.average_balance_30d),
+
+            # Check amount history
+            "avg_check_amount_30d": to_float(item.avg_check_amount_30d),
+            "avg_check_amount_90d": to_float(item.avg_check_amount_90d),
+            "avg_check_amount_365d": to_float(item.avg_check_amount_365d),
+            "check_std_dev_30d": to_float(item.check_std_dev_30d),
+            "max_check_amount_90d": to_float(item.max_check_amount_90d),
+
+            # Check frequency
+            "check_frequency_30d": item.check_frequency_30d,
+            "check_count_7d": item.check_count_7d,
+            "check_count_14d": item.check_count_14d,
+            "total_check_amount_7d": to_float(item.total_check_amount_7d),
+            "total_check_amount_14d": to_float(item.total_check_amount_14d),
+
+            # Returns and exceptions
+            "returned_item_count_90d": item.returned_item_count_90d,
+            "exception_count_90d": item.exception_count_90d,
+
+            # Overdraft history
+            "overdraft_count_30d": item.overdraft_count_30d,
+            "overdraft_count_90d": item.overdraft_count_90d,
+            "nsf_count_90d": item.nsf_count_90d,
+
+            # Customer/relationship context
+            "relationship_tenure_years": to_float(item.relationship_tenure_years),
+            "is_payroll_account": item.is_payroll_account,
+            "has_direct_deposit": item.has_direct_deposit,
+            "deposit_regularity_score": item.deposit_regularity_score,
+
+            # Check number sequence
+            "check_number_gap": item.check_number_gap,
+            "is_duplicate_check_number": item.is_duplicate_check_number,
+            "is_out_of_sequence": item.is_out_of_sequence,
+
+            # Check age/staleness
+            "check_age_days": item.check_age_days,
+            "is_stale_dated": item.is_stale_dated,
+            "is_post_dated": item.is_post_dated,
+
+            # Image quality signals
+            "has_micr_anomaly": item.has_micr_anomaly,
+            "micr_confidence_score": item.micr_confidence_score,
+            "has_alteration_flag": item.has_alteration_flag,
+            "signature_match_score": item.signature_match_score,
+
+            # Prior review history
+            "prior_review_count": item.prior_review_count,
+            "prior_approval_count": item.prior_approval_count,
+            "prior_rejection_count": item.prior_rejection_count,
         }
 
         # Support computed fields
@@ -229,6 +277,17 @@ class PolicyEngine:
         if field == "amount_vs_max_ratio":
             if item.max_check_amount_90d and item.max_check_amount_90d > 0:
                 return float(item.amount) / float(item.max_check_amount_90d)
+            return None
+
+        if field == "amount_vs_balance_ratio":
+            if item.current_balance and item.current_balance > 0:
+                return float(item.amount) / float(item.current_balance)
+            return None
+
+        if field == "velocity_7d_ratio":
+            # Check amount relative to 7-day velocity
+            if item.total_check_amount_7d and item.total_check_amount_7d > 0:
+                return float(item.amount) / float(item.total_check_amount_7d)
             return None
 
         return field_mapping.get(field)

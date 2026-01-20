@@ -12,6 +12,8 @@ from app.api.v1.endpoints import (
     image_connectors,
     images,
     item_context_connectors,
+    monitoring,
+    operations,
     policies,
     queues,
     reports,
@@ -43,3 +45,5 @@ api_router.include_router(
     tags=["Connector C - Item Context SFTP"],
 )
 api_router.include_router(system.router, prefix="/system", tags=["System"])
+api_router.include_router(operations.router, prefix="/operations", tags=["Operations"])
+api_router.include_router(monitoring.router, prefix="/monitoring", tags=["Monitoring"])

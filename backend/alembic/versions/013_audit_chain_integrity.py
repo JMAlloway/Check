@@ -13,13 +13,14 @@ This enables:
 - Verification that no entries were deleted from the middle of the chain
 - Compliance with SOC 2 and regulatory audit requirements
 """
-from alembic import op
+
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = '013_audit_chain_integrity'
-down_revision = '012_tenant_unique_user_constraints'
+revision = "013_audit_chain_integrity"
+down_revision = "012_tenant_unique_user_constraints"
 branch_labels = None
 depends_on = None
 
@@ -28,17 +29,10 @@ def upgrade() -> None:
     """Add previous_hash column to audit_logs table."""
     # Add the previous_hash column
     # Nullable because existing records won't have this value
-    op.add_column(
-        'audit_logs',
-        sa.Column('previous_hash', sa.String(64), nullable=True)
-    )
+    op.add_column("audit_logs", sa.Column("previous_hash", sa.String(64), nullable=True))
 
     # Create index for efficient chain traversal
-    op.create_index(
-        'ix_audit_logs_previous_hash',
-        'audit_logs',
-        ['previous_hash']
-    )
+    op.create_index("ix_audit_logs_previous_hash", "audit_logs", ["previous_hash"])
 
     # For existing records, we can't compute the chain retroactively
     # because the integrity_hash was computed without previous_hash.
@@ -48,5 +42,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Remove previous_hash column from audit_logs table."""
-    op.drop_index('ix_audit_logs_previous_hash', table_name='audit_logs')
-    op.drop_column('audit_logs', 'previous_hash')
+    op.drop_index("ix_audit_logs_previous_hash", table_name="audit_logs")
+    op.drop_column("audit_logs", "previous_hash")

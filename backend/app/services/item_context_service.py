@@ -31,16 +31,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.check import CheckItem
 from app.models.item_context_connector import (
-    ItemContextConnector,
-    ItemContextImport,
-    ItemContextImportRecord,
     ContextConnectorStatus,
     FileFormat,
     ImportStatus,
+    ItemContextConnector,
+    ItemContextImport,
+    ItemContextImportRecord,
     RecordStatus,
 )
-from app.services.sftp_service import SFTPService, SFTPFile
-
+from app.services.sftp_service import SFTPFile, SFTPService
 
 # Context fields that can be imported (maps to CheckItem columns)
 CONTEXT_FIELDS = {
@@ -137,7 +136,9 @@ class FileParser:
                 parsed = self._map_row_to_fields(row, header_row)
                 yield (row_num, parsed)
 
-    def _parse_fixed_width(self, file_path: str) -> Generator[tuple[int, dict[str, Any]], None, None]:
+    def _parse_fixed_width(
+        self, file_path: str
+    ) -> Generator[tuple[int, dict[str, Any]], None, None]:
         """Parse fixed-width file."""
         with open(file_path, "r", encoding=self.encoding) as f:
             row_num = 0
@@ -157,11 +158,7 @@ class FileParser:
                 parsed = self._map_fixed_width_to_fields(line)
                 yield (row_num, parsed)
 
-    def _map_row_to_fields(
-        self,
-        row: list[str],
-        header_row: list[str] | None
-    ) -> dict[str, Any]:
+    def _map_row_to_fields(self, row: list[str], header_row: list[str] | None) -> dict[str, Any]:
         """Map a delimited row to field names using the field mapping."""
         result = {}
 
@@ -206,7 +203,7 @@ class FileParser:
                 start = mapping["start"]
                 length = mapping["length"]
                 if len(line) >= start + length:
-                    value = line[start:start + length].strip()
+                    value = line[start : start + length].strip()
 
             # Convert type
             if value:
@@ -469,8 +466,11 @@ class ItemContextImportService:
             if not match_id:
                 stats["invalid"] += 1
                 await self._create_error_record(
-                    import_record, row_num, RecordStatus.INVALID,
-                    parsed_data, "Missing matching identifier"
+                    import_record,
+                    row_num,
+                    RecordStatus.INVALID,
+                    parsed_data,
+                    "Missing matching identifier",
                 )
                 continue
 
@@ -478,19 +478,24 @@ class ItemContextImportService:
             if match_id in seen_ids:
                 stats["duplicate"] += 1
                 await self._create_error_record(
-                    import_record, row_num, RecordStatus.DUPLICATE,
-                    parsed_data, f"Duplicate {connector.match_field}: {match_id}"
+                    import_record,
+                    row_num,
+                    RecordStatus.DUPLICATE,
+                    parsed_data,
+                    f"Duplicate {connector.match_field}: {match_id}",
                 )
                 continue
 
             seen_ids.add(match_id)
 
             # Add to batch
-            batch.append({
-                "row_num": row_num,
-                "match_id": match_id,
-                "parsed_data": parsed_data,
-            })
+            batch.append(
+                {
+                    "row_num": row_num,
+                    "match_id": match_id,
+                    "parsed_data": parsed_data,
+                }
+            )
 
             # Process batch
             if len(batch) >= batch_size:
@@ -515,9 +520,7 @@ class ItemContextImportService:
         import_record.error_records = stats["error"]
 
     def _get_match_identifier(
-        self,
-        connector: ItemContextConnector,
-        parsed_data: dict[str, Any]
+        self, connector: ItemContextConnector, parsed_data: dict[str, Any]
     ) -> str | None:
         """Extract the matching identifier from parsed data."""
         if connector.match_by_external_item_id:
@@ -540,12 +543,11 @@ class ItemContextImportService:
         if connector.match_by_external_item_id:
             query = select(CheckItem).where(
                 CheckItem.tenant_id == connector.tenant_id,
-                CheckItem.external_item_id.in_(match_ids)
+                CheckItem.external_item_id.in_(match_ids),
             )
         else:
             query = select(CheckItem).where(
-                CheckItem.tenant_id == connector.tenant_id,
-                CheckItem.account_id.in_(match_ids)
+                CheckItem.tenant_id == connector.tenant_id, CheckItem.account_id.in_(match_ids)
             )
 
         result = await self.db.execute(query)
@@ -561,9 +563,11 @@ class ItemContextImportService:
             if not check_item:
                 stats["not_found"] += 1
                 await self._create_error_record(
-                    import_record, item["row_num"], RecordStatus.NOT_FOUND,
+                    import_record,
+                    item["row_num"],
+                    RecordStatus.NOT_FOUND,
                     item["parsed_data"],
-                    f"No CheckItem found for {connector.match_field}: {item['match_id']}"
+                    f"No CheckItem found for {connector.match_field}: {item['match_id']}",
                 )
                 continue
 
@@ -571,17 +575,18 @@ class ItemContextImportService:
 
             # Apply context fields
             try:
-                applied = await self._apply_context(
-                    connector, check_item, item["parsed_data"]
-                )
+                applied = await self._apply_context(connector, check_item, item["parsed_data"])
                 if applied:
                     stats["applied"] += 1
             except Exception as e:
                 stats["error"] += 1
                 await self._create_error_record(
-                    import_record, item["row_num"], RecordStatus.ERROR,
-                    item["parsed_data"], str(e),
-                    check_item_id=check_item.id
+                    import_record,
+                    item["row_num"],
+                    RecordStatus.ERROR,
+                    item["parsed_data"],
+                    str(e),
+                    check_item_id=check_item.id,
                 )
 
         await self.db.commit()
@@ -684,11 +689,13 @@ class ItemContextImportService:
             select(ItemContextImportRecord)
             .where(
                 ItemContextImportRecord.import_id == import_id,
-                ItemContextImportRecord.status.in_([
-                    RecordStatus.NOT_FOUND,
-                    RecordStatus.INVALID,
-                    RecordStatus.ERROR,
-                ])
+                ItemContextImportRecord.status.in_(
+                    [
+                        RecordStatus.NOT_FOUND,
+                        RecordStatus.INVALID,
+                        RecordStatus.ERROR,
+                    ]
+                ),
             )
             .order_by(ItemContextImportRecord.row_number)
             .limit(limit)

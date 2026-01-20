@@ -9,7 +9,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.session import Base
 from app.models.base import TimestampMixin, UUIDMixin
 
-
 # Association tables for many-to-many relationships
 user_roles = Table(
     "user_roles",
@@ -41,8 +40,12 @@ class Permission(Base, UUIDMixin, TimestampMixin):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     resource: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g., "check_item", "queue"
-    action: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g., "view", "approve", "export"
-    conditions: Mapped[str | None] = mapped_column(Text)  # JSON conditions like {"amount_max": 10000}
+    action: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # e.g., "view", "approve", "export"
+    conditions: Mapped[str | None] = mapped_column(
+        Text
+    )  # JSON conditions like {"amount_max": 10000}
 
     # System permissions cannot be modified by tenants
     is_system: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -67,7 +70,9 @@ class Role(Base, UUIDMixin, TimestampMixin):
 
     name: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    is_system: Mapped[bool] = mapped_column(Boolean, default=False)  # System roles cannot be deleted
+    is_system: Mapped[bool] = mapped_column(
+        Boolean, default=False
+    )  # System roles cannot be deleted
 
     permissions: Mapped[list[Permission]] = relationship(
         secondary=role_permissions,

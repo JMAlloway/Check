@@ -11,16 +11,16 @@ Tests cover:
 - Concurrent access conflicts
 """
 
-import pytest
+import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
-import uuid
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError, OperationalError
 
-from app.main import app
 from app.core.security import create_access_token
+from app.main import app
 
 
 class TestAuthenticationErrors:
@@ -251,8 +251,10 @@ class TestDatabaseErrors:
 
     def test_unique_constraint_violation_returns_409(self, client, auth_headers):
         """Unique constraint violation should return 409 Conflict."""
-        with patch("app.api.v1.endpoints.decisions.get_current_active_user") as mock_user, \
-             patch("app.api.v1.endpoints.decisions.DecisionService") as mock_service:
+        with (
+            patch("app.api.v1.endpoints.decisions.get_current_active_user") as mock_user,
+            patch("app.api.v1.endpoints.decisions.DecisionService") as mock_service,
+        ):
 
             mock_user.return_value = MagicMock(
                 id=str(uuid.uuid4()),
@@ -291,6 +293,7 @@ class TestRateLimitingErrors:
         # This would require actually hitting the rate limit
         # For now, verify the limiter is configured
         from app.core.rate_limit import limiter
+
         assert limiter is not None
 
     def test_login_rate_limit_is_stricter(self, client):
@@ -322,8 +325,10 @@ class TestConcurrencyErrors:
 
     def test_concurrent_decision_conflict(self, client, auth_headers):
         """Concurrent decisions on same check should be handled."""
-        with patch("app.api.v1.endpoints.decisions.get_current_active_user") as mock_user, \
-             patch("app.api.v1.endpoints.decisions.DecisionService") as mock_service:
+        with (
+            patch("app.api.v1.endpoints.decisions.get_current_active_user") as mock_user,
+            patch("app.api.v1.endpoints.decisions.DecisionService") as mock_service,
+        ):
 
             mock_user.return_value = MagicMock(
                 id=str(uuid.uuid4()),

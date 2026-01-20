@@ -52,8 +52,7 @@ class DemoImageGenerator:
         """Initialize the image generator."""
         if not PIL_AVAILABLE:
             raise ImportError(
-                "Pillow is required for demo image generation. "
-                "Install with: pip install Pillow"
+                "Pillow is required for demo image generation. " "Install with: pip install Pillow"
             )
 
     def generate_check_front(self, data: DemoCheckImageData) -> bytes:
@@ -66,7 +65,9 @@ class DemoImageGenerator:
             font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
             font_medium = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
             font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
-            font_micr = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 24)
+            font_micr = ImageFont.truetype(
+                "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 24
+            )
         except (OSError, IOError):
             font_large = ImageFont.load_default()
             font_medium = font_large
@@ -74,7 +75,9 @@ class DemoImageGenerator:
             font_micr = font_large
 
         # Draw border
-        draw.rectangle([(10, 10), (self.WIDTH - 10, self.HEIGHT - 10)], outline=self.LINE_COLOR, width=2)
+        draw.rectangle(
+            [(10, 10), (self.WIDTH - 10, self.HEIGHT - 10)], outline=self.LINE_COLOR, width=2
+        )
 
         # Bank name area (top left)
         draw.text((50, 30), "DEMO COMMUNITY BANK", fill=self.TEXT_COLOR, font=font_large)
@@ -82,10 +85,20 @@ class DemoImageGenerator:
         draw.text((50, 85), "Demo City, DS 12345", fill=self.TEXT_COLOR, font=font_small)
 
         # Check number (top right)
-        draw.text((self.WIDTH - 200, 30), f"Check #{data.check_number}", fill=self.TEXT_COLOR, font=font_medium)
+        draw.text(
+            (self.WIDTH - 200, 30),
+            f"Check #{data.check_number}",
+            fill=self.TEXT_COLOR,
+            font=font_medium,
+        )
 
         # Date
-        draw.text((self.WIDTH - 300, 100), f"Date: {data.check_date}", fill=self.TEXT_COLOR, font=font_medium)
+        draw.text(
+            (self.WIDTH - 300, 100),
+            f"Date: {data.check_date}",
+            fill=self.TEXT_COLOR,
+            font=font_medium,
+        )
 
         # Pay to line
         draw.text((50, 160), "PAY TO THE", fill=self.TEXT_COLOR, font=font_small)
@@ -94,8 +107,12 @@ class DemoImageGenerator:
         draw.text((160, 175), data.payee_name, fill=self.TEXT_COLOR, font=font_medium)
 
         # Amount box
-        draw.rectangle([(self.WIDTH - 280, 160), (self.WIDTH - 50, 210)], outline=self.LINE_COLOR, width=2)
-        draw.text((self.WIDTH - 270, 170), f"$ {data.amount:,.2f}", fill=self.TEXT_COLOR, font=font_large)
+        draw.rectangle(
+            [(self.WIDTH - 280, 160), (self.WIDTH - 50, 210)], outline=self.LINE_COLOR, width=2
+        )
+        draw.text(
+            (self.WIDTH - 270, 170), f"$ {data.amount:,.2f}", fill=self.TEXT_COLOR, font=font_large
+        )
 
         # Amount in words
         amount_words = self._amount_to_words(data.amount)
@@ -109,7 +126,9 @@ class DemoImageGenerator:
 
         # Signature line
         draw.line([(600, 350), (self.WIDTH - 50, 350)], fill=self.LINE_COLOR, width=1)
-        draw.text((self.WIDTH - 300, 360), "Authorized Signature", fill=self.TEXT_COLOR, font=font_small)
+        draw.text(
+            (self.WIDTH - 300, 360), "Authorized Signature", fill=self.TEXT_COLOR, font=font_small
+        )
 
         # Demo signature scribble
         self._draw_demo_signature(draw, 700, 310)
@@ -139,7 +158,9 @@ class DemoImageGenerator:
             font_small = font_medium
 
         # Draw border
-        draw.rectangle([(10, 10), (self.WIDTH - 10, self.HEIGHT - 10)], outline=self.LINE_COLOR, width=2)
+        draw.rectangle(
+            [(10, 10), (self.WIDTH - 10, self.HEIGHT - 10)], outline=self.LINE_COLOR, width=2
+        )
 
         # Endorsement area
         draw.text((50, 50), "ENDORSE HERE", fill=self.TEXT_COLOR, font=font_medium)
@@ -154,12 +175,23 @@ class DemoImageGenerator:
         # Processing stamps area
         draw.rectangle([(550, 50), (self.WIDTH - 50, 250)], outline=self.LINE_COLOR, width=1)
         draw.text((560, 60), "BANK USE ONLY", fill=self.TEXT_COLOR, font=font_small)
-        draw.text((560, 100), f"Processed: {data.check_date}", fill=self.TEXT_COLOR, font=font_small)
+        draw.text(
+            (560, 100), f"Processed: {data.check_date}", fill=self.TEXT_COLOR, font=font_small
+        )
         draw.text((560, 130), "Demo Branch", fill=self.TEXT_COLOR, font=font_small)
 
         # Do not write below line
-        draw.line([(50, self.HEIGHT - 150), (self.WIDTH - 50, self.HEIGHT - 150)], fill=self.LINE_COLOR, width=2)
-        draw.text((50, self.HEIGHT - 140), "DO NOT WRITE, STAMP, OR SIGN BELOW THIS LINE", fill=self.TEXT_COLOR, font=font_small)
+        draw.line(
+            [(50, self.HEIGHT - 150), (self.WIDTH - 50, self.HEIGHT - 150)],
+            fill=self.LINE_COLOR,
+            width=2,
+        )
+        draw.text(
+            (50, self.HEIGHT - 140),
+            "DO NOT WRITE, STAMP, OR SIGN BELOW THIS LINE",
+            fill=self.TEXT_COLOR,
+            font=font_small,
+        )
 
         # Add DEMO watermark
         self._add_watermark(img, draw)
@@ -172,7 +204,9 @@ class DemoImageGenerator:
     def _add_watermark(self, img: Image.Image, draw: ImageDraw.ImageDraw):
         """Add DEMO watermark to the image."""
         try:
-            font_watermark = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 72)
+            font_watermark = ImageFont.truetype(
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 72
+            )
         except (OSError, IOError):
             font_watermark = ImageFont.load_default()
 
@@ -200,8 +234,18 @@ class DemoImageGenerator:
         except (OSError, IOError):
             font_small = ImageFont.load_default()
 
-        draw.text((20, self.HEIGHT - 30), "DEMO DATA - FOR DEMONSTRATION ONLY", fill=(150, 150, 150), font=font_small)
-        draw.text((self.WIDTH - 250, self.HEIGHT - 30), "NO REAL PII", fill=(150, 150, 150), font=font_small)
+        draw.text(
+            (20, self.HEIGHT - 30),
+            "DEMO DATA - FOR DEMONSTRATION ONLY",
+            fill=(150, 150, 150),
+            font=font_small,
+        )
+        draw.text(
+            (self.WIDTH - 250, self.HEIGHT - 30),
+            "NO REAL PII",
+            fill=(150, 150, 150),
+            font=font_small,
+        )
 
     def _draw_demo_signature(self, draw: ImageDraw.ImageDraw, x: int, y: int):
         """Draw a simple demo signature scribble."""
@@ -224,13 +268,34 @@ class DemoImageGenerator:
 
         # Simple word conversion for demo
         word_map = {
-            0: "zero", 1: "one", 2: "two", 3: "three", 4: "four",
-            5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine",
-            10: "ten", 11: "eleven", 12: "twelve", 13: "thirteen",
-            14: "fourteen", 15: "fifteen", 16: "sixteen", 17: "seventeen",
-            18: "eighteen", 19: "nineteen", 20: "twenty", 30: "thirty",
-            40: "forty", 50: "fifty", 60: "sixty", 70: "seventy",
-            80: "eighty", 90: "ninety",
+            0: "zero",
+            1: "one",
+            2: "two",
+            3: "three",
+            4: "four",
+            5: "five",
+            6: "six",
+            7: "seven",
+            8: "eight",
+            9: "nine",
+            10: "ten",
+            11: "eleven",
+            12: "twelve",
+            13: "thirteen",
+            14: "fourteen",
+            15: "fifteen",
+            16: "sixteen",
+            17: "seventeen",
+            18: "eighteen",
+            19: "nineteen",
+            20: "twenty",
+            30: "thirty",
+            40: "forty",
+            50: "fifty",
+            60: "sixty",
+            70: "seventy",
+            80: "eighty",
+            90: "ninety",
         }
 
         if dollars < 1000:

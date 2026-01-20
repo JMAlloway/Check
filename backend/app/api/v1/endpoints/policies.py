@@ -1,14 +1,16 @@
 """Policy management endpoints."""
 
+import json
 from datetime import datetime, timezone
 from typing import Annotated
-import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import DBSession, CurrentUser, require_permission
+from app.api.deps import CurrentUser, DBSession, require_permission
+from app.audit.service import AuditService
+from app.models.audit import AuditAction
 from app.models.policy import Policy, PolicyRule, PolicyStatus, PolicyVersion
 from app.schemas.policy import (
     PolicyCreate,
@@ -22,8 +24,6 @@ from app.schemas.policy import (
     RuleAction,
     RuleCondition,
 )
-from app.audit.service import AuditService
-from app.models.audit import AuditAction
 
 router = APIRouter()
 
@@ -36,8 +36,10 @@ async def list_policies(
 ):
     """List all policies for the current tenant."""
     # CRITICAL: Filter by tenant_id for multi-tenant security
-    query = select(Policy).options(selectinload(Policy.versions)).where(
-        Policy.tenant_id == current_user.tenant_id
+    query = (
+        select(Policy)
+        .options(selectinload(Policy.versions))
+        .where(Policy.tenant_id == current_user.tenant_id)
     )
 
     if status_filter:
@@ -77,9 +79,17 @@ async def create_policy(
         name=policy_data.name,
         description=policy_data.description,
         status=PolicyStatus.DRAFT,
-        applies_to_account_types=json.dumps(policy_data.applies_to_account_types) if policy_data.applies_to_account_types else None,
-        applies_to_branches=json.dumps(policy_data.applies_to_branches) if policy_data.applies_to_branches else None,
-        applies_to_markets=json.dumps(policy_data.applies_to_markets) if policy_data.applies_to_markets else None,
+        applies_to_account_types=(
+            json.dumps(policy_data.applies_to_account_types)
+            if policy_data.applies_to_account_types
+            else None
+        ),
+        applies_to_branches=(
+            json.dumps(policy_data.applies_to_branches) if policy_data.applies_to_branches else None
+        ),
+        applies_to_markets=(
+            json.dumps(policy_data.applies_to_markets) if policy_data.applies_to_markets else None
+        ),
     )
 
     db.add(policy)
@@ -154,9 +164,7 @@ async def get_policy(
     # CRITICAL: Filter by tenant_id for multi-tenant security
     result = await db.execute(
         select(Policy)
-        .options(
-            selectinload(Policy.versions).selectinload(PolicyVersion.rules)
-        )
+        .options(selectinload(Policy.versions).selectinload(PolicyVersion.rules))
         .where(Policy.id == policy_id, Policy.tenant_id == current_user.tenant_id)
     )
     policy = result.scalar_one_or_none()
@@ -215,9 +223,15 @@ async def get_policy(
         description=policy.description,
         status=policy.status,
         is_default=policy.is_default,
-        applies_to_account_types=json.loads(policy.applies_to_account_types) if policy.applies_to_account_types else None,
-        applies_to_branches=json.loads(policy.applies_to_branches) if policy.applies_to_branches else None,
-        applies_to_markets=json.loads(policy.applies_to_markets) if policy.applies_to_markets else None,
+        applies_to_account_types=(
+            json.loads(policy.applies_to_account_types) if policy.applies_to_account_types else None
+        ),
+        applies_to_branches=(
+            json.loads(policy.applies_to_branches) if policy.applies_to_branches else None
+        ),
+        applies_to_markets=(
+            json.loads(policy.applies_to_markets) if policy.applies_to_markets else None
+        ),
         versions=versions,
         current_version=current_version,
         created_at=policy.created_at,
@@ -236,9 +250,9 @@ async def create_policy_version(
     """Create a new version of a policy."""
     # CRITICAL: Filter by tenant_id for multi-tenant security
     result = await db.execute(
-        select(Policy).options(selectinload(Policy.versions)).where(
-            Policy.id == policy_id, Policy.tenant_id == current_user.tenant_id
-        )
+        select(Policy)
+        .options(selectinload(Policy.versions))
+        .where(Policy.id == policy_id, Policy.tenant_id == current_user.tenant_id)
     )
     policy = result.scalar_one_or_none()
 
@@ -330,9 +344,9 @@ async def activate_policy(
     """Activate a policy (or specific version)."""
     # CRITICAL: Filter by tenant_id for multi-tenant security
     result = await db.execute(
-        select(Policy).options(selectinload(Policy.versions)).where(
-            Policy.id == policy_id, Policy.tenant_id == current_user.tenant_id
-        )
+        select(Policy)
+        .options(selectinload(Policy.versions))
+        .where(Policy.id == policy_id, Policy.tenant_id == current_user.tenant_id)
     )
     policy = result.scalar_one_or_none()
 
@@ -382,4 +396,7 @@ async def activate_policy(
         description=f"Activated policy {policy.name} version {target_version.version_number}",
     )
 
-    return {"message": f"Policy activated (version {target_version.version_number})", "version_id": target_version.id}
+    return {
+        "message": f"Policy activated (version {target_version.version_number})",
+        "version_id": target_version.id,
+    }

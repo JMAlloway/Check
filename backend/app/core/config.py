@@ -38,6 +38,7 @@ class Settings(BaseSettings):
             if v in ("false", "0", "no", "off", ""):
                 return False
         return v
+
     DEMO_DATA_COUNT: int = 60  # Number of demo check items to seed
 
     # API
@@ -50,7 +51,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
 
     # Cookie Security (for refresh tokens)
-    COOKIE_SECURE: bool | None = None  # Auto-detected from ENVIRONMENT (True in prod, False otherwise)
+    COOKIE_SECURE: bool | None = (
+        None  # Auto-detected from ENVIRONMENT (True in prod, False otherwise)
+    )
     COOKIE_SAMESITE: str = "lax"  # "strict" breaks OAuth flows, "lax" is good balance
     COOKIE_DOMAIN: str | None = None  # None = current domain only
     CSRF_SECRET_KEY: str = "change-this-csrf-secret-in-production"
@@ -177,9 +180,22 @@ def _validate_production_secrets(s: Settings) -> None:
 
     # Common placeholder patterns that indicate non-production secrets
     placeholder_patterns = [
-        "change", "replace", "your-", "example", "placeholder",
-        "secret", "password", "default", "insecure", "changeme",
-        "todo", "fixme", "xxx", "test", "demo", "sample",
+        "change",
+        "replace",
+        "your-",
+        "example",
+        "placeholder",
+        "secret",
+        "password",
+        "default",
+        "insecure",
+        "changeme",
+        "todo",
+        "fixme",
+        "xxx",
+        "test",
+        "demo",
+        "sample",
     ]
 
     violations = []
@@ -220,7 +236,7 @@ def _validate_production_secrets(s: Settings) -> None:
             f"  - No placeholder words (change, secret, password, etc.)\n"
             f"  - Randomly generated\n\n"
             f"Generate secure values with:\n"
-            f"  python -c \"import secrets; print(secrets.token_urlsafe(32))\"\n\n"
+            f'  python -c "import secrets; print(secrets.token_urlsafe(32))"\n\n'
             f"Set these as environment variables or in your production .env file."
         )
 

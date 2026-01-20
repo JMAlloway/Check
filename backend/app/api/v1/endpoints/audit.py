@@ -1,16 +1,17 @@
 """Audit log endpoints."""
 
+import io
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 from uuid import uuid4
-import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
-import io
 
-from app.api.deps import DBSession, CurrentUser, require_permission
+from app.api.deps import CurrentUser, DBSession, require_permission
+from app.audit.service import AuditService
 from app.models.audit import AuditAction, AuditLog, ItemView
 from app.models.check import CheckItem
 from app.schemas.audit import (
@@ -21,7 +22,6 @@ from app.schemas.audit import (
     ItemViewResponse,
 )
 from app.schemas.common import PaginatedResponse
-from app.audit.service import AuditService
 from app.services.pdf_generator import AuditPacketGenerator
 
 router = APIRouter()
@@ -134,10 +134,12 @@ async def get_item_views(
 
     # CRITICAL: Filter by tenant_id for multi-tenant security
     result = await db.execute(
-        select(ItemView).where(
+        select(ItemView)
+        .where(
             ItemView.check_item_id == item_id,
             ItemView.tenant_id == current_user.tenant_id,
-        ).order_by(ItemView.view_started_at.desc())
+        )
+        .order_by(ItemView.view_started_at.desc())
     )
     views = result.scalars().all()
 
@@ -218,6 +220,7 @@ async def generate_audit_packet(
         )
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

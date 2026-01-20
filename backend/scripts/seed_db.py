@@ -7,27 +7,35 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import select, text
-from app.db.session import AsyncSessionLocal, engine, Base
-
-# Import ALL models to register them with Base.metadata
-from app.models.user import User, Role, Permission
-from app.models.check import CheckItem, CheckImage, CheckHistory
-from app.models.decision import Decision, ReasonCode
-from app.models.policy import Policy, PolicyVersion, PolicyRule
-from app.models.queue import Queue, QueueAssignment
-from app.models.audit import AuditLog, ItemView
-from app.models.fraud import (
-    FraudEvent, FraudSharedArtifact, NetworkMatchAlert, TenantFraudConfig,
-    FraudType, FraudChannel, AmountBucket, SharingLevel, FraudEventStatus
-)
-
-from app.core.security import get_password_hash
-from app.core.config import settings
 import hashlib
 import hmac
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
+
+from sqlalchemy import select, text
+
+from app.core.config import settings
+from app.core.security import get_password_hash
+from app.db.session import AsyncSessionLocal, Base, engine
+from app.models.audit import AuditLog, ItemView
+from app.models.check import CheckHistory, CheckImage, CheckItem
+from app.models.decision import Decision, ReasonCode
+from app.models.fraud import (
+    AmountBucket,
+    FraudChannel,
+    FraudEvent,
+    FraudEventStatus,
+    FraudSharedArtifact,
+    FraudType,
+    NetworkMatchAlert,
+    SharingLevel,
+    TenantFraudConfig,
+)
+from app.models.policy import Policy, PolicyRule, PolicyVersion
+from app.models.queue import Queue, QueueAssignment
+
+# Import ALL models to register them with Base.metadata
+from app.models.user import Permission, Role, User
 
 
 async def seed_database():
@@ -56,42 +64,238 @@ async def seed_database():
         # Create system-wide permissions (tenant_id=None, is_system=True)
         # These permissions are shared across all tenants
         permissions = [
-            Permission(tenant_id=None, is_system=True, name="check_item:view", resource="check_item", action="view", description="View check items"),
-            Permission(tenant_id=None, is_system=True, name="check_item:review", resource="check_item", action="review", description="Review check items"),
-            Permission(tenant_id=None, is_system=True, name="check_item:approve", resource="check_item", action="approve", description="Approve check items"),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="check_item:view",
+                resource="check_item",
+                action="view",
+                description="View check items",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="check_item:review",
+                resource="check_item",
+                action="review",
+                description="Review check items",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="check_item:approve",
+                resource="check_item",
+                action="approve",
+                description="Approve check items",
+            ),
             # Queue permissions
-            Permission(tenant_id=None, is_system=True, name="queue:view", resource="queue", action="view", description="View queues"),
-            Permission(tenant_id=None, is_system=True, name="queue:create", resource="queue", action="create", description="Create queues"),
-            Permission(tenant_id=None, is_system=True, name="queue:update", resource="queue", action="update", description="Update queues"),
-            Permission(tenant_id=None, is_system=True, name="queue:assign", resource="queue", action="assign", description="Assign users to queues"),
-            Permission(tenant_id=None, is_system=True, name="queue:manage", resource="queue", action="manage", description="Manage queues"),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="queue:view",
+                resource="queue",
+                action="view",
+                description="View queues",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="queue:create",
+                resource="queue",
+                action="create",
+                description="Create queues",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="queue:update",
+                resource="queue",
+                action="update",
+                description="Update queues",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="queue:assign",
+                resource="queue",
+                action="assign",
+                description="Assign users to queues",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="queue:manage",
+                resource="queue",
+                action="manage",
+                description="Manage queues",
+            ),
             # User permissions
-            Permission(tenant_id=None, is_system=True, name="user:view", resource="user", action="view", description="View users"),
-            Permission(tenant_id=None, is_system=True, name="user:create", resource="user", action="create", description="Create users"),
-            Permission(tenant_id=None, is_system=True, name="user:update", resource="user", action="update", description="Update users"),
-            Permission(tenant_id=None, is_system=True, name="user:manage", resource="user", action="manage", description="Manage users"),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="user:view",
+                resource="user",
+                action="view",
+                description="View users",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="user:create",
+                resource="user",
+                action="create",
+                description="Create users",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="user:update",
+                resource="user",
+                action="update",
+                description="Update users",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="user:manage",
+                resource="user",
+                action="manage",
+                description="Manage users",
+            ),
             # Role permissions
-            Permission(tenant_id=None, is_system=True, name="role:view", resource="role", action="view", description="View roles"),
-            Permission(tenant_id=None, is_system=True, name="role:create", resource="role", action="create", description="Create roles"),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="role:view",
+                resource="role",
+                action="view",
+                description="View roles",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="role:create",
+                resource="role",
+                action="create",
+                description="Create roles",
+            ),
             # Permission permissions
-            Permission(tenant_id=None, is_system=True, name="permission:view", resource="permission", action="view", description="View permissions"),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="permission:view",
+                resource="permission",
+                action="view",
+                description="View permissions",
+            ),
             # Audit permissions
-            Permission(tenant_id=None, is_system=True, name="audit:view", resource="audit", action="view", description="View audit logs"),
-            Permission(tenant_id=None, is_system=True, name="audit:export", resource="audit", action="export", description="Export audit data"),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="audit:view",
+                resource="audit",
+                action="view",
+                description="View audit logs",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="audit:export",
+                resource="audit",
+                action="export",
+                description="Export audit data",
+            ),
             # Policy permissions
-            Permission(tenant_id=None, is_system=True, name="policy:view", resource="policy", action="view", description="View policies"),
-            Permission(tenant_id=None, is_system=True, name="policy:create", resource="policy", action="create", description="Create policies"),
-            Permission(tenant_id=None, is_system=True, name="policy:update", resource="policy", action="update", description="Update policies"),
-            Permission(tenant_id=None, is_system=True, name="policy:activate", resource="policy", action="activate", description="Activate policies"),
-            Permission(tenant_id=None, is_system=True, name="policy:manage", resource="policy", action="manage", description="Manage policies"),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="policy:view",
+                resource="policy",
+                action="view",
+                description="View policies",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="policy:create",
+                resource="policy",
+                action="create",
+                description="Create policies",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="policy:update",
+                resource="policy",
+                action="update",
+                description="Update policies",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="policy:activate",
+                resource="policy",
+                action="activate",
+                description="Activate policies",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="policy:manage",
+                resource="policy",
+                action="manage",
+                description="Manage policies",
+            ),
             # Report permissions
-            Permission(tenant_id=None, is_system=True, name="report:view", resource="report", action="view", description="View reports"),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="report:view",
+                resource="report",
+                action="view",
+                description="View reports",
+            ),
             # Fraud Intelligence permissions
-            Permission(tenant_id=None, is_system=True, name="fraud:view", resource="fraud", action="view", description="View fraud events and alerts"),
-            Permission(tenant_id=None, is_system=True, name="fraud:create", resource="fraud", action="create", description="Create fraud events"),
-            Permission(tenant_id=None, is_system=True, name="fraud:submit", resource="fraud", action="submit", description="Submit fraud events to network"),
-            Permission(tenant_id=None, is_system=True, name="fraud:withdraw", resource="fraud", action="withdraw", description="Withdraw fraud events"),
-            Permission(tenant_id=None, is_system=True, name="fraud:config", resource="fraud", action="config", description="Configure fraud settings"),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="fraud:view",
+                resource="fraud",
+                action="view",
+                description="View fraud events and alerts",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="fraud:create",
+                resource="fraud",
+                action="create",
+                description="Create fraud events",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="fraud:submit",
+                resource="fraud",
+                action="submit",
+                description="Submit fraud events to network",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="fraud:withdraw",
+                resource="fraud",
+                action="withdraw",
+                description="Withdraw fraud events",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="fraud:config",
+                resource="fraud",
+                action="config",
+                description="Configure fraud settings",
+            ),
         ]
 
         for perm in permissions:
@@ -99,8 +303,22 @@ async def seed_database():
         await db.flush()
 
         # Add additional permissions for 6-role system (system-wide)
-        perm_dual_control = Permission(tenant_id=None, is_system=True, name="check_item:dual_control", resource="check_item", action="dual_control", description="Perform dual control approval")
-        perm_reassign = Permission(tenant_id=None, is_system=True, name="check_item:reassign", resource="check_item", action="reassign", description="Reassign check items")
+        perm_dual_control = Permission(
+            tenant_id=None,
+            is_system=True,
+            name="check_item:dual_control",
+            resource="check_item",
+            action="dual_control",
+            description="Perform dual control approval",
+        )
+        perm_reassign = Permission(
+            tenant_id=None,
+            is_system=True,
+            name="check_item:reassign",
+            resource="check_item",
+            action="reassign",
+            description="Reassign check items",
+        )
         db.add(perm_dual_control)
         db.add(perm_reassign)
         await db.flush()
@@ -113,56 +331,159 @@ async def seed_database():
         # Create 6 system-wide roles per Technical Guide Section 2.2
         # System roles (tenant_id=None, is_system=True) are shared across all tenants
         # 1. Reviewer: View queue, review checks, make decisions
-        reviewer_role = Role(tenant_id=None, name="reviewer", description="View queue, review checks, make decisions", is_system=True)
-        reviewer_role.permissions = [perm_lookup[n] for n in [
-            "check_item:view", "check_item:review", "queue:view",
-            "user:view", "role:view", "permission:view",
-            "policy:view", "report:view", "fraud:view"
-        ]]
+        reviewer_role = Role(
+            tenant_id=None,
+            name="reviewer",
+            description="View queue, review checks, make decisions",
+            is_system=True,
+        )
+        reviewer_role.permissions = [
+            perm_lookup[n]
+            for n in [
+                "check_item:view",
+                "check_item:review",
+                "queue:view",
+                "user:view",
+                "role:view",
+                "permission:view",
+                "policy:view",
+                "report:view",
+                "fraud:view",
+            ]
+        ]
         db.add(reviewer_role)
 
         # 2. Senior Reviewer: All reviewer permissions + dual control approval
-        senior_reviewer_role = Role(tenant_id=None, name="senior_reviewer", description="All reviewer permissions + dual control approval", is_system=True)
-        senior_reviewer_role.permissions = [perm_lookup[n] for n in [
-            "check_item:view", "check_item:review", "check_item:approve", "check_item:dual_control",
-            "queue:view", "user:view", "role:view", "permission:view",
-            "policy:view", "report:view", "fraud:view"
-        ]]
+        senior_reviewer_role = Role(
+            tenant_id=None,
+            name="senior_reviewer",
+            description="All reviewer permissions + dual control approval",
+            is_system=True,
+        )
+        senior_reviewer_role.permissions = [
+            perm_lookup[n]
+            for n in [
+                "check_item:view",
+                "check_item:review",
+                "check_item:approve",
+                "check_item:dual_control",
+                "queue:view",
+                "user:view",
+                "role:view",
+                "permission:view",
+                "policy:view",
+                "report:view",
+                "fraud:view",
+            ]
+        ]
         db.add(senior_reviewer_role)
 
         # 3. Supervisor: All senior permissions + queue management, reassignment
-        supervisor_role = Role(tenant_id=None, name="supervisor", description="All senior permissions + queue management, reassignment", is_system=True)
-        supervisor_role.permissions = [perm_lookup[n] for n in [
-            "check_item:view", "check_item:review", "check_item:approve", "check_item:dual_control", "check_item:reassign",
-            "queue:view", "queue:create", "queue:update", "queue:assign", "queue:manage",
-            "user:view", "role:view", "permission:view",
-            "policy:view", "report:view", "fraud:view", "audit:view"
-        ]]
+        supervisor_role = Role(
+            tenant_id=None,
+            name="supervisor",
+            description="All senior permissions + queue management, reassignment",
+            is_system=True,
+        )
+        supervisor_role.permissions = [
+            perm_lookup[n]
+            for n in [
+                "check_item:view",
+                "check_item:review",
+                "check_item:approve",
+                "check_item:dual_control",
+                "check_item:reassign",
+                "queue:view",
+                "queue:create",
+                "queue:update",
+                "queue:assign",
+                "queue:manage",
+                "user:view",
+                "role:view",
+                "permission:view",
+                "policy:view",
+                "report:view",
+                "fraud:view",
+                "audit:view",
+            ]
+        ]
         db.add(supervisor_role)
 
         # 4. Administrator: All supervisor permissions + user management, policies
-        administrator_role = Role(tenant_id=None, name="administrator", description="All supervisor permissions + user management, policies", is_system=True)
-        administrator_role.permissions = [perm_lookup[n] for n in [
-            "check_item:view", "check_item:review", "check_item:approve", "check_item:dual_control", "check_item:reassign",
-            "queue:view", "queue:create", "queue:update", "queue:assign", "queue:manage",
-            "user:view", "user:create", "user:update", "user:manage",
-            "role:view", "role:create", "permission:view",
-            "policy:view", "policy:create", "policy:update", "policy:activate", "policy:manage",
-            "report:view", "fraud:view", "fraud:create", "fraud:submit", "fraud:withdraw", "fraud:config",
-            "audit:view", "audit:export"
-        ]]
+        administrator_role = Role(
+            tenant_id=None,
+            name="administrator",
+            description="All supervisor permissions + user management, policies",
+            is_system=True,
+        )
+        administrator_role.permissions = [
+            perm_lookup[n]
+            for n in [
+                "check_item:view",
+                "check_item:review",
+                "check_item:approve",
+                "check_item:dual_control",
+                "check_item:reassign",
+                "queue:view",
+                "queue:create",
+                "queue:update",
+                "queue:assign",
+                "queue:manage",
+                "user:view",
+                "user:create",
+                "user:update",
+                "user:manage",
+                "role:view",
+                "role:create",
+                "permission:view",
+                "policy:view",
+                "policy:create",
+                "policy:update",
+                "policy:activate",
+                "policy:manage",
+                "report:view",
+                "fraud:view",
+                "fraud:create",
+                "fraud:submit",
+                "fraud:withdraw",
+                "fraud:config",
+                "audit:view",
+                "audit:export",
+            ]
+        ]
         db.add(administrator_role)
 
         # 5. Auditor: Read-only access to all data and audit logs
-        auditor_role = Role(tenant_id=None, name="auditor", description="Read-only access to all data and audit logs", is_system=True)
-        auditor_role.permissions = [perm_lookup[n] for n in [
-            "check_item:view", "queue:view", "user:view", "role:view", "permission:view",
-            "policy:view", "report:view", "fraud:view", "audit:view", "audit:export"
-        ]]
+        auditor_role = Role(
+            tenant_id=None,
+            name="auditor",
+            description="Read-only access to all data and audit logs",
+            is_system=True,
+        )
+        auditor_role.permissions = [
+            perm_lookup[n]
+            for n in [
+                "check_item:view",
+                "queue:view",
+                "user:view",
+                "role:view",
+                "permission:view",
+                "policy:view",
+                "report:view",
+                "fraud:view",
+                "audit:view",
+                "audit:export",
+            ]
+        ]
         db.add(auditor_role)
 
         # 6. System Admin: Full system access including configuration
-        system_admin_role = Role(tenant_id=None, name="system_admin", description="Full system access including configuration", is_system=True)
+        system_admin_role = Role(
+            tenant_id=None,
+            name="system_admin",
+            description="Full system access including configuration",
+            is_system=True,
+        )
         system_admin_role.permissions = all_permissions
         db.add(system_admin_role)
 
@@ -173,48 +494,67 @@ async def seed_database():
 
         # Create test users per Technical Guide Section 2.2
         system_admin_user = User(
-            tenant_id=default_tenant_id, username="system_admin", email="sysadmin@example.com",
-            hashed_password=get_password_hash("sysadmin123"), full_name="System Administrator",
-            is_active=True, is_superuser=True,
+            tenant_id=default_tenant_id,
+            username="system_admin",
+            email="sysadmin@example.com",
+            hashed_password=get_password_hash("sysadmin123"),
+            full_name="System Administrator",
+            is_active=True,
+            is_superuser=True,
         )
         system_admin_user.roles = [system_admin_role]
         db.add(system_admin_user)
 
         administrator_user = User(
-            tenant_id=default_tenant_id, username="administrator", email="admin@example.com",
-            hashed_password=get_password_hash("admin123"), full_name="Administrator User",
+            tenant_id=default_tenant_id,
+            username="administrator",
+            email="admin@example.com",
+            hashed_password=get_password_hash("admin123"),
+            full_name="Administrator User",
             is_active=True,
         )
         administrator_user.roles = [administrator_role]
         db.add(administrator_user)
 
         supervisor_user = User(
-            tenant_id=default_tenant_id, username="supervisor", email="supervisor@example.com",
-            hashed_password=get_password_hash("supervisor123"), full_name="Supervisor User",
+            tenant_id=default_tenant_id,
+            username="supervisor",
+            email="supervisor@example.com",
+            hashed_password=get_password_hash("supervisor123"),
+            full_name="Supervisor User",
             is_active=True,
         )
         supervisor_user.roles = [supervisor_role]
         db.add(supervisor_user)
 
         senior_reviewer_user = User(
-            tenant_id=default_tenant_id, username="senior_reviewer", email="senior@example.com",
-            hashed_password=get_password_hash("senior123"), full_name="Senior Reviewer",
+            tenant_id=default_tenant_id,
+            username="senior_reviewer",
+            email="senior@example.com",
+            hashed_password=get_password_hash("senior123"),
+            full_name="Senior Reviewer",
             is_active=True,
         )
         senior_reviewer_user.roles = [senior_reviewer_role]
         db.add(senior_reviewer_user)
 
         reviewer_user = User(
-            tenant_id=default_tenant_id, username="reviewer", email="reviewer@example.com",
-            hashed_password=get_password_hash("reviewer123"), full_name="Check Reviewer",
+            tenant_id=default_tenant_id,
+            username="reviewer",
+            email="reviewer@example.com",
+            hashed_password=get_password_hash("reviewer123"),
+            full_name="Check Reviewer",
             is_active=True,
         )
         reviewer_user.roles = [reviewer_role]
         db.add(reviewer_user)
 
         auditor_user = User(
-            tenant_id=default_tenant_id, username="auditor", email="auditor@example.com",
-            hashed_password=get_password_hash("auditor123"), full_name="Compliance Auditor",
+            tenant_id=default_tenant_id,
+            username="auditor",
+            email="auditor@example.com",
+            hashed_password=get_password_hash("auditor123"),
+            full_name="Compliance Auditor",
             is_active=True,
         )
         auditor_user.roles = [auditor_role]
@@ -281,7 +621,9 @@ async def seed_database():
             # Check fingerprint
             {
                 "tenant_id": "bank-d",
-                "indicators_json": {"check_fingerprint": hash_indicator("021000021:1234567890:1001")},
+                "indicators_json": {
+                    "check_fingerprint": hash_indicator("021000021:1234567890:1001")
+                },
                 "fraud_type": FraudType.DUPLICATE_DEPOSIT,
                 "channel": FraudChannel.ATM,
                 "amount_bucket": AmountBucket.FROM_500_TO_1000,
@@ -316,7 +658,9 @@ async def seed_database():
         print("  senior_reviewer / senior123     (Senior Reviewer - dual control)")
         print("  reviewer        / reviewer123   (Reviewer - view, review checks)")
         print("  auditor         / auditor123    (Auditor - read-only audit access)")
-        print("\nRoles created: reviewer, senior_reviewer, supervisor, administrator, auditor, system_admin")
+        print(
+            "\nRoles created: reviewer, senior_reviewer, supervisor, administrator, auditor, system_admin"
+        )
         print(f"Permissions created: {len(all_permissions)}")
         print("\nFraud Intelligence:")
         print(f"  Tenant config created for: {default_tenant_id}")

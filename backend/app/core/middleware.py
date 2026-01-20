@@ -58,23 +58,27 @@ class TokenRedactionFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         """Filter and redact tokens from log record."""
         # Redact tokens from the message
-        if hasattr(record, 'msg') and isinstance(record.msg, str):
-            record.msg = SECURE_IMAGE_PATH_PATTERN.sub(
-                rf"\1{TOKEN_REDACTED}", record.msg
-            )
+        if hasattr(record, "msg") and isinstance(record.msg, str):
+            record.msg = SECURE_IMAGE_PATH_PATTERN.sub(rf"\1{TOKEN_REDACTED}", record.msg)
 
         # Redact tokens from args if present
-        if hasattr(record, 'args') and record.args:
+        if hasattr(record, "args") and record.args:
             if isinstance(record.args, tuple):
                 record.args = tuple(
-                    SECURE_IMAGE_PATH_PATTERN.sub(rf"\1{TOKEN_REDACTED}", arg)
-                    if isinstance(arg, str) else arg
+                    (
+                        SECURE_IMAGE_PATH_PATTERN.sub(rf"\1{TOKEN_REDACTED}", arg)
+                        if isinstance(arg, str)
+                        else arg
+                    )
                     for arg in record.args
                 )
             elif isinstance(record.args, dict):
                 record.args = {
-                    k: SECURE_IMAGE_PATH_PATTERN.sub(rf"\1{TOKEN_REDACTED}", v)
-                    if isinstance(v, str) else v
+                    k: (
+                        SECURE_IMAGE_PATH_PATTERN.sub(rf"\1{TOKEN_REDACTED}", v)
+                        if isinstance(v, str)
+                        else v
+                    )
                     for k, v in record.args.items()
                 }
 
@@ -119,7 +123,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Content-Security-Policy for API responses
         # Note: This is restrictive - frontend serves its own CSP
         if request.url.path.startswith("/api/"):
-            response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'none'; frame-ancestors 'none'"
+            )
             # Prevent caching of API responses with sensitive data
             if "Cache-Control" not in response.headers:
                 response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
@@ -195,8 +201,11 @@ def redact_exception_args(exc: Exception) -> Exception:
     """
     if exc.args:
         new_args = tuple(
-            SECURE_IMAGE_PATH_PATTERN.sub(rf"\1{TOKEN_REDACTED}", arg)
-            if isinstance(arg, str) else arg
+            (
+                SECURE_IMAGE_PATH_PATTERN.sub(rf"\1{TOKEN_REDACTED}", arg)
+                if isinstance(arg, str)
+                else arg
+            )
             for arg in exc.args
         )
         exc.args = new_args

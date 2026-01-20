@@ -7,7 +7,9 @@ from typing import Any
 from sqlalchemy import (
     Boolean,
     DateTime,
-    Enum as SQLEnum,
+)
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
@@ -46,8 +48,12 @@ class ReasonCode(Base, UUIDMixin, TimestampMixin):
 
     code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     description: Mapped[str] = mapped_column(String(255), nullable=False)
-    category: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g., "signature", "amount", "fraud"
-    decision_type: Mapped[str] = mapped_column(String(50), nullable=False)  # "return", "reject", "escalate"
+    category: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # e.g., "signature", "amount", "fraud"
+    decision_type: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # "return", "reject", "escalate"
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     display_order: Mapped[int] = mapped_column(Integer, default=0)
     requires_notes: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -61,7 +67,9 @@ class Decision(Base, UUIDMixin, TimestampMixin):
     # Tenant isolation - CRITICAL for multi-tenant security
     tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
 
-    check_item_id: Mapped[str] = mapped_column(String(36), ForeignKey("check_items.id"), nullable=False)
+    check_item_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("check_items.id"), nullable=False
+    )
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
 
     decision_type: Mapped[DecisionType] = mapped_column(
@@ -79,13 +87,17 @@ class Decision(Base, UUIDMixin, TimestampMixin):
 
     # AI assist info
     ai_assisted: Mapped[bool] = mapped_column(Boolean, default=False)
-    ai_flags_reviewed: Mapped[str | None] = mapped_column(Text)  # JSON array of AI flags user reviewed
+    ai_flags_reviewed: Mapped[str | None] = mapped_column(
+        Text
+    )  # JSON array of AI flags user reviewed
 
     # Attachments
     attachments: Mapped[str | None] = mapped_column(Text)  # JSON array of attachment references
 
     # Policy tracking
-    policy_version_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("policy_versions.id"))
+    policy_version_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("policy_versions.id")
+    )
 
     # Workflow tracking
     previous_status: Mapped[str | None] = mapped_column(String(50))

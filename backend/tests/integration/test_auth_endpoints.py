@@ -11,15 +11,15 @@ Tests cover:
 - Session management
 """
 
-import pytest
+import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
-import uuid
 
+import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
 from app.core.security import create_access_token, create_refresh_token, get_password_hash
+from app.main import app
 
 
 class TestLoginEndpoint:
@@ -51,8 +51,10 @@ class TestLoginEndpoint:
 
     def test_login_success_returns_tokens(self, client):
         """Successful login should return access and refresh tokens."""
-        with patch("app.api.v1.endpoints.auth.AuthService") as mock_service, \
-             patch("app.api.v1.endpoints.auth.AuditService"):
+        with (
+            patch("app.api.v1.endpoints.auth.AuthService") as mock_service,
+            patch("app.api.v1.endpoints.auth.AuditService"),
+        ):
 
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
@@ -90,7 +92,7 @@ class TestLoginEndpoint:
             lock_time = datetime.now(timezone.utc) + timedelta(minutes=30)
             mock_instance.authenticate_user.return_value = (
                 None,
-                f"Account locked until {lock_time.isoformat()}"
+                f"Account locked until {lock_time.isoformat()}",
             )
 
             response = client.post(
@@ -103,8 +105,10 @@ class TestLoginEndpoint:
 
     def test_login_with_mfa_required_returns_mfa_response(self, client):
         """Login with MFA enabled should require MFA verification."""
-        with patch("app.api.v1.endpoints.auth.AuthService") as mock_service, \
-             patch("app.api.v1.endpoints.auth.AuditService"):
+        with (
+            patch("app.api.v1.endpoints.auth.AuthService") as mock_service,
+            patch("app.api.v1.endpoints.auth.AuditService"),
+        ):
 
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
@@ -132,6 +136,7 @@ class TestLoginEndpoint:
         # This test verifies rate limiting is configured
         # Actual rate limit testing would require multiple rapid requests
         from app.core.rate_limit import limiter
+
         assert limiter is not None
 
 
@@ -232,8 +237,10 @@ class TestMFAEndpoints:
 
     def test_mfa_verify_invalid_code_returns_400(self, client, auth_headers):
         """MFA verification with invalid code should fail."""
-        with patch("app.api.v1.endpoints.auth.get_current_active_user") as mock_user, \
-             patch("app.api.v1.endpoints.auth.verify_totp") as mock_verify:
+        with (
+            patch("app.api.v1.endpoints.auth.get_current_active_user") as mock_user,
+            patch("app.api.v1.endpoints.auth.verify_totp") as mock_verify,
+        ):
 
             mock_user.return_value = MagicMock(
                 id=str(uuid.uuid4()),
@@ -281,8 +288,10 @@ class TestPasswordChangeEndpoint:
 
     def test_password_change_validates_current_password(self, client, auth_headers):
         """Password change should validate current password."""
-        with patch("app.api.v1.endpoints.auth.get_current_active_user") as mock_get_user, \
-             patch("app.api.v1.endpoints.auth.verify_password") as mock_verify:
+        with (
+            patch("app.api.v1.endpoints.auth.get_current_active_user") as mock_get_user,
+            patch("app.api.v1.endpoints.auth.verify_password") as mock_verify,
+        ):
 
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())

@@ -16,23 +16,23 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 
-from app.api.deps import DBSession, CurrentUser
+from app.api.deps import CurrentUser, DBSession
 from app.audit.service import AuditService
 from app.core.encryption import encrypt_value
 from app.models.audit import AuditAction
 from app.models.item_context_connector import (
-    ItemContextConnector,
-    ItemContextImport,
-    ItemContextImportRecord,
+    FIELD_MAPPING_TEMPLATES,
     ContextConnectorStatus,
     FileFormat,
     ImportStatus,
+    ItemContextConnector,
+    ItemContextImport,
+    ItemContextImportRecord,
     RecordStatus,
-    FIELD_MAPPING_TEMPLATES,
 )
 from app.services.item_context_service import ItemContextImportService
 from app.services.sftp_service import SFTPService
@@ -43,6 +43,7 @@ router = APIRouter()
 # =============================================================================
 # SCHEMAS
 # =============================================================================
+
 
 class ConnectorCreateRequest(BaseModel):
     """Request to create a new connector."""
@@ -56,8 +57,12 @@ class ConnectorCreateRequest(BaseModel):
     sftp_port: int = Field(default=22, ge=1, le=65535)
     sftp_username: str = Field(..., min_length=1, max_length=100)
     sftp_password: str | None = Field(default=None, description="Password (will be encrypted)")
-    sftp_private_key: str | None = Field(default=None, description="SSH private key (will be encrypted)")
-    sftp_key_passphrase: str | None = Field(default=None, description="Key passphrase (will be encrypted)")
+    sftp_private_key: str | None = Field(
+        default=None, description="SSH private key (will be encrypted)"
+    )
+    sftp_key_passphrase: str | None = Field(
+        default=None, description="Key passphrase (will be encrypted)"
+    )
 
     # SFTP Paths
     sftp_remote_path: str = Field(default="/outbound", max_length=500)
@@ -104,8 +109,12 @@ class ConnectorUpdateRequest(BaseModel):
     sftp_port: int | None = Field(default=None, ge=1, le=65535)
     sftp_username: str | None = Field(default=None, min_length=1, max_length=100)
     sftp_password: str | None = Field(default=None, description="New password (will be encrypted)")
-    sftp_private_key: str | None = Field(default=None, description="New SSH key (will be encrypted)")
-    sftp_key_passphrase: str | None = Field(default=None, description="New passphrase (will be encrypted)")
+    sftp_private_key: str | None = Field(
+        default=None, description="New SSH key (will be encrypted)"
+    )
+    sftp_key_passphrase: str | None = Field(
+        default=None, description="New passphrase (will be encrypted)"
+    )
 
     # SFTP Paths
     sftp_remote_path: str | None = Field(default=None, max_length=500)
@@ -292,6 +301,7 @@ class FieldMappingTemplateResponse(BaseModel):
 # CONNECTOR CRUD ENDPOINTS
 # =============================================================================
 
+
 @router.get("", response_model=ConnectorListResponse)
 async def list_connectors(
     db: DBSession,
@@ -320,10 +330,7 @@ async def list_connectors(
     result = await db.execute(query)
     connectors = result.scalars().all()
 
-    return ConnectorListResponse(
-        items=[_connector_to_response(c) for c in connectors],
-        total=total
-    )
+    return ConnectorListResponse(items=[_connector_to_response(c) for c in connectors], total=total)
 
 
 @router.post("", response_model=ConnectorResponse, status_code=status.HTTP_201_CREATED)
@@ -338,14 +345,13 @@ async def create_connector(
     # Check for duplicate name
     existing = await db.execute(
         select(ItemContextConnector).where(
-            ItemContextConnector.tenant_id == tenant_id,
-            ItemContextConnector.name == request.name
+            ItemContextConnector.tenant_id == tenant_id, ItemContextConnector.name == request.name
         )
     )
     if existing.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Connector with name '{request.name}' already exists"
+            detail=f"Connector with name '{request.name}' already exists",
         )
 
     # Create connector
@@ -357,20 +363,23 @@ async def create_connector(
         source_system=request.source_system,
         status=ContextConnectorStatus.INACTIVE,
         is_enabled=False,
-
         # SFTP
         sftp_host=request.sftp_host,
         sftp_port=request.sftp_port,
         sftp_username=request.sftp_username,
-        sftp_password_encrypted=encrypt_value(request.sftp_password) if request.sftp_password else None,
-        sftp_private_key_encrypted=encrypt_value(request.sftp_private_key) if request.sftp_private_key else None,
-        sftp_key_passphrase_encrypted=encrypt_value(request.sftp_key_passphrase) if request.sftp_key_passphrase else None,
-
+        sftp_password_encrypted=(
+            encrypt_value(request.sftp_password) if request.sftp_password else None
+        ),
+        sftp_private_key_encrypted=(
+            encrypt_value(request.sftp_private_key) if request.sftp_private_key else None
+        ),
+        sftp_key_passphrase_encrypted=(
+            encrypt_value(request.sftp_key_passphrase) if request.sftp_key_passphrase else None
+        ),
         # Paths
         sftp_remote_path=request.sftp_remote_path,
         sftp_archive_path=request.sftp_archive_path,
         sftp_error_path=request.sftp_error_path,
-
         # File
         file_pattern=request.file_pattern,
         file_format=request.file_format,
@@ -378,26 +387,21 @@ async def create_connector(
         file_delimiter=request.file_delimiter,
         has_header_row=request.has_header_row,
         skip_rows=request.skip_rows,
-
         # Mapping
         field_mapping=request.field_mapping,
         fixed_width_config=request.fixed_width_config,
-
         # Matching
         match_by_external_item_id=request.match_by_external_item_id,
         match_field=request.match_field,
-
         # Schedule
         schedule_enabled=request.schedule_enabled,
         schedule_cron=request.schedule_cron,
         schedule_timezone=request.schedule_timezone,
-
         # Processing
         max_records_per_file=request.max_records_per_file,
         batch_size=request.batch_size,
         fail_on_validation_error=request.fail_on_validation_error,
         update_existing=request.update_existing,
-
         created_by_user_id=current_user.id,
     )
 
@@ -457,7 +461,9 @@ async def update_connector(
 
     if "sftp_key_passphrase" in update_data:
         if update_data["sftp_key_passphrase"]:
-            connector.sftp_key_passphrase_encrypted = encrypt_value(update_data["sftp_key_passphrase"])
+            connector.sftp_key_passphrase_encrypted = encrypt_value(
+                update_data["sftp_key_passphrase"]
+            )
         del update_data["sftp_key_passphrase"]
 
     # Apply remaining updates
@@ -512,6 +518,7 @@ async def delete_connector(
 # CONNECTION & IMPORT ENDPOINTS
 # =============================================================================
 
+
 @router.post("/{connector_id}/test", response_model=ConnectionTestResponse)
 async def test_connection(
     connector_id: str,
@@ -535,7 +542,7 @@ async def test_connection(
         success=result.success,
         message=result.message,
         latency_ms=result.latency_ms,
-        server_version=result.server_version
+        server_version=result.server_version,
     )
 
 
@@ -557,7 +564,7 @@ async def trigger_import(
     if not connector.is_enabled:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Connector is disabled. Enable it before triggering imports."
+            detail="Connector is disabled. Enable it before triggering imports.",
         )
 
     # Create a pending import record
@@ -586,7 +593,7 @@ async def trigger_import(
     return ImportTriggerResponse(
         import_id=import_record.id,
         status=ImportStatus.PENDING,
-        message="Import started. Check import history for progress."
+        message="Import started. Check import history for progress.",
     )
 
 
@@ -619,8 +626,7 @@ async def list_imports(
     imports = result.scalars().all()
 
     return ImportListResponse(
-        items=[ImportResponse.model_validate(i) for i in imports],
-        total=total
+        items=[ImportResponse.model_validate(i) for i in imports], total=total
     )
 
 
@@ -636,17 +642,13 @@ async def get_import(
 
     result = await db.execute(
         select(ItemContextImport).where(
-            ItemContextImport.id == import_id,
-            ItemContextImport.connector_id == connector.id
+            ItemContextImport.id == import_id, ItemContextImport.connector_id == connector.id
         )
     )
     import_record = result.scalar_one_or_none()
 
     if not import_record:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Import not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Import not found")
 
     return ImportResponse.model_validate(import_record)
 
@@ -666,27 +668,25 @@ async def get_import_errors(
     # Verify import belongs to connector
     import_check = await db.execute(
         select(ItemContextImport.id).where(
-            ItemContextImport.id == import_id,
-            ItemContextImport.connector_id == connector.id
+            ItemContextImport.id == import_id, ItemContextImport.connector_id == connector.id
         )
     )
     if not import_check.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Import not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Import not found")
 
     # Get error records
     query = (
         select(ItemContextImportRecord)
         .where(
             ItemContextImportRecord.import_id == import_id,
-            ItemContextImportRecord.status.in_([
-                RecordStatus.NOT_FOUND,
-                RecordStatus.INVALID,
-                RecordStatus.ERROR,
-                RecordStatus.DUPLICATE,
-            ])
+            ItemContextImportRecord.status.in_(
+                [
+                    RecordStatus.NOT_FOUND,
+                    RecordStatus.INVALID,
+                    RecordStatus.ERROR,
+                    RecordStatus.DUPLICATE,
+                ]
+            ),
         )
         .order_by(ItemContextImportRecord.row_number)
         .offset(skip)
@@ -702,6 +702,7 @@ async def get_import_errors(
 # TEMPLATE ENDPOINTS
 # =============================================================================
 
+
 @router.get("/templates/field-mappings")
 async def list_field_mapping_templates() -> list[FieldMappingTemplateResponse]:
     """Get available field mapping templates for common core systems."""
@@ -714,11 +715,13 @@ async def list_field_mapping_templates() -> list[FieldMappingTemplateResponse]:
     }
 
     for name, mapping in FIELD_MAPPING_TEMPLATES.items():
-        templates.append(FieldMappingTemplateResponse(
-            name=name,
-            description=descriptions.get(name, f"Template for {name}"),
-            mapping=mapping
-        ))
+        templates.append(
+            FieldMappingTemplateResponse(
+                name=name,
+                description=descriptions.get(name, f"Template for {name}"),
+                mapping=mapping,
+            )
+        )
 
     return templates
 
@@ -727,25 +730,20 @@ async def list_field_mapping_templates() -> list[FieldMappingTemplateResponse]:
 # HELPER FUNCTIONS
 # =============================================================================
 
+
 async def _get_connector_or_404(
-    db: DBSession,
-    connector_id: str,
-    tenant_id: str
+    db: DBSession, connector_id: str, tenant_id: str
 ) -> ItemContextConnector:
     """Get connector by ID or raise 404."""
     result = await db.execute(
         select(ItemContextConnector).where(
-            ItemContextConnector.id == connector_id,
-            ItemContextConnector.tenant_id == tenant_id
+            ItemContextConnector.id == connector_id, ItemContextConnector.tenant_id == tenant_id
         )
     )
     connector = result.scalar_one_or_none()
 
     if not connector:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Connector not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connector not found")
 
     return connector
 
@@ -760,7 +758,6 @@ def _connector_to_response(connector: ItemContextConnector) -> ConnectorResponse
         source_system=connector.source_system,
         status=connector.status,
         is_enabled=connector.is_enabled,
-
         sftp_host=connector.sftp_host,
         sftp_port=connector.sftp_port,
         sftp_username=connector.sftp_username,
@@ -769,29 +766,23 @@ def _connector_to_response(connector: ItemContextConnector) -> ConnectorResponse
         sftp_remote_path=connector.sftp_remote_path,
         sftp_archive_path=connector.sftp_archive_path,
         sftp_error_path=connector.sftp_error_path,
-
         file_pattern=connector.file_pattern,
         file_format=connector.file_format,
         file_encoding=connector.file_encoding,
         file_delimiter=connector.file_delimiter,
         has_header_row=connector.has_header_row,
         skip_rows=connector.skip_rows,
-
         field_mapping=connector.field_mapping,
         fixed_width_config=connector.fixed_width_config,
-
         match_by_external_item_id=connector.match_by_external_item_id,
         match_field=connector.match_field,
-
         schedule_enabled=connector.schedule_enabled,
         schedule_cron=connector.schedule_cron,
         schedule_timezone=connector.schedule_timezone,
-
         max_records_per_file=connector.max_records_per_file,
         batch_size=connector.batch_size,
         fail_on_validation_error=connector.fail_on_validation_error,
         update_existing=connector.update_existing,
-
         last_connection_test_at=connector.last_connection_test_at,
         last_connection_test_success=connector.last_connection_test_success,
         last_import_at=connector.last_import_at,
@@ -800,7 +791,6 @@ def _connector_to_response(connector: ItemContextConnector) -> ConnectorResponse
         consecutive_failures=connector.consecutive_failures,
         last_error_at=connector.last_error_at,
         last_error_message=connector.last_error_message,
-
         created_at=connector.created_at,
         updated_at=connector.updated_at,
     )

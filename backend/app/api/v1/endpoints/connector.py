@@ -18,47 +18,47 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import DBSession, CurrentUser, require_permission
+from app.api.deps import CurrentUser, DBSession, require_permission
 from app.audit.service import AuditService
 from app.models.audit import AuditAction
 from app.models.connector import (
     BankConnectorConfig,
-    CommitBatch,
-    CommitRecord,
     BatchAcknowledgement,
-    ReconciliationReport,
     BatchStatus,
-    RecordStatus,
+    CommitBatch,
     CommitDecisionType,
+    CommitRecord,
+    ReconciliationReport,
+    RecordStatus,
 )
 from app.schemas.connector import (
-    BankConnectorConfigCreate,
-    BankConnectorConfigUpdate,
-    BankConnectorConfigResponse,
-    BatchCreateRequest,
-    BatchApprovalRequest,
-    BatchCancelRequest,
-    BatchSummary,
-    BatchResponse,
-    RecordSummary,
-    BatchFileResponse,
     AcknowledgementRequest,
     AcknowledgementResponse,
+    BankConnectorConfigCreate,
+    BankConnectorConfigResponse,
+    BankConnectorConfigUpdate,
+    BatchApprovalRequest,
+    BatchCancelRequest,
+    BatchConfirmationDialog,
+    BatchCreateRequest,
+    BatchFileResponse,
+    BatchResponse,
+    BatchSummary,
+    ConnectorDashboard,
     ReconciliationReportRequest,
     ReconciliationReportResponse,
     RecordResolutionRequest,
-    ConnectorDashboard,
-    BatchConfirmationDialog,
+    RecordSummary,
 )
 from app.services.connector_service import (
-    ConnectorService,
-    ConnectorError,
-    DualControlViolation,
     BatchNotFoundError,
     BatchStateError,
+    ConnectorError,
+    ConnectorService,
+    DualControlViolation,
     FileGenerationError,
 )
 
@@ -68,6 +68,7 @@ router = APIRouter()
 # =============================================================================
 # BANK CONFIGURATION ENDPOINTS
 # =============================================================================
+
 
 @router.get("/configs", response_model=list[BankConnectorConfigResponse])
 async def list_bank_configs(
@@ -118,7 +119,9 @@ async def list_bank_configs(
     ]
 
 
-@router.post("/configs", response_model=BankConnectorConfigResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/configs", response_model=BankConnectorConfigResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_bank_config(
     request: Request,
     config_data: BankConnectorConfigCreate,
@@ -213,6 +216,7 @@ async def create_bank_config(
 # =============================================================================
 # BATCH ENDPOINTS
 # =============================================================================
+
 
 @router.get("/batches", response_model=list[BatchSummary])
 async def list_batches(
@@ -369,20 +373,18 @@ async def get_batch_confirmation(
 
     # Calculate amounts by type
     release_amount = sum(
-        r.transaction_amount for r in batch.records
-        if r.decision_type == CommitDecisionType.RELEASE
+        r.transaction_amount for r in batch.records if r.decision_type == CommitDecisionType.RELEASE
     )
     hold_amount = sum(
-        r.transaction_amount for r in batch.records
+        r.transaction_amount
+        for r in batch.records
         if r.decision_type in (CommitDecisionType.HOLD, CommitDecisionType.EXTEND_HOLD)
     )
     return_amount = sum(
-        r.transaction_amount for r in batch.records
-        if r.decision_type == CommitDecisionType.RETURN
+        r.transaction_amount for r in batch.records if r.decision_type == CommitDecisionType.RETURN
     )
     reject_amount = sum(
-        r.transaction_amount for r in batch.records
-        if r.decision_type == CommitDecisionType.REJECT
+        r.transaction_amount for r in batch.records if r.decision_type == CommitDecisionType.REJECT
     )
 
     # Build warnings
@@ -516,6 +518,7 @@ async def cancel_batch(
 # FILE GENERATION ENDPOINTS
 # =============================================================================
 
+
 @router.post("/batches/{batch_id}/generate", response_model=BatchFileResponse)
 async def generate_batch_file(
     request: Request,
@@ -600,9 +603,13 @@ async def download_batch_file(
             detail="Batch not found",
         )
 
-    if batch.status not in (BatchStatus.GENERATED, BatchStatus.TRANSMITTED,
-                            BatchStatus.ACKNOWLEDGED, BatchStatus.COMPLETED,
-                            BatchStatus.PARTIALLY_PROCESSED):
+    if batch.status not in (
+        BatchStatus.GENERATED,
+        BatchStatus.TRANSMITTED,
+        BatchStatus.ACKNOWLEDGED,
+        BatchStatus.COMPLETED,
+        BatchStatus.PARTIALLY_PROCESSED,
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File not yet generated",
@@ -683,6 +690,7 @@ async def mark_batch_transmitted(
 # ACKNOWLEDGEMENT ENDPOINTS
 # =============================================================================
 
+
 @router.post("/batches/{batch_id}/acknowledgement", response_model=AcknowledgementResponse)
 async def process_acknowledgement(
     request: Request,
@@ -751,6 +759,7 @@ async def process_acknowledgement(
 # RECONCILIATION ENDPOINTS
 # =============================================================================
 
+
 @router.post("/reconciliation", response_model=ReconciliationReportResponse)
 async def generate_reconciliation_report(
     request: Request,
@@ -805,6 +814,7 @@ async def get_reconciliation_report(
 # =============================================================================
 # FAILED RECORD MANAGEMENT
 # =============================================================================
+
 
 @router.get("/records/failed", response_model=list[RecordSummary])
 async def list_failed_records(
@@ -865,6 +875,7 @@ async def resolve_failed_record(
 # DASHBOARD
 # =============================================================================
 
+
 @router.get("/dashboard", response_model=ConnectorDashboard)
 async def get_connector_dashboard(
     db: DBSession,
@@ -898,9 +909,10 @@ async def get_connector_dashboard(
 
     # Past deadline
     past_deadline = [
-        b for b in awaiting_ack
-        if b.transmitted_at and
-        (datetime.now(timezone.utc) - b.transmitted_at).total_seconds() > 24 * 3600
+        b
+        for b in awaiting_ack
+        if b.transmitted_at
+        and (datetime.now(timezone.utc) - b.transmitted_at).total_seconds() > 24 * 3600
     ]
 
     return ConnectorDashboard(
@@ -923,6 +935,7 @@ async def get_connector_dashboard(
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
+
 
 def _batch_to_response(batch: CommitBatch, include_records: bool = False) -> BatchResponse:
     """Convert batch model to response schema."""

@@ -1,8 +1,8 @@
 """Check item service."""
 
+import json
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-import json
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,15 +10,15 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.integrations.adapters.factory import get_adapter
-from app.models.check import CheckItem, CheckImage, CheckStatus, RiskLevel, AccountType
+from app.models.check import AccountType, CheckImage, CheckItem, CheckStatus, RiskLevel
 from app.schemas.check import (
-    AIFlagResponse,
     AccountContextResponse,
+    AIFlagResponse,
+    CheckHistoryResponse,
+    CheckImageResponse,
     CheckItemCreate,
     CheckItemListResponse,
     CheckItemResponse,
-    CheckImageResponse,
-    CheckHistoryResponse,
     CheckSearchRequest,
 )
 
@@ -72,7 +72,7 @@ class CheckService:
             existing = await self.db.execute(
                 select(CheckItem).where(
                     CheckItem.tenant_id == tenant_id,
-                    CheckItem.external_item_id == item.external_item_id
+                    CheckItem.external_item_id == item.external_item_id,
                 )
             )
             if existing.scalar_one_or_none():
@@ -188,7 +188,10 @@ class CheckService:
                 elif ratio > 2:
                     risk_score += 10
 
-            if behavior_stats.returned_item_count_90d and behavior_stats.returned_item_count_90d > 2:
+            if (
+                behavior_stats.returned_item_count_90d
+                and behavior_stats.returned_item_count_90d > 2
+            ):
                 risk_score += 20
 
             if behavior_stats.exception_count_90d and behavior_stats.exception_count_90d > 3:
@@ -240,7 +243,9 @@ class CheckService:
 
         return priority
 
-    async def get_check_item(self, item_id: str, user_id: str, tenant_id: str) -> CheckItemResponse | None:
+    async def get_check_item(
+        self, item_id: str, user_id: str, tenant_id: str
+    ) -> CheckItemResponse | None:
         """Get a check item by ID with full details.
 
         Args:
@@ -284,7 +289,9 @@ class CheckService:
                     width=img.width,
                     height=img.height,
                     image_url=generate_signed_url(img.external_image_id or img.id, user_id),
-                    thumbnail_url=generate_signed_url(f"thumb_{img.external_image_id or img.id}", user_id),
+                    thumbnail_url=generate_signed_url(
+                        f"thumb_{img.external_image_id or img.id}", user_id
+                    ),
                 )
             )
 
@@ -538,7 +545,9 @@ class CheckService:
                 if img.image_type == "front":
                     from app.core.security import generate_signed_url
 
-                    thumbnail_url = generate_signed_url(f"thumb_{img.external_image_id or img.id}", user_id)
+                    thumbnail_url = generate_signed_url(
+                        f"thumb_{img.external_image_id or img.id}", user_id
+                    )
                     break
 
             responses.append(
@@ -580,8 +589,9 @@ class CheckService:
             limit: Maximum number of history items
         """
         from sqlalchemy import select
-        from app.models.check import CheckHistory
+
         from app.core.security import generate_signed_url
+        from app.models.check import CheckHistory
 
         # Query database directly for historical checks
         result = await self.db.execute(
@@ -602,8 +612,12 @@ class CheckService:
                 payee_name=h.payee_name,
                 status=h.status,
                 return_reason=h.return_reason,
-                front_image_url=generate_signed_url(h.front_image_ref, user_id) if h.front_image_ref else None,
-                back_image_url=generate_signed_url(h.back_image_ref, user_id) if h.back_image_ref else None,
+                front_image_url=(
+                    generate_signed_url(h.front_image_ref, user_id) if h.front_image_ref else None
+                ),
+                back_image_url=(
+                    generate_signed_url(h.back_image_ref, user_id) if h.back_image_ref else None
+                ),
             )
             for h in history_records
         ]

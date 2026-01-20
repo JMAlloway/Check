@@ -10,15 +10,15 @@ Tests cover:
 - Audit logging
 """
 
-import pytest
+import uuid
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
-import uuid
 
+import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
 from app.core.security import create_access_token
+from app.main import app
 
 
 class TestMakeDecisionEndpoint:
@@ -89,8 +89,10 @@ class TestMakeDecisionEndpoint:
 
     def test_make_decision_approve_success(self, client, auth_headers):
         """Approve decision should succeed with valid data."""
-        with patch("app.api.v1.endpoints.decisions.get_current_active_user") as mock_user, \
-             patch("app.api.v1.endpoints.decisions.DecisionService") as mock_service:
+        with (
+            patch("app.api.v1.endpoints.decisions.get_current_active_user") as mock_user,
+            patch("app.api.v1.endpoints.decisions.DecisionService") as mock_service,
+        ):
 
             mock_user.return_value = MagicMock(
                 id=str(uuid.uuid4()),
@@ -241,8 +243,10 @@ class TestDecisionValidation:
 
     def test_cannot_decide_on_already_decided_check(self, client, auth_headers):
         """Cannot make decision on already decided check."""
-        with patch("app.api.v1.endpoints.decisions.get_current_active_user") as mock_user, \
-             patch("app.api.v1.endpoints.decisions.DecisionService") as mock_service:
+        with (
+            patch("app.api.v1.endpoints.decisions.get_current_active_user") as mock_user,
+            patch("app.api.v1.endpoints.decisions.DecisionService") as mock_service,
+        ):
 
             mock_user.return_value = MagicMock(
                 id=str(uuid.uuid4()),
@@ -309,8 +313,10 @@ class TestEntitlementChecks:
         )
         headers = {"Authorization": f"Bearer {token}"}
 
-        with patch("app.api.v1.endpoints.decisions.get_current_active_user") as mock_user, \
-             patch("app.api.v1.endpoints.decisions.DecisionService") as mock_service:
+        with (
+            patch("app.api.v1.endpoints.decisions.get_current_active_user") as mock_user,
+            patch("app.api.v1.endpoints.decisions.DecisionService") as mock_service,
+        ):
 
             mock_user.return_value = MagicMock(
                 id=str(uuid.uuid4()),
@@ -361,9 +367,11 @@ class TestDecisionAuditLogging:
 
     def test_decision_creates_audit_log(self, client, auth_headers):
         """Making a decision should create an audit log entry."""
-        with patch("app.api.v1.endpoints.decisions.get_current_active_user") as mock_user, \
-             patch("app.api.v1.endpoints.decisions.DecisionService") as mock_dec_service, \
-             patch("app.api.v1.endpoints.decisions.AuditService") as mock_audit:
+        with (
+            patch("app.api.v1.endpoints.decisions.get_current_active_user") as mock_user,
+            patch("app.api.v1.endpoints.decisions.DecisionService") as mock_dec_service,
+            patch("app.api.v1.endpoints.decisions.AuditService") as mock_audit,
+        ):
 
             user_id = str(uuid.uuid4())
             mock_user.return_value = MagicMock(

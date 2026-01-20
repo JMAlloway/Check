@@ -1,39 +1,39 @@
 """Decision endpoints."""
 
+import json
 from datetime import datetime, timezone
 from typing import Annotated, Any
-import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import (
-    DBSession,
     CurrentUser,
-    require_permission,
-    RequireCheckReview,
+    DBSession,
     RequireCheckApprove,
+    RequireCheckReview,
+    require_permission,
 )
-from app.models.check import CheckItem, CheckImage, CheckStatus
+from app.audit.service import AuditService
+from app.models.audit import AuditAction
+from app.models.check import CheckImage, CheckItem, CheckStatus
 from app.models.decision import Decision, DecisionAction, DecisionType, ReasonCode
+from app.policy.engine import PolicyEngine
 from app.schemas.decision import (
+    AIContextSnapshot,
+    CheckContextSnapshot,
     DecisionCreate,
     DecisionResponse,
     DualControlApprovalRequest,
-    ReasonCodeResponse,
     EvidenceSnapshot,
-    CheckContextSnapshot,
-    PolicyEvaluationSnapshot,
-    AIContextSnapshot,
     ImageReference,
+    PolicyEvaluationSnapshot,
+    ReasonCodeResponse,
 )
 from app.schemas.policy import PolicyEvaluationResult
-from app.audit.service import AuditService
-from app.models.audit import AuditAction
-from app.policy.engine import PolicyEngine
 from app.services.entitlement_service import EntitlementService
-from app.services.evidence_seal import seal_evidence_snapshot, get_previous_evidence_hash
+from app.services.evidence_seal import get_previous_evidence_hash, seal_evidence_snapshot
 
 router = APIRouter()
 
@@ -59,10 +59,18 @@ def build_evidence_snapshot(
         account_type=check_item.account_type.value if check_item.account_type else None,
         account_tenure_days=check_item.account_tenure_days,
         current_balance=str(check_item.current_balance) if check_item.current_balance else None,
-        average_balance_30d=str(check_item.average_balance_30d) if check_item.average_balance_30d else None,
-        avg_check_amount_30d=str(check_item.avg_check_amount_30d) if check_item.avg_check_amount_30d else None,
-        avg_check_amount_90d=str(check_item.avg_check_amount_90d) if check_item.avg_check_amount_90d else None,
-        avg_check_amount_365d=str(check_item.avg_check_amount_365d) if check_item.avg_check_amount_365d else None,
+        average_balance_30d=(
+            str(check_item.average_balance_30d) if check_item.average_balance_30d else None
+        ),
+        avg_check_amount_30d=(
+            str(check_item.avg_check_amount_30d) if check_item.avg_check_amount_30d else None
+        ),
+        avg_check_amount_90d=(
+            str(check_item.avg_check_amount_90d) if check_item.avg_check_amount_90d else None
+        ),
+        avg_check_amount_365d=(
+            str(check_item.avg_check_amount_365d) if check_item.avg_check_amount_365d else None
+        ),
         check_frequency_30d=check_item.check_frequency_30d,
         returned_item_count_90d=check_item.returned_item_count_90d,
         exception_count_90d=check_item.exception_count_90d,
@@ -75,20 +83,20 @@ def build_evidence_snapshot(
     images = []
     if hasattr(check_item, "images") and check_item.images:
         for img in check_item.images:
-            images.append(ImageReference(
-                id=img.id,
-                image_type=img.image_type,
-                external_id=img.external_image_id,
-                content_hash=None,  # Would be populated from actual image hash
-            ))
+            images.append(
+                ImageReference(
+                    id=img.id,
+                    image_type=img.image_type,
+                    external_id=img.external_image_id,
+                    content_hash=None,  # Would be populated from actual image hash
+                )
+            )
 
     # Build policy evaluation snapshot
     policy_snapshot = PolicyEvaluationSnapshot(
         policy_version_id=policy_result.policy_version_id,
         policy_name=None,  # Could be enriched from policy lookup
-        rules_triggered=[
-            {"rule_id": rule_id} for rule_id in policy_result.rules_triggered
-        ],
+        rules_triggered=[{"rule_id": rule_id} for rule_id in policy_result.rules_triggered],
         requires_dual_control=policy_result.requires_dual_control,
         risk_score=None,
         recommendation=None,
@@ -101,9 +109,7 @@ def build_evidence_snapshot(
         model_version=None,
         ai_risk_score=str(check_item.ai_risk_score) if check_item.ai_risk_score else None,
         features_displayed=[],  # Would come from AI service
-        flags_displayed=[
-            {"flag": flag} for flag in (policy_result.flags or [])
-        ],
+        flags_displayed=[{"flag": flag} for flag in (policy_result.flags or [])],
         flags_reviewed=ai_flags_reviewed,
         confidence_scores={},
     )
@@ -199,9 +205,7 @@ async def create_decision(
     # Check entitlements based on decision type
     if decision_data.decision_type == DecisionType.REVIEW_RECOMMENDATION:
         # Check review entitlement (includes amount/queue limits)
-        entitlement_result = await entitlement_service.check_review_entitlement(
-            current_user, item
-        )
+        entitlement_result = await entitlement_service.check_review_entitlement(current_user, item)
         if not entitlement_result.allowed:
             # Log entitlement failure
             await audit_service.log_decision_failure(
@@ -358,11 +362,17 @@ async def create_decision(
     if decision_data.decision_type == DecisionType.REVIEW_RECOMMENDATION:
         # Review recommendation - may trigger dual control
         if decision_data.action == DecisionAction.APPROVE:
-            new_status = CheckStatus.PENDING_DUAL_CONTROL if requires_dual_control else CheckStatus.APPROVED
+            new_status = (
+                CheckStatus.PENDING_DUAL_CONTROL if requires_dual_control else CheckStatus.APPROVED
+            )
         elif decision_data.action == DecisionAction.RETURN:
-            new_status = CheckStatus.PENDING_DUAL_CONTROL if requires_dual_control else CheckStatus.RETURNED
+            new_status = (
+                CheckStatus.PENDING_DUAL_CONTROL if requires_dual_control else CheckStatus.RETURNED
+            )
         elif decision_data.action == DecisionAction.REJECT:
-            new_status = CheckStatus.PENDING_DUAL_CONTROL if requires_dual_control else CheckStatus.REJECTED
+            new_status = (
+                CheckStatus.PENDING_DUAL_CONTROL if requires_dual_control else CheckStatus.REJECTED
+            )
         elif decision_data.action == DecisionAction.ESCALATE:
             new_status = CheckStatus.ESCALATED
         elif decision_data.action == DecisionAction.HOLD:
@@ -410,9 +420,15 @@ async def create_decision(
         reason_codes=json.dumps(reason_code_ids) if reason_code_ids else None,
         notes=decision_data.notes,
         ai_assisted=decision_data.ai_assisted,
-        ai_flags_reviewed=json.dumps(decision_data.ai_flags_reviewed) if decision_data.ai_flags_reviewed else None,
-        attachments=json.dumps(decision_data.attachment_ids) if decision_data.attachment_ids else None,
-        policy_version_id=policy_result.policy_version_id if policy_result.policy_version_id else None,
+        ai_flags_reviewed=(
+            json.dumps(decision_data.ai_flags_reviewed) if decision_data.ai_flags_reviewed else None
+        ),
+        attachments=(
+            json.dumps(decision_data.attachment_ids) if decision_data.attachment_ids else None
+        ),
+        policy_version_id=(
+            policy_result.policy_version_id if policy_result.policy_version_id else None
+        ),
         previous_status=old_status.value,
         new_status=new_status.value,
         is_dual_control_required=requires_dual_control,
@@ -473,7 +489,11 @@ async def create_decision(
             recommendation_type="risk_assessment",
             ai_recommendation=item.ai_recommendation,
             user_action=decision_data.action.value,
-            override_reason=decision_data.notes if decision_data.action.value != item.ai_recommendation else None,
+            override_reason=(
+                decision_data.notes
+                if decision_data.action.value != item.ai_recommendation
+                else None
+            ),
             ip_address=ip_address,
         )
 
@@ -637,9 +657,7 @@ async def approve_dual_control(
 
     # Check approval entitlement
     entitlement_service = EntitlementService(db)
-    entitlement_result = await entitlement_service.check_approval_entitlement(
-        current_user, item
-    )
+    entitlement_result = await entitlement_service.check_approval_entitlement(current_user, item)
     if not entitlement_result.allowed:
         await audit_service.log_decision_failure(
             check_item_id=item.id,

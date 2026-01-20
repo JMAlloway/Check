@@ -8,7 +8,9 @@ from typing import Any
 from sqlalchemy import (
     Boolean,
     DateTime,
-    Enum as SQLEnum,
+)
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import (
     ForeignKey,
     Integer,
     Numeric,
@@ -131,9 +133,13 @@ class ApprovalEntitlement(Base, UUIDMixin, TimestampMixin):
 
     # Scope restrictions (NULL = all allowed)
     # JSON arrays for flexible filtering
-    allowed_account_types: Mapped[list[str] | None] = mapped_column(JSONB)  # ["consumer", "business"]
+    allowed_account_types: Mapped[list[str] | None] = mapped_column(
+        JSONB
+    )  # ["consumer", "business"]
     allowed_queue_ids: Mapped[list[str] | None] = mapped_column(JSONB)  # Specific queues
-    allowed_risk_levels: Mapped[list[str] | None] = mapped_column(JSONB)  # ["low", "medium", "high"]
+    allowed_risk_levels: Mapped[list[str] | None] = mapped_column(
+        JSONB
+    )  # ["low", "medium", "high"]
 
     # Business line / tenant restrictions
     allowed_business_lines: Mapped[list[str] | None] = mapped_column(JSONB)
@@ -158,4 +164,4 @@ class ApprovalEntitlement(Base, UUIDMixin, TimestampMixin):
 
 
 # Import for type hints
-from app.models.user import User, Role  # noqa: E402
+from app.models.user import Role, User  # noqa: E402

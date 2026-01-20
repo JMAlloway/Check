@@ -26,7 +26,9 @@ from typing import Any
 from sqlalchemy import (
     Boolean,
     DateTime,
-    Enum as SQLEnum,
+)
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
@@ -41,18 +43,18 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.session import Base
 from app.models.base import TimestampMixin, UUIDMixin
 
-
 # =============================================================================
 # ENUMERATIONS
 # =============================================================================
 
+
 class ContextConnectorStatus(str, Enum):
     """Connector operational status."""
 
-    ACTIVE = "active"              # Connector is active and polling
-    INACTIVE = "inactive"          # Manually disabled
-    ERROR = "error"                # Last operation failed
-    TESTING = "testing"            # In test mode (doesn't update items)
+    ACTIVE = "active"  # Connector is active and polling
+    INACTIVE = "inactive"  # Manually disabled
+    ERROR = "error"  # Last operation failed
+    TESTING = "testing"  # In test mode (doesn't update items)
 
 
 class FileFormat(str, Enum):
@@ -67,31 +69,32 @@ class FileFormat(str, Enum):
 class ImportStatus(str, Enum):
     """Import job status."""
 
-    PENDING = "pending"            # Queued for processing
-    DOWNLOADING = "downloading"    # Downloading from SFTP
-    VALIDATING = "validating"      # Validating file format/content
-    PROCESSING = "processing"      # Processing records
-    COMPLETED = "completed"        # Successfully completed
-    PARTIAL = "partial"            # Completed with some errors
-    FAILED = "failed"              # Failed
-    CANCELLED = "cancelled"        # Manually cancelled
+    PENDING = "pending"  # Queued for processing
+    DOWNLOADING = "downloading"  # Downloading from SFTP
+    VALIDATING = "validating"  # Validating file format/content
+    PROCESSING = "processing"  # Processing records
+    COMPLETED = "completed"  # Successfully completed
+    PARTIAL = "partial"  # Completed with some errors
+    FAILED = "failed"  # Failed
+    CANCELLED = "cancelled"  # Manually cancelled
 
 
 class RecordStatus(str, Enum):
     """Individual record import status."""
 
     PENDING = "pending"
-    MATCHED = "matched"            # Matched to existing CheckItem
-    APPLIED = "applied"            # Context applied to CheckItem
-    NOT_FOUND = "not_found"        # No matching CheckItem found
-    DUPLICATE = "duplicate"        # Duplicate record in file
-    INVALID = "invalid"            # Failed validation
-    ERROR = "error"                # Processing error
+    MATCHED = "matched"  # Matched to existing CheckItem
+    APPLIED = "applied"  # Context applied to CheckItem
+    NOT_FOUND = "not_found"  # No matching CheckItem found
+    DUPLICATE = "duplicate"  # Duplicate record in file
+    INVALID = "invalid"  # Failed validation
+    ERROR = "error"  # Processing error
 
 
 # =============================================================================
 # CONNECTOR CONFIGURATION
 # =============================================================================
+
 
 class ItemContextConnector(Base, UUIDMixin, TimestampMixin):
     """
@@ -112,14 +115,14 @@ class ItemContextConnector(Base, UUIDMixin, TimestampMixin):
     source_system: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
-        comment="Source system identifier (e.g., 'fiserv', 'q2', 'jack_henry')"
+        comment="Source system identifier (e.g., 'fiserv', 'q2', 'jack_henry')",
     )
 
     # Status
     status: Mapped[ContextConnectorStatus] = mapped_column(
         SQLEnum(ContextConnectorStatus, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
-        default=ContextConnectorStatus.INACTIVE
+        default=ContextConnectorStatus.INACTIVE,
     )
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -138,15 +141,13 @@ class ItemContextConnector(Base, UUIDMixin, TimestampMixin):
         String(500),
         nullable=False,
         default="/outbound",
-        comment="Remote directory to poll for files"
+        comment="Remote directory to poll for files",
     )
     sftp_archive_path: Mapped[str | None] = mapped_column(
-        String(500),
-        comment="Remote path to move processed files (null = delete after processing)"
+        String(500), comment="Remote path to move processed files (null = delete after processing)"
     )
     sftp_error_path: Mapped[str | None] = mapped_column(
-        String(500),
-        comment="Remote path for files that failed processing"
+        String(500), comment="Remote path for files that failed processing"
     )
 
     # File Pattern & Format
@@ -154,33 +155,26 @@ class ItemContextConnector(Base, UUIDMixin, TimestampMixin):
         String(255),
         nullable=False,
         default="*.csv",
-        comment="Glob pattern for files to process (e.g., 'CONTEXT_*.csv')"
+        comment="Glob pattern for files to process (e.g., 'CONTEXT_*.csv')",
     )
     file_format: Mapped[FileFormat] = mapped_column(
         SQLEnum(FileFormat, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
-        default=FileFormat.CSV
+        default=FileFormat.CSV,
     )
     file_encoding: Mapped[str] = mapped_column(String(20), default="UTF-8")
     file_delimiter: Mapped[str | None] = mapped_column(
-        String(5),
-        comment="Delimiter for CSV/delimited files (default: comma)"
+        String(5), comment="Delimiter for CSV/delimited files (default: comma)"
     )
     has_header_row: Mapped[bool] = mapped_column(Boolean, default=True)
     skip_rows: Mapped[int] = mapped_column(
-        Integer,
-        default=0,
-        comment="Number of rows to skip at start of file (after header)"
+        Integer, default=0, comment="Number of rows to skip at start of file (after header)"
     )
 
     # Field Mapping Configuration
     # Maps file columns to CheckItem context fields
     # Structure: {"account_id": {"column": 0, "name": "ACCT_NUM"}, ...}
-    field_mapping: Mapped[dict[str, Any]] = mapped_column(
-        JSONB,
-        nullable=False,
-        default=dict
-    )
+    field_mapping: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
 
     # Fixed-width field positions (for FIXED_WIDTH format)
     # Structure: {"account_id": {"start": 0, "end": 15}, ...}
@@ -191,38 +185,29 @@ class ItemContextConnector(Base, UUIDMixin, TimestampMixin):
     match_by_external_item_id: Mapped[bool] = mapped_column(
         Boolean,
         default=False,
-        comment="Match by external_item_id (check-level) vs account_id (account-level)"
+        comment="Match by external_item_id (check-level) vs account_id (account-level)",
     )
     match_field: Mapped[str] = mapped_column(
-        String(50),
-        default="account_id",
-        comment="CheckItem field to match against"
+        String(50), default="account_id", comment="CheckItem field to match against"
     )
 
     # Schedule Configuration
     schedule_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     schedule_cron: Mapped[str | None] = mapped_column(
-        String(100),
-        comment="Cron expression (e.g., '0 6 * * *' for 6 AM daily)"
+        String(100), comment="Cron expression (e.g., '0 6 * * *' for 6 AM daily)"
     )
     schedule_timezone: Mapped[str] = mapped_column(String(50), default="America/New_York")
 
     # Processing Settings
     max_records_per_file: Mapped[int] = mapped_column(Integer, default=100000)
     batch_size: Mapped[int] = mapped_column(
-        Integer,
-        default=1000,
-        comment="Records to process per database transaction"
+        Integer, default=1000, comment="Records to process per database transaction"
     )
     fail_on_validation_error: Mapped[bool] = mapped_column(
-        Boolean,
-        default=False,
-        comment="Fail entire import if any record fails validation"
+        Boolean, default=False, comment="Fail entire import if any record fails validation"
     )
     update_existing: Mapped[bool] = mapped_column(
-        Boolean,
-        default=True,
-        comment="Update context if CheckItem already has context data"
+        Boolean, default=True, comment="Update context if CheckItem already has context data"
     )
 
     # Connection Health
@@ -246,15 +231,11 @@ class ItemContextConnector(Base, UUIDMixin, TimestampMixin):
 
     # Relationships
     imports: Mapped[list["ItemContextImport"]] = relationship(
-        back_populates="connector",
-        cascade="all, delete-orphan"
+        back_populates="connector", cascade="all, delete-orphan"
     )
 
     __table_args__ = (
-        UniqueConstraint(
-            "tenant_id", "name",
-            name="uq_item_context_connectors_tenant_name"
-        ),
+        UniqueConstraint("tenant_id", "name", name="uq_item_context_connectors_tenant_name"),
         Index("ix_item_context_connectors_tenant_enabled", "tenant_id", "is_enabled"),
         Index("ix_item_context_connectors_status", "status"),
     )
@@ -263,6 +244,7 @@ class ItemContextConnector(Base, UUIDMixin, TimestampMixin):
 # =============================================================================
 # IMPORT TRACKING
 # =============================================================================
+
 
 class ItemContextImport(Base, UUIDMixin, TimestampMixin):
     """
@@ -276,9 +258,7 @@ class ItemContextImport(Base, UUIDMixin, TimestampMixin):
 
     # Connector reference
     connector_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("item_context_connectors.id", ondelete="CASCADE"),
-        nullable=False
+        String(36), ForeignKey("item_context_connectors.id", ondelete="CASCADE"), nullable=False
     )
     tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
 
@@ -293,7 +273,7 @@ class ItemContextImport(Base, UUIDMixin, TimestampMixin):
     status: Mapped[ImportStatus] = mapped_column(
         SQLEnum(ImportStatus, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
-        default=ImportStatus.PENDING
+        default=ImportStatus.PENDING,
     )
 
     # Timing
@@ -316,23 +296,19 @@ class ItemContextImport(Base, UUIDMixin, TimestampMixin):
 
     # Trigger type
     triggered_by: Mapped[str] = mapped_column(
-        String(20),
-        default="manual",
-        comment="'manual', 'scheduled', or 'api'"
+        String(20), default="manual", comment="'manual', 'scheduled', or 'api'"
     )
     triggered_by_user_id: Mapped[str | None] = mapped_column(String(36))
 
     # Processing metadata
     processing_metadata: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB,
-        comment="Additional processing info (validation warnings, etc.)"
+        JSONB, comment="Additional processing info (validation warnings, etc.)"
     )
 
     # Relationships
     connector: Mapped["ItemContextConnector"] = relationship(back_populates="imports")
     records: Mapped[list["ItemContextImportRecord"]] = relationship(
-        back_populates="import_job",
-        cascade="all, delete-orphan"
+        back_populates="import_job", cascade="all, delete-orphan"
     )
 
     __table_args__ = (
@@ -358,9 +334,7 @@ class ItemContextImportRecord(Base, UUIDMixin, TimestampMixin):
 
     # Import reference
     import_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("item_context_imports.id", ondelete="CASCADE"),
-        nullable=False
+        String(36), ForeignKey("item_context_imports.id", ondelete="CASCADE"), nullable=False
     )
 
     # Position in file
@@ -368,8 +342,7 @@ class ItemContextImportRecord(Base, UUIDMixin, TimestampMixin):
 
     # Status
     status: Mapped[RecordStatus] = mapped_column(
-        SQLEnum(RecordStatus, values_callable=lambda x: [e.value for e in x]),
-        nullable=False
+        SQLEnum(RecordStatus, values_callable=lambda x: [e.value for e in x]), nullable=False
     )
 
     # Matching identifiers from file
@@ -378,8 +351,7 @@ class ItemContextImportRecord(Base, UUIDMixin, TimestampMixin):
 
     # Matched CheckItem (if found)
     check_item_id: Mapped[str | None] = mapped_column(
-        String(36),
-        ForeignKey("check_items.id", ondelete="SET NULL")
+        String(36), ForeignKey("check_items.id", ondelete="SET NULL")
     )
 
     # Context data from file (stored for troubleshooting)

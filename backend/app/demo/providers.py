@@ -45,13 +45,13 @@ class DemoCheckDataProvider:
             "current_balance": float(account.avg_balance),
             "average_balance_30d": float(account.avg_balance),
             "status": "active",
-            "opened_date": (datetime.now(timezone.utc) - timedelta(days=account.tenure_days)).isoformat(),
+            "opened_date": (
+                datetime.now(timezone.utc) - timedelta(days=account.tenure_days)
+            ).isoformat(),
             "is_demo": True,
         }
 
-    async def get_check_history(
-        self, account_id: str, limit: int = 10
-    ) -> list[dict[str, Any]]:
+    async def get_check_history(self, account_id: str, limit: int = 10) -> list[dict[str, Any]]:
         """Get synthetic check history for an account."""
         account = self._accounts.get(account_id)
         if not account:
@@ -62,20 +62,20 @@ class DemoCheckDataProvider:
             check_date = datetime.now(timezone.utc) - timedelta(days=random.randint(1, 90))
             amount = float(account.avg_check_amount) * random.uniform(0.5, 1.5)
 
-            history.append({
-                "check_number": f"{random.randint(1000, 9999)}",
-                "amount": round(amount, 2),
-                "check_date": check_date.isoformat(),
-                "payee_name": f"DEMO-PAYEE-{i+1}",
-                "status": random.choice(["cleared", "cleared", "cleared", "returned"]),
-                "is_demo": True,
-            })
+            history.append(
+                {
+                    "check_number": f"{random.randint(1000, 9999)}",
+                    "amount": round(amount, 2),
+                    "check_date": check_date.isoformat(),
+                    "payee_name": f"DEMO-PAYEE-{i+1}",
+                    "status": random.choice(["cleared", "cleared", "cleared", "returned"]),
+                    "is_demo": True,
+                }
+            )
 
         return sorted(history, key=lambda x: x["check_date"], reverse=True)
 
-    async def get_check_image(
-        self, check_item_id: str, image_type: str
-    ) -> dict[str, Any] | None:
+    async def get_check_image(self, check_item_id: str, image_type: str) -> dict[str, Any] | None:
         """Get synthetic check image reference."""
         return {
             "check_item_id": check_item_id,
@@ -124,22 +124,21 @@ class DemoAIProvider:
         """
         # Determine scenario based on check data
         scenario = self._determine_scenario(check_data, account_data)
-        scenario_config = self._scenarios.get(scenario, self._scenarios[DemoScenario.KNOWN_CUSTOMER_CHECK])
+        scenario_config = self._scenarios.get(
+            scenario, self._scenarios[DemoScenario.KNOWN_CUSTOMER_CHECK]
+        )
 
         return {
             "model_id": "demo-risk-analyzer",
             "model_version": "demo-1.0.0",
             "analyzed_at": datetime.now(timezone.utc).isoformat(),
             "is_demo": True,
-
             # ADVISORY: These fields are informational only
             "recommendation": scenario_config.ai_recommendation,
             "confidence": scenario_config.ai_confidence,
             "risk_level": scenario_config.risk_level,
-
             "flags": scenario_config.flags,
             "explanation": scenario_config.explanation,
-
             "risk_factors": [
                 {
                     "factor": flag,
@@ -148,14 +147,12 @@ class DemoAIProvider:
                 }
                 for flag in scenario_config.flags
             ],
-
             # Explicitly mark as advisory
             "advisory_notice": (
                 "This AI analysis is for ADVISORY purposes only. "
                 "All decisions must be made by authorized human reviewers. "
                 "AI output should never be the sole basis for a decision."
             ),
-
             # Never auto-approve
             "auto_decision_eligible": False,
             "requires_human_review": True,
@@ -190,9 +187,9 @@ class DemoAIProvider:
         return {
             "has_potential_alterations": has_alterations,
             "confidence": round(random.uniform(0.5, 0.9), 4),
-            "regions_of_interest": [
-                {"area": "amount", "confidence": 0.72}
-            ] if has_alterations else [],
+            "regions_of_interest": (
+                [{"area": "amount", "confidence": 0.72}] if has_alterations else []
+            ),
             "is_demo": True,
             "advisory_notice": "Alteration detection is advisory only.",
         }
@@ -225,11 +222,13 @@ class DemoAIProvider:
             return DemoScenario.NEW_ACCOUNT_HIGH_VALUE
 
         # Default to routine scenarios
-        return random.choice([
-            DemoScenario.ROUTINE_PAYROLL,
-            DemoScenario.REGULAR_VENDOR_PAYMENT,
-            DemoScenario.KNOWN_CUSTOMER_CHECK,
-        ])
+        return random.choice(
+            [
+                DemoScenario.ROUTINE_PAYROLL,
+                DemoScenario.REGULAR_VENDOR_PAYMENT,
+                DemoScenario.KNOWN_CUSTOMER_CHECK,
+            ]
+        )
 
 
 class DemoConnectorFactory:

@@ -4,29 +4,29 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.api.deps import DBSession, CurrentUser, require_permission, require_role
-from app.models.fraud import FraudType, FraudEventStatus, SharingLevel
-from app.schemas.fraud import (
-    FraudEventCreate,
-    FraudEventUpdate,
-    FraudEventSubmit,
-    FraudEventWithdraw,
-    FraudEventResponse,
-    FraudEventListResponse,
-    NetworkAlertResponse,
-    NetworkAlertSummary,
-    NetworkAlertDismiss,
-    NetworkTrendsResponse,
-    NetworkTrendsRequest,
-    TenantFraudConfigResponse,
-    TenantFraudConfigUpdate,
-    PIICheckRequest,
-    PIIDetectionResult,
-)
-from app.schemas.common import PaginatedResponse
-from app.services.fraud_service import FraudService
+from app.api.deps import CurrentUser, DBSession, require_permission, require_role
 from app.audit.service import AuditService
 from app.models.audit import AuditAction
+from app.models.fraud import FraudEventStatus, FraudType, SharingLevel
+from app.schemas.common import PaginatedResponse
+from app.schemas.fraud import (
+    FraudEventCreate,
+    FraudEventListResponse,
+    FraudEventResponse,
+    FraudEventSubmit,
+    FraudEventUpdate,
+    FraudEventWithdraw,
+    NetworkAlertDismiss,
+    NetworkAlertResponse,
+    NetworkAlertSummary,
+    NetworkTrendsRequest,
+    NetworkTrendsResponse,
+    PIICheckRequest,
+    PIIDetectionResult,
+    TenantFraudConfigResponse,
+    TenantFraudConfigUpdate,
+)
+from app.services.fraud_service import FraudService
 
 router = APIRouter()
 
@@ -44,7 +44,10 @@ def get_tenant_id(current_user: CurrentUser) -> str:
 # Fraud Event Endpoints
 # ============================================================================
 
-@router.post("/fraud-events", response_model=FraudEventResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/fraud-events", response_model=FraudEventResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_fraud_event(
     data: FraudEventCreate,
     db: DBSession,
@@ -289,6 +292,7 @@ async def withdraw_fraud_event(
 # Network Alert Endpoints
 # ============================================================================
 
+
 @router.get("/network-alerts", response_model=NetworkAlertSummary)
 async def get_network_alerts(
     db: DBSession,
@@ -364,6 +368,7 @@ async def dismiss_network_alert(
 # Network Trends Endpoints
 # ============================================================================
 
+
 @router.get("/network-trends")
 async def get_network_trends(
     db: DBSession,
@@ -410,6 +415,7 @@ async def get_network_trends(
 # ============================================================================
 # Tenant Configuration Endpoints
 # ============================================================================
+
 
 @router.get("/config", response_model=TenantFraudConfigResponse)
 async def get_tenant_fraud_config(
@@ -466,6 +472,7 @@ async def update_tenant_fraud_config(
 # ============================================================================
 # PII Detection Endpoint
 # ============================================================================
+
 
 @router.post("/check-pii", response_model=PIIDetectionResult)
 async def check_pii(

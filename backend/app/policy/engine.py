@@ -1,7 +1,7 @@
 """Policy engine for evaluating business rules."""
 
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
@@ -202,9 +202,15 @@ class PolicyEngine:
             "account_type": item.account_type.value if item.account_type else None,
             "risk_level": item.risk_level.value if item.risk_level else None,
             "account_tenure_days": item.account_tenure_days,
-            "current_balance": float(item.current_balance) if item.current_balance is not None else None,
-            "avg_check_amount_30d": float(item.avg_check_amount_30d) if item.avg_check_amount_30d is not None else None,
-            "avg_check_amount_90d": float(item.avg_check_amount_90d) if item.avg_check_amount_90d is not None else None,
+            "current_balance": (
+                float(item.current_balance) if item.current_balance is not None else None
+            ),
+            "avg_check_amount_30d": (
+                float(item.avg_check_amount_30d) if item.avg_check_amount_30d is not None else None
+            ),
+            "avg_check_amount_90d": (
+                float(item.avg_check_amount_90d) if item.avg_check_amount_90d is not None else None
+            ),
             "returned_item_count_90d": item.returned_item_count_90d,
             "exception_count_90d": item.exception_count_90d,
             "check_frequency_30d": item.check_frequency_30d,
@@ -279,12 +285,17 @@ async def create_default_policy(db: AsyncSession) -> Policy:
         description="Require dual control approval for checks over $10,000",
         rule_type="dual_control",
         priority=100,
-        conditions=json.dumps([
-            {"field": "amount", "operator": "greater_or_equal", "value": 10000, "value_type": "number"}
-        ]),
-        actions=json.dumps([
-            {"action": "require_dual_control", "params": None}
-        ]),
+        conditions=json.dumps(
+            [
+                {
+                    "field": "amount",
+                    "operator": "greater_or_equal",
+                    "value": 10000,
+                    "value_type": "number",
+                }
+            ]
+        ),
+        actions=json.dumps([{"action": "require_dual_control", "params": None}]),
         amount_threshold=10000.0,
     )
     db.add(dual_control_rule)
@@ -296,13 +307,22 @@ async def create_default_policy(db: AsyncSession) -> Policy:
         description="Escalate checks that are 5x the account average",
         rule_type="escalation",
         priority=90,
-        conditions=json.dumps([
-            {"field": "amount_vs_avg_ratio", "operator": "greater_or_equal", "value": 5, "value_type": "number"}
-        ]),
-        actions=json.dumps([
-            {"action": "set_risk_level", "params": {"level": "high"}},
-            {"action": "add_flag", "params": {"flag": "UNUSUAL_AMOUNT"}}
-        ]),
+        conditions=json.dumps(
+            [
+                {
+                    "field": "amount_vs_avg_ratio",
+                    "operator": "greater_or_equal",
+                    "value": 5,
+                    "value_type": "number",
+                }
+            ]
+        ),
+        actions=json.dumps(
+            [
+                {"action": "set_risk_level", "params": {"level": "high"}},
+                {"action": "add_flag", "params": {"flag": "UNUSUAL_AMOUNT"}},
+            ]
+        ),
     )
     db.add(escalation_rule)
 
@@ -313,14 +333,28 @@ async def create_default_policy(db: AsyncSession) -> Policy:
         description="Flag checks from accounts less than 30 days old",
         rule_type="threshold",
         priority=80,
-        conditions=json.dumps([
-            {"field": "account_tenure_days", "operator": "less_than", "value": 30, "value_type": "number"},
-            {"field": "amount", "operator": "greater_or_equal", "value": 2500, "value_type": "number"}
-        ]),
-        actions=json.dumps([
-            {"action": "add_flag", "params": {"flag": "NEW_ACCOUNT"}},
-            {"action": "require_reason", "params": {"category": "new_account"}}
-        ]),
+        conditions=json.dumps(
+            [
+                {
+                    "field": "account_tenure_days",
+                    "operator": "less_than",
+                    "value": 30,
+                    "value_type": "number",
+                },
+                {
+                    "field": "amount",
+                    "operator": "greater_or_equal",
+                    "value": 2500,
+                    "value_type": "number",
+                },
+            ]
+        ),
+        actions=json.dumps(
+            [
+                {"action": "add_flag", "params": {"flag": "NEW_ACCOUNT"}},
+                {"action": "require_reason", "params": {"category": "new_account"}},
+            ]
+        ),
     )
     db.add(new_account_rule)
 
@@ -331,12 +365,17 @@ async def create_default_policy(db: AsyncSession) -> Policy:
         description="Flag checks from accounts with prior returns",
         rule_type="threshold",
         priority=70,
-        conditions=json.dumps([
-            {"field": "returned_item_count_90d", "operator": "greater_than", "value": 0, "value_type": "number"}
-        ]),
-        actions=json.dumps([
-            {"action": "add_flag", "params": {"flag": "PRIOR_RETURNS"}}
-        ]),
+        conditions=json.dumps(
+            [
+                {
+                    "field": "returned_item_count_90d",
+                    "operator": "greater_than",
+                    "value": 0,
+                    "value_type": "number",
+                }
+            ]
+        ),
+        actions=json.dumps([{"action": "add_flag", "params": {"flag": "PRIOR_RETURNS"}}]),
     )
     db.add(returns_rule)
 

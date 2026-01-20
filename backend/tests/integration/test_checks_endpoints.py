@@ -9,15 +9,15 @@ Tests cover:
 - Tenant isolation
 """
 
-import pytest
+import uuid
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
-import uuid
 
+import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
 from app.core.security import create_access_token
+from app.main import app
 
 
 class TestListChecksEndpoint:
@@ -47,8 +47,10 @@ class TestListChecksEndpoint:
 
     def test_list_checks_returns_paginated_results(self, client, auth_headers):
         """List checks should return paginated results."""
-        with patch("app.api.v1.endpoints.checks.get_current_active_user") as mock_user, \
-             patch("app.api.v1.endpoints.checks.select") as mock_select:
+        with (
+            patch("app.api.v1.endpoints.checks.get_current_active_user") as mock_user,
+            patch("app.api.v1.endpoints.checks.select") as mock_select,
+        ):
 
             mock_user.return_value = MagicMock(
                 id=str(uuid.uuid4()),
@@ -142,8 +144,10 @@ class TestGetCheckEndpoint:
 
     def test_get_check_not_found_returns_404(self, client, auth_headers):
         """Get non-existent check should return 404."""
-        with patch("app.api.v1.endpoints.checks.get_current_active_user") as mock_user, \
-             patch("app.api.v1.endpoints.checks.select"):
+        with (
+            patch("app.api.v1.endpoints.checks.get_current_active_user") as mock_user,
+            patch("app.api.v1.endpoints.checks.select"),
+        ):
 
             mock_user.return_value = MagicMock(
                 id=str(uuid.uuid4()),

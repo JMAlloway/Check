@@ -4,10 +4,11 @@ Tests for the Fraud Intelligence Sharing Module.
 Run with: pytest tests/test_fraud_module.py -v
 """
 
-import pytest
 from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import uuid4
+
+import pytest
 
 from app.services.fraud_hashing import FraudHashingService
 from app.services.pii_detection import PIIDetectionService
@@ -309,13 +310,14 @@ class TestTenantIsolation:
         This is a code review test - verifying the implementation.
         """
         import inspect
+
         from app.services.fraud_service import FraudService
 
         # Get source code of key methods
         methods_to_check = [
-            'get_fraud_event',
-            'list_fraud_events',
-            'dismiss_alert',
+            "get_fraud_event",
+            "list_fraud_events",
+            "dismiss_alert",
         ]
 
         for method_name in methods_to_check:
@@ -323,7 +325,7 @@ class TestTenantIsolation:
             source = inspect.getsource(method)
 
             # Verify tenant_id is used in the method
-            assert 'tenant_id' in source, f"{method_name} must filter by tenant_id"
+            assert "tenant_id" in source, f"{method_name} must filter by tenant_id"
 
     def test_same_tenant_excluded_in_matching(self):
         """
@@ -332,13 +334,15 @@ class TestTenantIsolation:
         This is a code review test - verifying the implementation.
         """
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService._find_matching_artifacts)
 
         # Must exclude same tenant
-        assert 'tenant_id !=' in source or 'tenant_id!=' in source, \
-            "_find_matching_artifacts must exclude same tenant"
+        assert (
+            "tenant_id !=" in source or "tenant_id!=" in source
+        ), "_find_matching_artifacts must exclude same tenant"
 
 
 class TestMatchingLogic:
@@ -351,18 +355,20 @@ class TestMatchingLogic:
         This is a code review test - verifying the implementation.
         """
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService._find_matching_artifacts)
 
         # Must filter by NETWORK_MATCH sharing level
-        assert 'NETWORK_MATCH' in source or 'sharing_level' in source, \
-            "_find_matching_artifacts must filter by sharing_level"
+        assert (
+            "NETWORK_MATCH" in source or "sharing_level" in source
+        ), "_find_matching_artifacts must filter by sharing_level"
 
     def test_severity_scoring_rules(self):
         """Test severity scoring implementation."""
-        from app.services.fraud_service import FraudService
         from app.models.fraud import MatchSeverity
+        from app.services.fraud_service import FraudService
 
         # Create mock service (won't use DB)
         class MockSession:
@@ -371,28 +377,37 @@ class TestMatchingLogic:
         service = FraudService(MockSession())
 
         # Test HIGH: 2+ indicator types matched
-        assert service._compute_severity(
-            artifacts=[1, 2],  # 2 artifacts
-            match_reasons={"routing_hash": {}, "payee_hash": {}}  # 2 types
-        ) == MatchSeverity.HIGH
+        assert (
+            service._compute_severity(
+                artifacts=[1, 2],  # 2 artifacts
+                match_reasons={"routing_hash": {}, "payee_hash": {}},  # 2 types
+            )
+            == MatchSeverity.HIGH
+        )
 
         # Test HIGH: 3+ artifacts on 1 type
-        assert service._compute_severity(
-            artifacts=[1, 2, 3],  # 3 artifacts
-            match_reasons={"routing_hash": {}}  # 1 type
-        ) == MatchSeverity.HIGH
+        assert (
+            service._compute_severity(
+                artifacts=[1, 2, 3], match_reasons={"routing_hash": {}}  # 3 artifacts  # 1 type
+            )
+            == MatchSeverity.HIGH
+        )
 
         # Test MEDIUM: 2 artifacts on 1 type
-        assert service._compute_severity(
-            artifacts=[1, 2],  # 2 artifacts
-            match_reasons={"routing_hash": {}}  # 1 type
-        ) == MatchSeverity.MEDIUM
+        assert (
+            service._compute_severity(
+                artifacts=[1, 2], match_reasons={"routing_hash": {}}  # 2 artifacts  # 1 type
+            )
+            == MatchSeverity.MEDIUM
+        )
 
         # Test LOW: 1 artifact
-        assert service._compute_severity(
-            artifacts=[1],  # 1 artifact
-            match_reasons={"routing_hash": {}}  # 1 type
-        ) == MatchSeverity.LOW
+        assert (
+            service._compute_severity(
+                artifacts=[1], match_reasons={"routing_hash": {}}  # 1 artifact  # 1 type
+            )
+            == MatchSeverity.LOW
+        )
 
 
 class TestPrivacyThresholds:
@@ -405,23 +420,24 @@ class TestPrivacyThresholds:
         This is a code review test - verifying the implementation.
         """
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService.get_network_trends)
 
         # Must reference privacy_threshold
-        assert 'privacy_threshold' in source or 'FRAUD_PRIVACY_THRESHOLD' in source, \
-            "get_network_trends must apply privacy threshold"
+        assert (
+            "privacy_threshold" in source or "FRAUD_PRIVACY_THRESHOLD" in source
+        ), "get_network_trends must apply privacy threshold"
 
         # Check _aggregate_by_field also uses threshold
         agg_source = inspect.getsource(FraudService._aggregate_by_field)
-        assert 'threshold' in agg_source, \
-            "_aggregate_by_field must use threshold parameter"
+        assert "threshold" in agg_source, "_aggregate_by_field must use threshold parameter"
 
     def test_aggregate_by_field_suppresses_low_counts(self):
         """Test that _aggregate_by_field suppresses counts below threshold."""
-        from app.services.fraud_service import FraudService
         from app.models.fraud import FraudType
+        from app.services.fraud_service import FraudService
 
         class MockSession:
             pass
@@ -437,9 +453,7 @@ class TestPrivacyThresholds:
         your_data = [MockRow(FraudType.CHECK_KITING, 1)]  # Below threshold
         network_data = [MockRow(FraudType.CHECK_KITING, 5)]  # Above threshold
 
-        result = service._aggregate_by_field(
-            your_data, network_data, "fraud_type", threshold=3
-        )
+        result = service._aggregate_by_field(your_data, network_data, "fraud_type", threshold=3)
 
         # Find the check_kiting entry
         entry = next(r for r in result if r["fraud_type"] == "check_kiting")
@@ -547,54 +561,62 @@ class TestCrossTenantIsolation:
         """Verify get_fraud_event uses tenant_id in WHERE clause."""
         import ast
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService.get_fraud_event)
 
         # Parse as AST and look for comparison with tenant_id
-        assert "tenant_id == tenant_id" in source or "FraudEvent.tenant_id ==" in source, \
-            "get_fraud_event must filter by tenant_id"
+        assert (
+            "tenant_id == tenant_id" in source or "FraudEvent.tenant_id ==" in source
+        ), "get_fraud_event must filter by tenant_id"
 
     def test_list_fraud_events_query_requires_tenant_filter(self):
         """Verify list_fraud_events uses tenant_id in WHERE clause."""
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService.list_fraud_events)
 
-        assert "FraudEvent.tenant_id ==" in source or "tenant_id ==" in source, \
-            "list_fraud_events must filter by tenant_id"
+        assert (
+            "FraudEvent.tenant_id ==" in source or "tenant_id ==" in source
+        ), "list_fraud_events must filter by tenant_id"
 
     def test_dismiss_alert_query_requires_tenant_filter(self):
         """Verify dismiss_alert uses tenant_id in WHERE clause."""
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService.dismiss_alert)
 
-        assert "NetworkMatchAlert.tenant_id ==" in source, \
-            "dismiss_alert must filter by tenant_id"
+        assert "NetworkMatchAlert.tenant_id ==" in source, "dismiss_alert must filter by tenant_id"
 
     def test_matching_excludes_same_tenant_artifacts(self):
         """Verify _find_matching_artifacts excludes own tenant."""
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService._find_matching_artifacts)
 
         # Must have tenant_id != tenant_id filter
-        assert "tenant_id != tenant_id" in source or "tenant_id!=" in source, \
-            "_find_matching_artifacts must exclude same tenant"
+        assert (
+            "tenant_id != tenant_id" in source or "tenant_id!=" in source
+        ), "_find_matching_artifacts must exclude same tenant"
 
     def test_matching_only_uses_network_match_level(self):
         """Verify matching only uses sharing_level=2 (NETWORK_MATCH)."""
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService._find_matching_artifacts)
 
-        assert "NETWORK_MATCH" in source or "sharing_level ==" in source, \
-            "_find_matching_artifacts must filter by sharing_level"
+        assert (
+            "NETWORK_MATCH" in source or "sharing_level ==" in source
+        ), "_find_matching_artifacts must filter by sharing_level"
 
 
 class TestMatchingAcrossTenants:
@@ -606,8 +628,8 @@ class TestMatchingAcrossTenants:
 
     def test_severity_high_with_multiple_indicator_types(self):
         """Test HIGH severity when 2+ indicator types match."""
-        from app.services.fraud_service import FraudService
         from app.models.fraud import MatchSeverity
+        from app.services.fraud_service import FraudService
 
         class MockSession:
             pass
@@ -620,14 +642,14 @@ class TestMatchingAcrossTenants:
             match_reasons={
                 "routing_hash": {"count": 1},
                 "payee_hash": {"count": 1},
-            }
+            },
         )
         assert severity == MatchSeverity.HIGH
 
     def test_severity_high_with_many_artifacts(self):
         """Test HIGH severity when 3+ artifacts match on 1 indicator."""
-        from app.services.fraud_service import FraudService
         from app.models.fraud import MatchSeverity
+        from app.services.fraud_service import FraudService
 
         class MockSession:
             pass
@@ -636,15 +658,14 @@ class TestMatchingAcrossTenants:
 
         # 3 artifacts on 1 indicator type = HIGH
         severity = service._compute_severity(
-            artifacts=["a1", "a2", "a3"],
-            match_reasons={"routing_hash": {"count": 3}}
+            artifacts=["a1", "a2", "a3"], match_reasons={"routing_hash": {"count": 3}}
         )
         assert severity == MatchSeverity.HIGH
 
     def test_severity_medium_with_two_artifacts(self):
         """Test MEDIUM severity when 2 artifacts match on 1 indicator."""
-        from app.services.fraud_service import FraudService
         from app.models.fraud import MatchSeverity
+        from app.services.fraud_service import FraudService
 
         class MockSession:
             pass
@@ -653,15 +674,14 @@ class TestMatchingAcrossTenants:
 
         # 2 artifacts on 1 indicator type = MEDIUM
         severity = service._compute_severity(
-            artifacts=["a1", "a2"],
-            match_reasons={"routing_hash": {"count": 2}}
+            artifacts=["a1", "a2"], match_reasons={"routing_hash": {"count": 2}}
         )
         assert severity == MatchSeverity.MEDIUM
 
     def test_severity_low_with_one_artifact(self):
         """Test LOW severity when only 1 artifact matches."""
-        from app.services.fraud_service import FraudService
         from app.models.fraud import MatchSeverity
+        from app.services.fraud_service import FraudService
 
         class MockSession:
             pass
@@ -670,32 +690,35 @@ class TestMatchingAcrossTenants:
 
         # 1 artifact = LOW
         severity = service._compute_severity(
-            artifacts=["a1"],
-            match_reasons={"routing_hash": {"count": 1}}
+            artifacts=["a1"], match_reasons={"routing_hash": {"count": 1}}
         )
         assert severity == MatchSeverity.LOW
 
     def test_withdrawal_deactivates_artifact_code_review(self):
         """Verify withdrawal sets is_active=False on artifact."""
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService.withdraw_fraud_event)
 
         # Must set is_active = False
-        assert "is_active = False" in source or "is_active=False" in source, \
-            "withdraw_fraud_event must deactivate shared_artifact"
+        assert (
+            "is_active = False" in source or "is_active=False" in source
+        ), "withdraw_fraud_event must deactivate shared_artifact"
 
     def test_matching_filters_by_is_active(self):
         """Verify matching only considers active artifacts."""
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService._find_matching_artifacts)
 
         # Must filter by is_active == True
-        assert "is_active == True" in source or "is_active=True" in source, \
-            "_find_matching_artifacts must filter by is_active"
+        assert (
+            "is_active == True" in source or "is_active=True" in source
+        ), "_find_matching_artifacts must filter by is_active"
 
 
 class TestPrivacySuppressionBackend:
@@ -707,8 +730,8 @@ class TestPrivacySuppressionBackend:
 
     def test_suppression_uses_less_than_format(self):
         """Test that suppressed values use '<N' format, never raw numbers."""
-        from app.services.fraud_service import FraudService
         from app.models.fraud import FraudType
+        from app.services.fraud_service import FraudService
 
         class MockSession:
             pass
@@ -724,9 +747,7 @@ class TestPrivacySuppressionBackend:
         your_data = [MockRow(FraudType.CHECK_KITING, 1)]
         network_data = []
 
-        result = service._aggregate_by_field(
-            your_data, network_data, "fraud_type", threshold=3
-        )
+        result = service._aggregate_by_field(your_data, network_data, "fraud_type", threshold=3)
 
         entry = next(r for r in result if r["fraud_type"] == "check_kiting")
 
@@ -736,8 +757,8 @@ class TestPrivacySuppressionBackend:
 
     def test_suppression_applies_to_count_of_2(self):
         """Test suppression applies to count of 2 when threshold is 3."""
-        from app.services.fraud_service import FraudService
         from app.models.fraud import FraudType
+        from app.services.fraud_service import FraudService
 
         class MockSession:
             pass
@@ -753,9 +774,7 @@ class TestPrivacySuppressionBackend:
         your_data = [MockRow(FraudType.FORGED_SIGNATURE, 2)]
         network_data = []
 
-        result = service._aggregate_by_field(
-            your_data, network_data, "fraud_type", threshold=3
-        )
+        result = service._aggregate_by_field(your_data, network_data, "fraud_type", threshold=3)
 
         entry = next(r for r in result if r["fraud_type"] == "forged_signature")
 
@@ -765,8 +784,8 @@ class TestPrivacySuppressionBackend:
 
     def test_suppression_not_applied_to_count_at_threshold(self):
         """Test that counts AT threshold are shown."""
-        from app.services.fraud_service import FraudService
         from app.models.fraud import FraudType
+        from app.services.fraud_service import FraudService
 
         class MockSession:
             pass
@@ -782,9 +801,7 @@ class TestPrivacySuppressionBackend:
         your_data = [MockRow(FraudType.ALTERED_CHECK, 3)]
         network_data = []
 
-        result = service._aggregate_by_field(
-            your_data, network_data, "fraud_type", threshold=3
-        )
+        result = service._aggregate_by_field(your_data, network_data, "fraud_type", threshold=3)
 
         entry = next(r for r in result if r["fraud_type"] == "altered_check")
 
@@ -793,8 +810,8 @@ class TestPrivacySuppressionBackend:
 
     def test_suppression_applies_to_network_data_too(self):
         """Test that network data is also suppressed below threshold."""
-        from app.services.fraud_service import FraudService
         from app.models.fraud import FraudType
+        from app.services.fraud_service import FraudService
 
         class MockSession:
             pass
@@ -810,9 +827,7 @@ class TestPrivacySuppressionBackend:
         your_data = []
         network_data = [MockRow(FraudType.DUPLICATE_DEPOSIT, 1)]
 
-        result = service._aggregate_by_field(
-            your_data, network_data, "fraud_type", threshold=3
-        )
+        result = service._aggregate_by_field(your_data, network_data, "fraud_type", threshold=3)
 
         entry = next(r for r in result if r["fraud_type"] == "duplicate_deposit")
 
@@ -821,8 +836,8 @@ class TestPrivacySuppressionBackend:
 
     def test_suppression_applies_to_all_field_types(self):
         """Test that suppression works for channel aggregation too."""
-        from app.services.fraud_service import FraudService
         from app.models.fraud import FraudChannel
+        from app.services.fraud_service import FraudService
 
         class MockSession:
             pass
@@ -837,9 +852,7 @@ class TestPrivacySuppressionBackend:
         your_data = [MockRow(FraudChannel.MOBILE, 1)]
         network_data = [MockRow(FraudChannel.MOBILE, 10)]
 
-        result = service._aggregate_by_field(
-            your_data, network_data, "channel", threshold=3
-        )
+        result = service._aggregate_by_field(your_data, network_data, "channel", threshold=3)
 
         entry = next(r for r in result if r["channel"] == "mobile")
 
@@ -859,20 +872,31 @@ class TestArtifactNeverReturnedDirectly:
         fields = NetworkAlertResponse.model_fields.keys()
 
         # matched_artifact_ids should NOT be in the response schema
-        assert "matched_artifact_ids" not in fields, \
-            "NetworkAlertResponse must not expose matched_artifact_ids"
+        assert (
+            "matched_artifact_ids" not in fields
+        ), "NetworkAlertResponse must not expose matched_artifact_ids"
 
     def test_alert_response_only_includes_safe_fields(self):
         """Verify NetworkAlertResponse only includes aggregated safe fields."""
         from app.schemas.fraud import NetworkAlertResponse
 
         allowed_fields = {
-            "id", "check_item_id", "case_id", "severity",
-            "total_matches", "total_matches_display",
-            "distinct_institutions", "distinct_institutions_display",
-            "earliest_match_date", "latest_match_date",
-            "match_reasons", "created_at", "last_checked_at",
-            "is_dismissed", "dismissed_at", "dismissed_reason"
+            "id",
+            "check_item_id",
+            "case_id",
+            "severity",
+            "total_matches",
+            "total_matches_display",
+            "distinct_institutions",
+            "distinct_institutions_display",
+            "earliest_match_date",
+            "latest_match_date",
+            "match_reasons",
+            "created_at",
+            "last_checked_at",
+            "is_dismissed",
+            "dismissed_at",
+            "dismissed_reason",
         }
 
         actual_fields = set(NetworkAlertResponse.model_fields.keys())
@@ -888,24 +912,28 @@ class TestFingerprintContents:
     def test_fingerprint_does_not_include_account_number(self):
         """Verify account number is NOT in fingerprint."""
         import inspect
+
         from app.services.fraud_hashing import FraudHashingService
 
         source = inspect.getsource(FraudHashingService.compute_check_fingerprint)
 
         # Account should be explicitly excluded
-        assert "account" not in source.lower() or "EXCLUDED" in source, \
-            "compute_check_fingerprint must not include account"
+        assert (
+            "account" not in source.lower() or "EXCLUDED" in source
+        ), "compute_check_fingerprint must not include account"
 
     def test_fingerprint_does_not_include_micr_account(self):
         """Verify MICR account data is NOT in fingerprint."""
         import inspect
+
         from app.services.fraud_hashing import FraudHashingService
 
         source = inspect.getsource(FraudHashingService.compute_check_fingerprint)
 
         # micr_account should NOT appear as a parameter or component
-        assert "micr_account" not in source, \
-            "compute_check_fingerprint must not include micr_account"
+        assert (
+            "micr_account" not in source
+        ), "compute_check_fingerprint must not include micr_account"
 
     def test_fingerprint_only_uses_routing_not_full_micr(self):
         """Verify fingerprint uses routing number only, not full MICR line."""
@@ -914,6 +942,7 @@ class TestFingerprintContents:
         # Verify we can't even pass MICR line to fingerprint
         # The function signature only accepts routing, check_number, amount_bucket, date_bucket
         import inspect
+
         sig = inspect.signature(service.compute_check_fingerprint)
         param_names = list(sig.parameters.keys())
 
@@ -943,25 +972,28 @@ class TestPIIBlockingScope:
     def test_pii_check_only_for_non_private(self):
         """Verify PII check is only performed for non-PRIVATE events."""
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService.submit_fraud_event)
 
         # Must check sharing_level != PRIVATE before PII check
-        assert "sharing_level != SharingLevel.PRIVATE" in source or \
-               "PRIVATE" in source, \
-            "PII check must be conditional on sharing level"
+        assert (
+            "sharing_level != SharingLevel.PRIVATE" in source or "PRIVATE" in source
+        ), "PII check must be conditional on sharing level"
 
     def test_create_event_does_not_check_pii(self):
         """Verify create_fraud_event does NOT perform PII checking."""
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService.create_fraud_event)
 
         # create should not have PII detection
-        assert "pii_detector" not in source, \
-            "create_fraud_event should not check PII (only on submit)"
+        assert (
+            "pii_detector" not in source
+        ), "create_fraud_event should not check PII (only on submit)"
 
 
 class TestInstitutionCountSuppression:
@@ -973,23 +1005,26 @@ class TestInstitutionCountSuppression:
 
         fields = NetworkAlertResponse.model_fields.keys()
 
-        assert "distinct_institutions_display" in fields, \
-            "Must have distinct_institutions_display field"
-        assert "total_matches_display" in fields, \
-            "Must have total_matches_display field"
+        assert (
+            "distinct_institutions_display" in fields
+        ), "Must have distinct_institutions_display field"
+        assert "total_matches_display" in fields, "Must have total_matches_display field"
 
     def test_build_alert_response_applies_suppression(self):
         """Verify _build_alert_response applies privacy threshold."""
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService._build_alert_response)
 
         # Must reference threshold and apply suppression
-        assert "FRAUD_PRIVACY_THRESHOLD" in source or "threshold" in source, \
-            "_build_alert_response must use privacy threshold"
-        assert "institutions_display" in source, \
-            "_build_alert_response must compute institutions_display"
+        assert (
+            "FRAUD_PRIVACY_THRESHOLD" in source or "threshold" in source
+        ), "_build_alert_response must use privacy threshold"
+        assert (
+            "institutions_display" in source
+        ), "_build_alert_response must compute institutions_display"
 
 
 class TestRetentionEnforcement:
@@ -998,25 +1033,28 @@ class TestRetentionEnforcement:
     def test_matching_query_includes_retention_filter(self):
         """Verify _find_matching_artifacts filters by retention date."""
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService._find_matching_artifacts)
 
         # Must have retention filter
-        assert "retention" in source.lower(), \
-            "_find_matching_artifacts must reference retention"
-        assert "created_at >=" in source or "created_at>=" in source, \
-            "_find_matching_artifacts must filter by created_at"
+        assert "retention" in source.lower(), "_find_matching_artifacts must reference retention"
+        assert (
+            "created_at >=" in source or "created_at>=" in source
+        ), "_find_matching_artifacts must filter by created_at"
 
     def test_retention_uses_config_setting(self):
         """Verify retention uses FRAUD_ARTIFACT_RETENTION_MONTHS setting."""
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService._find_matching_artifacts)
 
-        assert "FRAUD_ARTIFACT_RETENTION_MONTHS" in source, \
-            "Must use FRAUD_ARTIFACT_RETENTION_MONTHS from settings"
+        assert (
+            "FRAUD_ARTIFACT_RETENTION_MONTHS" in source
+        ), "Must use FRAUD_ARTIFACT_RETENTION_MONTHS from settings"
 
 
 class TestWithdrawalBehavior:
@@ -1025,16 +1063,19 @@ class TestWithdrawalBehavior:
     def test_withdrawal_changes_status(self):
         """Verify withdrawal changes event status to WITHDRAWN."""
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService.withdraw_fraud_event)
 
-        assert "FraudEventStatus.WITHDRAWN" in source, \
-            "withdraw_fraud_event must set status to WITHDRAWN"
+        assert (
+            "FraudEventStatus.WITHDRAWN" in source
+        ), "withdraw_fraud_event must set status to WITHDRAWN"
 
     def test_withdrawal_records_metadata(self):
         """Verify withdrawal records timestamp, user, and reason."""
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService.withdraw_fraud_event)
@@ -1046,13 +1087,13 @@ class TestWithdrawalBehavior:
     def test_withdrawal_validates_submitted_status(self):
         """Verify withdrawal only works on SUBMITTED events."""
         import inspect
+
         from app.services.fraud_service import FraudService
 
         source = inspect.getsource(FraudService.withdraw_fraud_event)
 
         # Must check status is SUBMITTED
-        assert "SUBMITTED" in source, \
-            "withdraw_fraud_event must validate status is SUBMITTED"
+        assert "SUBMITTED" in source, "withdraw_fraud_event must validate status is SUBMITTED"
 
 
 class TestMatchingSeverityRules:
@@ -1060,8 +1101,8 @@ class TestMatchingSeverityRules:
 
     def test_severity_high_requires_multiple_types_or_many_artifacts(self):
         """Verify HIGH severity criteria are correct."""
-        from app.services.fraud_service import FraudService
         from app.models.fraud import MatchSeverity
+        from app.services.fraud_service import FraudService
 
         class MockSession:
             pass
@@ -1069,21 +1110,25 @@ class TestMatchingSeverityRules:
         service = FraudService(MockSession())
 
         # 4 artifacts on 1 type = HIGH (3+ rule)
-        assert service._compute_severity(
-            artifacts=["a1", "a2", "a3", "a4"],
-            match_reasons={"routing_hash": {}}
-        ) == MatchSeverity.HIGH
+        assert (
+            service._compute_severity(
+                artifacts=["a1", "a2", "a3", "a4"], match_reasons={"routing_hash": {}}
+            )
+            == MatchSeverity.HIGH
+        )
 
         # 2 artifacts on 2 types = HIGH (2+ types rule)
-        assert service._compute_severity(
-            artifacts=["a1", "a2"],
-            match_reasons={"routing_hash": {}, "payee_hash": {}}
-        ) == MatchSeverity.HIGH
+        assert (
+            service._compute_severity(
+                artifacts=["a1", "a2"], match_reasons={"routing_hash": {}, "payee_hash": {}}
+            )
+            == MatchSeverity.HIGH
+        )
 
     def test_severity_boundaries(self):
         """Test exact boundary conditions for severity scoring."""
-        from app.services.fraud_service import FraudService
         from app.models.fraud import MatchSeverity
+        from app.services.fraud_service import FraudService
 
         class MockSession:
             pass
@@ -1091,16 +1136,18 @@ class TestMatchingSeverityRules:
         service = FraudService(MockSession())
 
         # Exactly 2 artifacts on 1 type = MEDIUM (not HIGH)
-        assert service._compute_severity(
-            artifacts=["a1", "a2"],
-            match_reasons={"routing_hash": {}}
-        ) == MatchSeverity.MEDIUM
+        assert (
+            service._compute_severity(artifacts=["a1", "a2"], match_reasons={"routing_hash": {}})
+            == MatchSeverity.MEDIUM
+        )
 
         # Exactly 3 artifacts on 1 type = HIGH (at boundary)
-        assert service._compute_severity(
-            artifacts=["a1", "a2", "a3"],
-            match_reasons={"routing_hash": {}}
-        ) == MatchSeverity.HIGH
+        assert (
+            service._compute_severity(
+                artifacts=["a1", "a2", "a3"], match_reasons={"routing_hash": {}}
+            )
+            == MatchSeverity.HIGH
+        )
 
 
 # To run tests:

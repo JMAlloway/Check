@@ -155,9 +155,7 @@ class RetentionService:
 
             try:
                 if policy_name == "audit_logs":
-                    result = await self._cleanup_audit_logs(
-                        policy, dry_run, verify_integrity
-                    )
+                    result = await self._cleanup_audit_logs(policy, dry_run, verify_integrity)
                 elif policy_name == "item_views":
                     result = await self._cleanup_item_views(policy, dry_run)
                 elif policy_name == "user_sessions":
@@ -258,9 +256,7 @@ class RetentionService:
 
             # Delete the batch
             ids_to_delete = [log.id for log in batch]
-            await self.db.execute(
-                delete(AuditLog).where(AuditLog.id.in_(ids_to_delete))
-            )
+            await self.db.execute(delete(AuditLog).where(AuditLog.id.in_(ids_to_delete)))
             await self.db.commit()
 
             total_deleted += len(batch)
@@ -498,6 +494,7 @@ if __name__ == "__main__":
             if result.error:
                 print(f"    Error: {result.error}")
     elif args.verify:
+
         async def verify():
             async with AsyncSessionLocal() as db:
                 service = RetentionService(db)

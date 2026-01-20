@@ -5,15 +5,16 @@ redacted from logs and error messages to prevent token leakage.
 """
 
 import logging
+
 import pytest
 
 from app.core.middleware import (
-    redact_token_from_path,
-    is_secure_image_path,
-    TokenRedactionFilter,
-    redact_exception_args,
     SECURE_IMAGE_PATH_PATTERN,
     TOKEN_REDACTED,
+    TokenRedactionFilter,
+    is_secure_image_path,
+    redact_exception_args,
+    redact_token_from_path,
 )
 
 
@@ -91,9 +92,7 @@ class TestTokenRedactionFilter:
         logger.addFilter(filter_instance)
 
         with caplog.at_level(logging.INFO):
-            logger.info(
-                "Request to /api/v1/images/secure/eyJtoken.payload.sig returned 200"
-            )
+            logger.info("Request to /api/v1/images/secure/eyJtoken.payload.sig returned 200")
 
         # Check that the token was redacted
         assert "eyJtoken" not in caplog.text
@@ -142,9 +141,7 @@ class TestRedactExceptionArgs:
 
     def test_redacts_token_in_exception_message(self):
         """Should redact tokens from exception args."""
-        exc = ValueError(
-            "Failed to process /api/v1/images/secure/secret.token.here"
-        )
+        exc = ValueError("Failed to process /api/v1/images/secure/secret.token.here")
         result = redact_exception_args(exc)
 
         assert "secret.token.here" not in str(result)

@@ -1,54 +1,58 @@
 """Database models for Check Review Console."""
 
 from app.models.audit import AuditLog, ItemView
-from app.models.check import CheckItem, CheckImage, CheckHistory
+from app.models.check import CheckHistory, CheckImage, CheckItem
+from app.models.connector import (
+    AcknowledgementStatus,
+    BankConnectorConfig,
+    BatchAcknowledgement,
+    BatchStatus,
+    CommitBatch,
+    CommitDecisionType,
+    CommitRecord,
+    DeliveryMethod,
+    ErrorCategory,
+)
+from app.models.connector import FileFormat as CommitFileFormat
+from app.models.connector import (
+    HoldReasonCode,
+    ReconciliationReport,
+)
+from app.models.connector import RecordStatus as CommitRecordStatus
+from app.models.decision import Decision, ReasonCode
+from app.models.fraud import (
+    AmountBucket,
+    FraudChannel,
+    FraudEvent,
+    FraudEventStatus,
+    FraudSharedArtifact,
+    FraudType,
+    MatchSeverity,
+    NetworkMatchAlert,
+    SharingLevel,
+    TenantFraudConfig,
+)
 from app.models.image_connector import (
-    ImageConnector,
     ConnectorAuditLog,
     ConnectorRequestLog,
     ConnectorStatus,
-)
-from app.models.connector import (
-    BankConnectorConfig,
-    CommitBatch,
-    CommitRecord,
-    BatchAcknowledgement,
-    ReconciliationReport,
-    CommitDecisionType,
-    HoldReasonCode,
-    BatchStatus,
-    RecordStatus as CommitRecordStatus,
-    FileFormat as CommitFileFormat,
-    DeliveryMethod,
-    ErrorCategory,
-    AcknowledgementStatus,
+    ImageConnector,
 )
 from app.models.item_context_connector import (
+    FIELD_MAPPING_TEMPLATES,
+    ContextConnectorStatus,
+)
+from app.models.item_context_connector import FileFormat as ContextFileFormat
+from app.models.item_context_connector import (
+    ImportStatus,
     ItemContextConnector,
     ItemContextImport,
     ItemContextImportRecord,
-    ContextConnectorStatus,
-    FileFormat as ContextFileFormat,
-    ImportStatus,
-    RecordStatus as ContextRecordStatus,
-    FIELD_MAPPING_TEMPLATES,
 )
-from app.models.decision import Decision, ReasonCode
-from app.models.fraud import (
-    FraudEvent,
-    FraudSharedArtifact,
-    NetworkMatchAlert,
-    TenantFraudConfig,
-    FraudType,
-    FraudChannel,
-    AmountBucket,
-    SharingLevel,
-    FraudEventStatus,
-    MatchSeverity,
-)
+from app.models.item_context_connector import RecordStatus as ContextRecordStatus
 from app.models.policy import Policy, PolicyRule, PolicyVersion
-from app.models.queue import Queue, QueueAssignment, ApprovalEntitlement, ApprovalEntitlementType
-from app.models.user import User, Role, Permission, UserSession
+from app.models.queue import ApprovalEntitlement, ApprovalEntitlementType, Queue, QueueAssignment
+from app.models.user import Permission, Role, User, UserSession
 
 __all__ = [
     "AuditLog",

@@ -17,11 +17,11 @@ from typing import Literal
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field, field_validator
 
-from app.core.rate_limit import limiter
 from app.core.metrics import (
     security_events_total,
     track_security_event,
 )
+from app.core.rate_limit import limiter
 
 router = APIRouter()
 logger = logging.getLogger("frontend.monitoring")
@@ -162,10 +162,7 @@ def _process_error_event(event: FrontendErrorEvent, client_ip: str) -> None:
     )
 
     # Update metrics
-    security_events_total.labels(
-        event_type="frontend.error",
-        severity="error"
-    ).inc()
+    security_events_total.labels(event_type="frontend.error", severity="error").inc()
 
 
 def _process_performance_event(event: FrontendPerformanceEvent, client_ip: str) -> None:
@@ -313,7 +310,7 @@ async def receive_alertmanager_alerts(
             # Track in metrics
             track_security_event(
                 f"alertmanager.{alertname}.firing",
-                severity if severity in ("info", "warning", "error") else "warning"
+                severity if severity in ("info", "warning", "error") else "warning",
             )
         else:
             alert_logger.info(

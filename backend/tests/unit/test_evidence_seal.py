@@ -2,15 +2,16 @@
 Unit tests for evidence snapshot sealing.
 """
 
-import pytest
 from datetime import datetime, timezone
 
+import pytest
+
 from app.services.evidence_seal import (
-    compute_evidence_hash,
-    verify_evidence_hash,
-    seal_evidence_snapshot,
-    _canonical_json,
     SEAL_VERSION,
+    _canonical_json,
+    compute_evidence_hash,
+    seal_evidence_snapshot,
+    verify_evidence_hash,
 )
 
 

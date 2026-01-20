@@ -31,6 +31,7 @@ from typing import Any
 
 class DrillStatus(Enum):
     """Status of a drill step."""
+
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"
@@ -41,6 +42,7 @@ class DrillStatus(Enum):
 @dataclass
 class DrillStep:
     """A single step in a DR drill."""
+
     name: str
     description: str
     command: str | None = None
@@ -54,6 +56,7 @@ class DrillStep:
 @dataclass
 class DrillResult:
     """Result of a DR drill."""
+
     drill_id: str
     scenario: str
     started_at: datetime
@@ -314,8 +317,10 @@ class DrillRunner:
         print(f"Scenario: {self.result.scenario}")
         print(f"Status: {self.result.status.value.upper()}")
         print(f"Duration: {self.result.metrics['total_duration_seconds']:.1f} seconds")
-        print(f"Steps: {self.result.metrics['steps_completed']} completed, "
-              f"{self.result.metrics['steps_failed']} failed")
+        print(
+            f"Steps: {self.result.metrics['steps_completed']} completed, "
+            f"{self.result.metrics['steps_failed']} failed"
+        )
         print(f"{'='*60}\n")
 
 
@@ -338,12 +343,12 @@ def verify_system() -> bool:
         if result.returncode != 0:
             all_passed = False
 
-    print("\n" + "="*40)
+    print("\n" + "=" * 40)
     if all_passed:
         print("All checks PASSED")
     else:
         print("Some checks FAILED")
-    print("="*40 + "\n")
+    print("=" * 40 + "\n")
 
     return all_passed
 
@@ -411,24 +416,30 @@ def main():
 
     if args.output:
         with open(args.output, "w") as f:
-            json.dump({
-                "drill_id": result.drill_id,
-                "scenario": result.scenario,
-                "status": result.status.value,
-                "started_at": result.started_at.isoformat(),
-                "completed_at": result.completed_at.isoformat() if result.completed_at else None,
-                "metrics": result.metrics,
-                "steps": [
-                    {
-                        "name": s.name,
-                        "description": s.description,
-                        "status": s.status.value,
-                        "duration_seconds": s.duration_seconds,
-                        "error": s.error if s.error else None,
-                    }
-                    for s in result.steps
-                ],
-            }, f, indent=2)
+            json.dump(
+                {
+                    "drill_id": result.drill_id,
+                    "scenario": result.scenario,
+                    "status": result.status.value,
+                    "started_at": result.started_at.isoformat(),
+                    "completed_at": (
+                        result.completed_at.isoformat() if result.completed_at else None
+                    ),
+                    "metrics": result.metrics,
+                    "steps": [
+                        {
+                            "name": s.name,
+                            "description": s.description,
+                            "status": s.status.value,
+                            "duration_seconds": s.duration_seconds,
+                            "error": s.error if s.error else None,
+                        }
+                        for s in result.steps
+                    ],
+                },
+                f,
+                indent=2,
+            )
         print(f"Results written to: {args.output}")
 
     return 0 if result.status == DrillStatus.SUCCESS else 1

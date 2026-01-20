@@ -14,13 +14,14 @@ All dual control workflow columns and tables are now created in 001_initial_sche
 This migration file is kept for revision chain integrity.
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
+
 # revision identifiers, used by Alembic.
-revision = '005_dual_control_workflow'
-down_revision = '004_audit_immutability'
+revision = "005_dual_control_workflow"
+down_revision = "004_audit_immutability"
 branch_labels = None
 depends_on = None
 

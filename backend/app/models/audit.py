@@ -4,7 +4,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, Enum as SQLEnum, ForeignKey, Index, String, Text
+from sqlalchemy import Boolean, DateTime
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -155,7 +157,9 @@ class AuditLog(Base, UUIDMixin):
 
     # Actor
     user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), index=True)
-    username: Mapped[str | None] = mapped_column(String(50))  # Denormalized for historical reference
+    username: Mapped[str | None] = mapped_column(
+        String(50)
+    )  # Denormalized for historical reference
     ip_address: Mapped[str | None] = mapped_column(String(45))
     user_agent: Mapped[str | None] = mapped_column(Text)
 
@@ -163,10 +167,14 @@ class AuditLog(Base, UUIDMixin):
     action: Mapped[AuditAction] = mapped_column(
         SQLEnum(AuditAction, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
-        index=True
+        index=True,
     )
-    resource_type: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g., "check_item", "user"
-    resource_id: Mapped[str | None] = mapped_column(String(255), index=True)  # 255 to accommodate demo image IDs
+    resource_type: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # e.g., "check_item", "user"
+    resource_id: Mapped[str | None] = mapped_column(
+        String(255), index=True
+    )  # 255 to accommodate demo image IDs
 
     # Details - JSONB for structured data and efficient querying
     description: Mapped[str | None] = mapped_column(Text)
@@ -201,7 +209,9 @@ class ItemView(Base, UUIDMixin, TimestampMixin):
     # Tenant isolation - CRITICAL for multi-tenant security
     tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
 
-    check_item_id: Mapped[str] = mapped_column(String(36), ForeignKey("check_items.id"), nullable=False)
+    check_item_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("check_items.id"), nullable=False
+    )
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
     session_id: Mapped[str | None] = mapped_column(String(36))
 
@@ -225,6 +235,4 @@ class ItemView(Base, UUIDMixin, TimestampMixin):
     # Demo mode flag - marks synthetic demo views
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    __table_args__ = (
-        Index("ix_item_views_check_user", "check_item_id", "user_id"),
-    )
+    __table_args__ = (Index("ix_item_views_check_user", "check_item_id", "user_id"),)

@@ -10,31 +10,28 @@ These tests verify that:
 CRITICAL FOR: Bank compliance, vendor risk assessments
 """
 
-import pytest
 import uuid
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_resource_with_tenant_check, get_tenant_id
 from app.models.policy import Policy, PolicyStatus, PolicyVersion
-from app.api.deps import get_tenant_id, get_resource_with_tenant_check
-
 
 # =============================================================================
 # Test Fixtures & Helpers
 # =============================================================================
 
+
 class MockUser:
     """Mock user for testing with tenant isolation."""
 
     def __init__(
-        self,
-        tenant_id: str | None,
-        user_id: str | None = None,
-        username: str = "test_user"
+        self, tenant_id: str | None, user_id: str | None = None, username: str = "test_user"
     ):
         self.id = user_id or f"USER-{uuid.uuid4().hex[:12]}"
         self.tenant_id = tenant_id
@@ -62,6 +59,7 @@ def create_policy(tenant_id: str, name: str = "Test Policy") -> Policy:
 # =============================================================================
 # Tests for get_tenant_id helper
 # =============================================================================
+
 
 class TestGetTenantIdHelper:
     """Tests for the get_tenant_id helper function."""
@@ -95,6 +93,7 @@ class TestGetTenantIdHelper:
 # =============================================================================
 # Tests for get_resource_with_tenant_check helper
 # =============================================================================
+
 
 class TestGetResourceWithTenantCheck:
     """Tests for the tenant-scoped resource fetching helper."""
@@ -175,6 +174,7 @@ class TestGetResourceWithTenantCheck:
 # Tests for Policy tenant isolation
 # =============================================================================
 
+
 class TestPolicyTenantIsolation:
     """Tests verifying policies are properly tenant-scoped."""
 
@@ -186,15 +186,16 @@ class TestPolicyTenantIsolation:
             name="Test",
             status=PolicyStatus.DRAFT,
         )
-        assert hasattr(policy, 'tenant_id')
+        assert hasattr(policy, "tenant_id")
         assert policy.tenant_id == "tenant-123"
 
     def test_policy_tenant_id_required(self):
         """Policy should require tenant_id (enforced at DB level)."""
         # The model should have tenant_id as non-nullable
         from sqlalchemy import inspect
+
         mapper = inspect(Policy)
-        tenant_column = mapper.columns.get('tenant_id')
+        tenant_column = mapper.columns.get("tenant_id")
         assert tenant_column is not None
         assert not tenant_column.nullable
 
@@ -203,15 +204,16 @@ class TestPolicyTenantIsolation:
         """list_policies endpoint should only return current tenant's policies."""
         # This is a design verification test
         # The endpoint uses: .where(Policy.tenant_id == tenant_id)
-        from app.api.v1.endpoints.policies import list_policies
-
         # Verify the function signature expects tenant-scoped behavior
         import inspect
+
+        from app.api.v1.endpoints.policies import list_policies
+
         sig = inspect.signature(list_policies)
         params = sig.parameters
 
         # Should have current_user parameter (which provides tenant_id)
-        assert 'current_user' in params
+        assert "current_user" in params
 
     @pytest.mark.asyncio
     async def test_create_policy_sets_tenant_from_user(self):
@@ -224,12 +226,13 @@ class TestPolicyTenantIsolation:
 
         # PolicyCreate should NOT have tenant_id field
         schema_fields = PolicyCreate.model_fields
-        assert 'tenant_id' not in schema_fields
+        assert "tenant_id" not in schema_fields
 
 
 # =============================================================================
 # Cross-Tenant Attack Prevention Tests
 # =============================================================================
+
 
 class TestCrossTenantPolicyAttacks:
     """Tests for preventing cross-tenant access to policies."""
@@ -250,13 +253,15 @@ class TestCrossTenantPolicyAttacks:
 
         # Attempt to create with tenant_id in request body should be ignored
         fields = PolicyCreate.model_fields
-        assert 'tenant_id' not in fields, \
-            "PolicyCreate should not accept tenant_id from request body"
+        assert (
+            "tenant_id" not in fields
+        ), "PolicyCreate should not accept tenant_id from request body"
 
 
 # =============================================================================
 # Fraud Endpoint Tenant Isolation Tests
 # =============================================================================
+
 
 class TestFraudEndpointTenantIsolation:
     """Tests verifying fraud endpoints don't have dangerous defaults."""
@@ -266,34 +271,37 @@ class TestFraudEndpointTenantIsolation:
         import app.api.v1.endpoints.fraud as fraud_module
 
         # Should not have DEFAULT_TENANT_ID constant
-        assert not hasattr(fraud_module, 'DEFAULT_TENANT_ID'), \
-            "fraud.py should not have DEFAULT_TENANT_ID - security risk"
+        assert not hasattr(
+            fraud_module, "DEFAULT_TENANT_ID"
+        ), "fraud.py should not have DEFAULT_TENANT_ID - security risk"
 
     def test_fraud_uses_deps_get_tenant_id(self):
         """Fraud endpoints should use the safe get_tenant_id from deps."""
-        from app.api.v1.endpoints.fraud import get_tenant_id as fraud_get_tenant_id
         from app.api.deps import get_tenant_id as deps_get_tenant_id
+        from app.api.v1.endpoints.fraud import get_tenant_id as fraud_get_tenant_id
 
         # They should be the same function (imported from deps)
-        assert fraud_get_tenant_id is deps_get_tenant_id, \
-            "fraud.py should import get_tenant_id from deps, not define its own"
+        assert (
+            fraud_get_tenant_id is deps_get_tenant_id
+        ), "fraud.py should import get_tenant_id from deps, not define its own"
 
 
 # =============================================================================
 # Compliance Documentation Tests
 # =============================================================================
 
+
 class TestTenantIsolationCompliance:
     """Tests documenting compliance with tenant isolation requirements."""
 
     def test_all_tenant_models_have_tenant_id(self):
         """All models that should be tenant-scoped have tenant_id."""
+        from app.models.audit import AuditLog, ItemView
         from app.models.check import CheckItem
         from app.models.decision import Decision
-        from app.models.queue import Queue
-        from app.models.audit import AuditLog, ItemView
-        from app.models.policy import Policy
         from app.models.fraud import FraudEvent, NetworkAlert
+        from app.models.policy import Policy
+        from app.models.queue import Queue
 
         tenant_scoped_models = [
             CheckItem,
@@ -307,19 +315,21 @@ class TestTenantIsolationCompliance:
         ]
 
         for model in tenant_scoped_models:
-            assert hasattr(model, 'tenant_id'), \
-                f"{model.__name__} should have tenant_id field for isolation"
+            assert hasattr(
+                model, "tenant_id"
+            ), f"{model.__name__} should have tenant_id field for isolation"
 
     def test_tenant_id_is_indexed(self):
         """tenant_id columns should be indexed for query performance."""
         from sqlalchemy import inspect
+
         from app.models.policy import Policy
 
         mapper = inspect(Policy)
-        tenant_column = mapper.columns.get('tenant_id')
+        tenant_column = mapper.columns.get("tenant_id")
 
         # Column should have index for performance
         assert tenant_column is not None
         assert tenant_column.index or any(
-            'tenant_id' in str(idx.columns) for idx in mapper.persist_selectable.indexes
+            "tenant_id" in str(idx.columns) for idx in mapper.persist_selectable.indexes
         ), "Policy.tenant_id should be indexed for query performance"

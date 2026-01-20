@@ -6,9 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import DBSession, CurrentUser, require_permission
+from app.api.deps import CurrentUser, DBSession, require_permission
+from app.audit.service import AuditService
 from app.core.security import get_password_hash
+from app.models.audit import AuditAction
 from app.models.user import Permission, Role, User
+from app.schemas.common import MessageResponse, PaginatedResponse
 from app.schemas.user import (
     PermissionResponse,
     RoleCreate,
@@ -19,9 +22,6 @@ from app.schemas.user import (
     UserResponse,
     UserUpdate,
 )
-from app.schemas.common import PaginatedResponse, MessageResponse
-from app.audit.service import AuditService
-from app.models.audit import AuditAction
 
 router = APIRouter()
 
@@ -37,8 +37,10 @@ async def list_users(
 ):
     """List users with pagination and filtering."""
     # CRITICAL: Filter by tenant_id for multi-tenant isolation
-    query = select(User).options(selectinload(User.roles)).where(
-        User.tenant_id == current_user.tenant_id
+    query = (
+        select(User)
+        .options(selectinload(User.roles))
+        .where(User.tenant_id == current_user.tenant_id)
     )
 
     if is_active is not None:
@@ -121,9 +123,7 @@ async def create_user(
 
     # Assign roles
     if user_data.role_ids:
-        roles_result = await db.execute(
-            select(Role).where(Role.id.in_(user_data.role_ids))
-        )
+        roles_result = await db.execute(select(Role).where(Role.id.in_(user_data.role_ids)))
         user.roles = list(roles_result.scalars().all())
 
     db.add(user)
@@ -172,7 +172,9 @@ async def get_user(
     """Get a specific user."""
     # CRITICAL: Filter by tenant_id for multi-tenant isolation
     result = await db.execute(
-        select(User).options(selectinload(User.roles)).where(
+        select(User)
+        .options(selectinload(User.roles))
+        .where(
             User.id == user_id,
             User.tenant_id == current_user.tenant_id,
         )
@@ -225,7 +227,9 @@ async def update_user(
     """Update a user."""
     # CRITICAL: Filter by tenant_id for multi-tenant isolation
     result = await db.execute(
-        select(User).options(selectinload(User.roles)).where(
+        select(User)
+        .options(selectinload(User.roles))
+        .where(
             User.id == user_id,
             User.tenant_id == current_user.tenant_id,
         )
@@ -263,9 +267,7 @@ async def update_user(
 
     if user_data.role_ids is not None:
         old_roles = [r.name for r in user.roles]
-        roles_result = await db.execute(
-            select(Role).where(Role.id.in_(user_data.role_ids))
-        )
+        roles_result = await db.execute(select(Role).where(Role.id.in_(user_data.role_ids)))
         user.roles = list(roles_result.scalars().all())
         new_roles = [r.name for r in user.roles]
         if old_roles != new_roles:

@@ -5,9 +5,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 
 from app.api.deps import DBSession, require_permission
+from app.audit.service import AuditService
 from app.core.security import verify_signed_url
 from app.integrations.adapters.factory import get_adapter
-from app.audit.service import AuditService
 from app.models.audit import AuditAction
 
 router = APIRouter()
@@ -66,7 +66,9 @@ async def get_secure_image(
 
     # Get user for audit logging
     from sqlalchemy import select
+
     from app.models.user import User
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 

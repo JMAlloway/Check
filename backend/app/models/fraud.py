@@ -8,7 +8,9 @@ from typing import Any
 from sqlalchemy import (
     Boolean,
     DateTime,
-    Enum as SQLEnum,
+)
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
@@ -16,43 +18,64 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB, ENUM as PgEnum
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ENUM as PgEnum
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
 from app.models.base import TimestampMixin, UUIDMixin
 
-
 # PostgreSQL enum types that match the migration-created types
 # These must use create_type=False since the types already exist in the database
 fraud_type_db = PgEnum(
-    'check_kiting', 'counterfeit_check', 'forged_signature', 'altered_check',
-    'account_takeover', 'identity_theft', 'first_party_fraud', 'synthetic_identity',
-    'duplicate_deposit', 'unauthorized_endorsement', 'payee_alteration',
-    'amount_alteration', 'fictitious_payee', 'other',
-    name='fraud_type', create_type=False
+    "check_kiting",
+    "counterfeit_check",
+    "forged_signature",
+    "altered_check",
+    "account_takeover",
+    "identity_theft",
+    "first_party_fraud",
+    "synthetic_identity",
+    "duplicate_deposit",
+    "unauthorized_endorsement",
+    "payee_alteration",
+    "amount_alteration",
+    "fictitious_payee",
+    "other",
+    name="fraud_type",
+    create_type=False,
 )
 
 fraud_channel_db = PgEnum(
-    'branch', 'atm', 'mobile', 'rdc', 'mail', 'online', 'other',
-    name='fraud_channel', create_type=False
+    "branch",
+    "atm",
+    "mobile",
+    "rdc",
+    "mail",
+    "online",
+    "other",
+    name="fraud_channel",
+    create_type=False,
 )
 
 amount_bucket_db = PgEnum(
-    'under_100', '100_to_500', '500_to_1000', '1000_to_5000',
-    '5000_to_10000', '10000_to_50000', 'over_50000',
-    name='amount_bucket', create_type=False
+    "under_100",
+    "100_to_500",
+    "500_to_1000",
+    "1000_to_5000",
+    "5000_to_10000",
+    "10000_to_50000",
+    "over_50000",
+    name="amount_bucket",
+    create_type=False,
 )
 
 fraud_event_status_db = PgEnum(
-    'draft', 'submitted', 'withdrawn',
-    name='fraud_event_status', create_type=False
+    "draft", "submitted", "withdrawn", name="fraud_event_status", create_type=False
 )
 
-match_severity_db = PgEnum(
-    'low', 'medium', 'high',
-    name='match_severity', create_type=False
-)
+match_severity_db = PgEnum("low", "medium", "high", name="match_severity", create_type=False)
 
 
 class FraudType(str, Enum):
@@ -154,11 +177,11 @@ class FraudEvent(Base, UUIDMixin, TimestampMixin):
 
     # Links to check/case (at least one should be set)
     check_item_id: Mapped[str | None] = mapped_column(
-        String(36),
-        ForeignKey("check_items.id", ondelete="SET NULL"),
-        index=True
+        String(36), ForeignKey("check_items.id", ondelete="SET NULL"), index=True
     )
-    case_id: Mapped[str | None] = mapped_column(String(36), index=True)  # For future case management
+    case_id: Mapped[str | None] = mapped_column(
+        String(36), index=True
+    )  # For future case management
 
     # Event details
     event_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -185,15 +208,9 @@ class FraudEvent(Base, UUIDMixin, TimestampMixin):
     narrative_shareable: Mapped[str | None] = mapped_column(Text)
 
     # Sharing configuration - stored as Integer in DB (0=PRIVATE, 1=AGGREGATE, 2=NETWORK_MATCH)
-    sharing_level: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-        default=0
-    )
+    sharing_level: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     status: Mapped[FraudEventStatus] = mapped_column(
-        fraud_event_status_db,
-        nullable=False,
-        default=FraudEventStatus.DRAFT
+        fraud_event_status_db, nullable=False, default=FraudEventStatus.DRAFT
     )
 
     # Metadata
@@ -206,7 +223,9 @@ class FraudEvent(Base, UUIDMixin, TimestampMixin):
 
     # Relationships
     check_item = relationship("CheckItem", back_populates="fraud_events")
-    shared_artifact = relationship("FraudSharedArtifact", back_populates="fraud_event", uselist=False)
+    shared_artifact = relationship(
+        "FraudSharedArtifact", back_populates="fraud_event", uselist=False
+    )
 
     __table_args__ = (
         Index("ix_fraud_events_tenant_status", "tenant_id", "status"),
@@ -231,7 +250,7 @@ class FraudSharedArtifact(Base, UUIDMixin, TimestampMixin):
         String(36),
         ForeignKey("fraud_events.id", ondelete="CASCADE"),
         unique=True,
-        nullable=True  # Nullable for artifacts from external institutions
+        nullable=True,  # Nullable for artifacts from external institutions
     )
 
     # Sharing level determines how this artifact can be used (Integer: 0=PRIVATE, 1=AGGREGATE, 2=NETWORK_MATCH)
@@ -293,9 +312,7 @@ class NetworkMatchAlert(Base, UUIDMixin, TimestampMixin):
 
     # What this alert is for
     check_item_id: Mapped[str | None] = mapped_column(
-        String(36),
-        ForeignKey("check_items.id", ondelete="CASCADE"),
-        index=True
+        String(36), ForeignKey("check_items.id", ondelete="CASCADE"), index=True
     )
     case_id: Mapped[str | None] = mapped_column(String(36), index=True)
 
@@ -345,31 +362,27 @@ class TenantFraudConfig(Base, UUIDMixin, TimestampMixin):
     tenant_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False, index=True)
 
     # Default sharing level for new fraud event submissions (Integer: 0=PRIVATE, 1=AGGREGATE, 2=NETWORK_MATCH)
-    default_sharing_level: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-        default=0
-    )
+    default_sharing_level: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Whether shareable narratives are allowed at all
     allow_narrative_sharing: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Whether to hash and share account-related indicators (higher risk)
-    allow_account_indicator_sharing: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    allow_account_indicator_sharing: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
 
     # Data retention in months for shared artifacts
-    shared_artifact_retention_months: Mapped[int] = mapped_column(Integer, default=24, nullable=False)
+    shared_artifact_retention_months: Mapped[int] = mapped_column(
+        Integer, default=24, nullable=False
+    )
 
     # Whether this tenant wants to receive network match alerts
     receive_network_alerts: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Minimum match severity to alert on
     # Using String instead of PgEnum to avoid asyncpg type casting issues
-    minimum_alert_severity: Mapped[str] = mapped_column(
-        String(10),
-        default='low',
-        nullable=False
-    )
+    minimum_alert_severity: Mapped[str] = mapped_column(String(10), default="low", nullable=False)
 
     # Admin who last modified
     last_modified_by_user_id: Mapped[str | None] = mapped_column(String(36))

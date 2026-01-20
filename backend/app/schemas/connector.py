@@ -15,21 +15,21 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator
 
 from app.models.connector import (
-    CommitDecisionType,
-    HoldReasonCode,
+    AcknowledgementStatus,
     BatchStatus,
-    RecordStatus,
-    FileFormat,
+    CommitDecisionType,
     DeliveryMethod,
     ErrorCategory,
-    AcknowledgementStatus,
+    FileFormat,
+    HoldReasonCode,
+    RecordStatus,
 )
 from app.schemas.common import BaseSchema, TimestampSchema
-
 
 # =============================================================================
 # BANK CONFIGURATION SCHEMAS
 # =============================================================================
+
 
 class FieldConfigItem(BaseModel):
     """Configuration for a single field in the output file."""
@@ -37,7 +37,9 @@ class FieldConfigItem(BaseModel):
     name: str = Field(..., description="Field name in output")
     source: str = Field(..., description="Source field name from record")
     position: int = Field(..., ge=1, description="Position in output (1-based)")
-    length: int | None = Field(None, ge=1, description="Fixed width length (for fixed-width format)")
+    length: int | None = Field(
+        None, ge=1, description="Fixed width length (for fixed-width format)"
+    )
     align: str = Field("left", pattern="^(left|right)$", description="Alignment for fixed-width")
     pad: str = Field(" ", max_length=1, description="Padding character")
     format: str | None = Field(None, description="Format string (e.g., date format)")
@@ -83,8 +85,7 @@ class BankConnectorConfigCreate(BaseModel):
     file_encoding: str = Field("UTF-8", max_length=20)
     file_line_ending: str = Field("CRLF", pattern="^(CRLF|LF)$")
     file_name_pattern: str = Field(
-        "COMMIT_{BANK_ID}_{BATCH_ID}_{YYYYMMDD_HHMMSS}.csv",
-        max_length=255
+        "COMMIT_{BANK_ID}_{BATCH_ID}_{YYYYMMDD_HHMMSS}.csv", max_length=255
     )
 
     # Field configuration
@@ -169,15 +170,13 @@ class BankConnectorConfigResponse(TimestampSchema):
 # BATCH SCHEMAS
 # =============================================================================
 
+
 class BatchCreateRequest(BaseModel):
     """Request to create a new commit batch."""
 
     bank_config_id: str = Field(..., description="Bank configuration to use")
     decision_ids: list[str] = Field(
-        ...,
-        min_length=1,
-        max_length=10000,
-        description="List of decision IDs to include"
+        ..., min_length=1, max_length=10000, description="List of decision IDs to include"
     )
     description: str | None = Field(None, max_length=500)
 
@@ -326,6 +325,7 @@ class BatchFileResponse(BaseModel):
 # ACKNOWLEDGEMENT SCHEMAS
 # =============================================================================
 
+
 class AcknowledgementRecordDetail(BaseModel):
     """Per-record acknowledgement detail."""
 
@@ -367,6 +367,7 @@ class AcknowledgementResponse(TimestampSchema):
 # =============================================================================
 # RECONCILIATION SCHEMAS
 # =============================================================================
+
 
 class ReconciliationReportRequest(BaseModel):
     """Request to generate reconciliation report."""
@@ -427,6 +428,7 @@ class RecordResolutionRequest(BaseModel):
 # =============================================================================
 # DASHBOARD SCHEMAS
 # =============================================================================
+
 
 class ConnectorDashboard(BaseModel):
     """Dashboard summary for connector status."""
@@ -515,16 +517,36 @@ DEFAULT_FIXED_WIDTH_FIELD_CONFIG = FieldConfig(
         FieldConfigItem(name="record_type", source="record_type", position=1, length=1, pad="0"),
         FieldConfigItem(name="bank_id", source="bank_id", position=2, length=10),
         FieldConfigItem(name="batch_id", source="batch_id", position=3, length=20),
-        FieldConfigItem(name="sequence_number", source="sequence_number", position=4, length=6, align="right", pad="0"),
+        FieldConfigItem(
+            name="sequence_number",
+            source="sequence_number",
+            position=4,
+            length=6,
+            align="right",
+            pad="0",
+        ),
         FieldConfigItem(name="item_id", source="item_id", position=5, length=30),
         FieldConfigItem(name="account_number", source="account_number", position=6, length=20),
         FieldConfigItem(name="routing_number", source="routing_number", position=7, length=9),
-        FieldConfigItem(name="transaction_amount", source="transaction_amount", position=8, length=12, align="right", pad="0"),
+        FieldConfigItem(
+            name="transaction_amount",
+            source="transaction_amount",
+            position=8,
+            length=12,
+            align="right",
+            pad="0",
+        ),
         FieldConfigItem(name="decision_type", source="decision_type", position=9, length=12),
-        FieldConfigItem(name="hold_amount", source="hold_amount", position=10, length=12, align="right", pad="0"),
-        FieldConfigItem(name="hold_expiration_date", source="hold_expiration_date", position=11, length=8),
+        FieldConfigItem(
+            name="hold_amount", source="hold_amount", position=10, length=12, align="right", pad="0"
+        ),
+        FieldConfigItem(
+            name="hold_expiration_date", source="hold_expiration_date", position=11, length=8
+        ),
         FieldConfigItem(name="hold_reason_code", source="hold_reason_code", position=12, length=20),
-        FieldConfigItem(name="decision_timestamp", source="decision_timestamp", position=13, length=20),
+        FieldConfigItem(
+            name="decision_timestamp", source="decision_timestamp", position=13, length=20
+        ),
         FieldConfigItem(name="decision_hash", source="decision_hash", position=14, length=64),
     ]
 )

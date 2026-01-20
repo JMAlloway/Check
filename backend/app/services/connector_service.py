@@ -20,24 +20,24 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.check import CheckItem, CheckStatus, RiskLevel
 from app.models.connector import (
-    BankConnectorConfig,
-    CommitBatch,
-    CommitRecord,
-    BatchAcknowledgement,
-    ReconciliationReport,
-    CommitDecisionType,
-    BatchStatus,
-    RecordStatus,
-    FileFormat,
-    ErrorCategory,
     AcknowledgementStatus,
+    BankConnectorConfig,
+    BatchAcknowledgement,
+    BatchStatus,
+    CommitBatch,
+    CommitDecisionType,
+    CommitRecord,
+    ErrorCategory,
+    FileFormat,
     HoldReasonCode,
+    ReconciliationReport,
+    RecordStatus,
 )
 from app.models.decision import Decision, DecisionAction
 
@@ -76,6 +76,7 @@ class FileGenerationError(ConnectorError):
 # HASH GENERATION (Idempotency)
 # =============================================================================
 
+
 def generate_decision_hash(
     decision_id: str,
     check_item_id: str,
@@ -89,7 +90,9 @@ def generate_decision_hash(
     This hash ensures idempotency - the same decision always produces
     the same hash, preventing duplicate processing.
     """
-    data = f"{decision_id}|{check_item_id}|{decision_type}|{amount}|{decision_timestamp.isoformat()}"
+    data = (
+        f"{decision_id}|{check_item_id}|{decision_type}|{amount}|{decision_timestamp.isoformat()}"
+    )
     return hashlib.sha256(data.encode()).hexdigest()
 
 
@@ -114,6 +117,7 @@ def generate_file_checksum(content: bytes) -> str:
 # EVIDENCE SNAPSHOT
 # =============================================================================
 
+
 def build_evidence_snapshot(
     check_item: CheckItem,
     decision: Decision,
@@ -137,16 +141,26 @@ def build_evidence_snapshot(
             "amount": str(check_item.amount),
             "account_type": check_item.account_type.value if check_item.account_type else None,
             "account_tenure_days": check_item.account_tenure_days,
-            "current_balance": str(check_item.current_balance) if check_item.current_balance else None,
-            "average_balance_30d": str(check_item.average_balance_30d) if check_item.average_balance_30d else None,
-            "avg_check_amount_30d": str(check_item.avg_check_amount_30d) if check_item.avg_check_amount_30d else None,
-            "avg_check_amount_90d": str(check_item.avg_check_amount_90d) if check_item.avg_check_amount_90d else None,
+            "current_balance": (
+                str(check_item.current_balance) if check_item.current_balance else None
+            ),
+            "average_balance_30d": (
+                str(check_item.average_balance_30d) if check_item.average_balance_30d else None
+            ),
+            "avg_check_amount_30d": (
+                str(check_item.avg_check_amount_30d) if check_item.avg_check_amount_30d else None
+            ),
+            "avg_check_amount_90d": (
+                str(check_item.avg_check_amount_90d) if check_item.avg_check_amount_90d else None
+            ),
             "check_frequency_30d": check_item.check_frequency_30d,
             "returned_item_count_90d": check_item.returned_item_count_90d,
             "exception_count_90d": check_item.exception_count_90d,
             "risk_level": check_item.risk_level.value if check_item.risk_level else None,
             "risk_flags": json.loads(check_item.risk_flags) if check_item.risk_flags else [],
-            "upstream_flags": json.loads(check_item.upstream_flags) if check_item.upstream_flags else [],
+            "upstream_flags": (
+                json.loads(check_item.upstream_flags) if check_item.upstream_flags else []
+            ),
         },
         # Image references (for reproducibility)
         "images": [
@@ -156,7 +170,9 @@ def build_evidence_snapshot(
                 "external_id": img.external_image_id,
                 "checksum": None,  # Would be populated from actual image
             }
-            for img in (check_item.images if hasattr(check_item, "images") and check_item.images else [])
+            for img in (
+                check_item.images if hasattr(check_item, "images") and check_item.images else []
+            )
         ],
         # Policy evaluation (what rules triggered)
         "policy_evaluation": policy_result or {},
@@ -164,7 +180,9 @@ def build_evidence_snapshot(
         "ai_assistance": {
             "ai_assisted": decision.ai_assisted,
             "ai_risk_score": str(check_item.ai_risk_score) if check_item.ai_risk_score else None,
-            "flags_reviewed": json.loads(decision.ai_flags_reviewed) if decision.ai_flags_reviewed else [],
+            "flags_reviewed": (
+                json.loads(decision.ai_flags_reviewed) if decision.ai_flags_reviewed else []
+            ),
             "flags_displayed": ai_flags or [],
         },
         # Decision details
@@ -182,6 +200,7 @@ def build_evidence_snapshot(
 # =============================================================================
 # FILE GENERATORS
 # =============================================================================
+
 
 class FileGenerator:
     """Base class for file generators."""
@@ -234,15 +253,29 @@ class FileGenerator:
             "transaction_amount": f"{record.transaction_amount:.2f}",
             "decision_type": record.decision_type.value.upper(),
             "hold_amount": f"{record.hold_amount:.2f}" if record.hold_amount else "",
-            "hold_start_date": record.hold_start_date.strftime("%Y%m%d") if record.hold_start_date else "",
-            "hold_expiration_date": record.hold_expiration_date.strftime("%Y%m%d") if record.hold_expiration_date else "",
+            "hold_start_date": (
+                record.hold_start_date.strftime("%Y%m%d") if record.hold_start_date else ""
+            ),
+            "hold_expiration_date": (
+                record.hold_expiration_date.strftime("%Y%m%d")
+                if record.hold_expiration_date
+                else ""
+            ),
             "hold_reason_code": record.hold_reason_code.value if record.hold_reason_code else "",
             "hold_reason_text": record.hold_reason_text or "",
             "reviewer_user_id": record.reviewer_user_id,
             "approver_user_id": record.approver_user_id,
-            "decision_timestamp": record.decision_timestamp.strftime("%Y%m%dT%H%M%SZ") if record.decision_timestamp else "",
+            "decision_timestamp": (
+                record.decision_timestamp.strftime("%Y%m%dT%H%M%SZ")
+                if record.decision_timestamp
+                else ""
+            ),
             "decision_reference_id": record.decision_id,
-            "notes": (record.notes or "")[:self.config.max_notes_length] if self.config.include_notes else "",
+            "notes": (
+                (record.notes or "")[: self.config.max_notes_length]
+                if self.config.include_notes
+                else ""
+            ),
         }
 
         for field in fields:
@@ -350,10 +383,7 @@ class FixedWidthGenerator(FileGenerator):
         return "".join(parts)
 
     def _build_fixed_trailer(
-        self,
-        record_count: int,
-        total_amount: Decimal,
-        fields: list[dict]
+        self, record_count: int, total_amount: Decimal, fields: list[dict]
     ) -> str:
         """Build fixed-width trailer line."""
         # Simple trailer format
@@ -430,6 +460,7 @@ def get_file_generator(config: BankConnectorConfig) -> FileGenerator:
 # CONNECTOR SERVICE
 # =============================================================================
 
+
 class ConnectorService:
     """
     Main service for Connector B batch commit operations.
@@ -490,12 +521,12 @@ class ConnectorService:
 
         if len(decisions) != len(decision_ids):
             missing = set(decision_ids) - {d.id for d in decisions}
-            raise DualControlViolation(
-                f"Decisions missing dual control approval: {missing}"
-            )
+            raise DualControlViolation(f"Decisions missing dual control approval: {missing}")
 
         # Generate batch number
-        batch_number = f"B{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:8].upper()}"
+        batch_number = (
+            f"B{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:8].upper()}"
+        )
 
         # Create batch
         batch = CommitBatch(
@@ -660,7 +691,9 @@ class ConnectorService:
         batch = await self._get_batch(batch_id, include_records=True, include_config=True)
 
         if batch.status != BatchStatus.APPROVED:
-            raise BatchStateError(f"Batch is not approved for file generation (status: {batch.status})")
+            raise BatchStateError(
+                f"Batch is not approved for file generation (status: {batch.status})"
+            )
 
         try:
             batch.status = BatchStatus.GENERATING
@@ -777,20 +810,24 @@ class ConnectorService:
                     accepted_count += 1
                 elif record_status == "rejected":
                     record.status = RecordStatus.REJECTED
-                    record.error_category = ErrorCategory(detail.get("error_category", "business_rule"))
+                    record.error_category = ErrorCategory(
+                        detail.get("error_category", "business_rule")
+                    )
                     record.error_code = detail.get("error_code")
                     record.error_message = detail.get("error")
                     rejected_count += 1
                 else:
                     pending_count += 1
 
-            processed_details.append({
-                "record_id": record.id if record else None,
-                "decision_hash": decision_hash,
-                "status": record_status,
-                "core_ref": detail.get("core_ref"),
-                "error": detail.get("error"),
-            })
+            processed_details.append(
+                {
+                    "record_id": record.id if record else None,
+                    "decision_hash": decision_hash,
+                    "status": record_status,
+                    "core_ref": detail.get("core_ref"),
+                    "error": detail.get("error"),
+                }
+            )
 
         # Create acknowledgement record
         ack = BatchAcknowledgement(
@@ -856,7 +893,9 @@ class ConnectorService:
         batches = batches_result.scalars().all()
 
         # Calculate aggregates
-        decisions_approved = sum(b.total_records for b in batches if b.status != BatchStatus.CANCELLED)
+        decisions_approved = sum(
+            b.total_records for b in batches if b.status != BatchStatus.CANCELLED
+        )
         decisions_amount = sum(b.total_amount for b in batches if b.status != BatchStatus.CANCELLED)
 
         files_generated = len([b for b in batches if b.file_generated_at])
@@ -877,7 +916,10 @@ class ConnectorService:
             for record in batch.records:
                 if record.decision_type == CommitDecisionType.RELEASE:
                     release_amount += record.transaction_amount
-                elif record.decision_type in (CommitDecisionType.HOLD, CommitDecisionType.EXTEND_HOLD):
+                elif record.decision_type in (
+                    CommitDecisionType.HOLD,
+                    CommitDecisionType.EXTEND_HOLD,
+                ):
                     hold_amount += record.transaction_amount
                 elif record.decision_type == CommitDecisionType.RETURN:
                     return_amount += record.transaction_amount
@@ -886,18 +928,22 @@ class ConnectorService:
 
         # Count exceptions
         exceptions_new = sum(
-            1 for b in batches
+            1
+            for b in batches
             for r in b.records
             if r.status == RecordStatus.REJECTED and r.created_at >= period_start
         )
         exceptions_resolved = sum(
-            1 for b in batches
+            1
+            for b in batches
             for r in b.records
-            if r.status == RecordStatus.MANUALLY_RESOLVED and r.manually_resolved_at
+            if r.status == RecordStatus.MANUALLY_RESOLVED
+            and r.manually_resolved_at
             and r.manually_resolved_at >= period_start
         )
         exceptions_outstanding = sum(
-            1 for b in batches
+            1
+            for b in batches
             for r in b.records
             if r.status in (RecordStatus.REJECTED, RecordStatus.FAILED)
             and r.manually_resolved_at is None
@@ -955,9 +1001,7 @@ class ConnectorService:
             query = query.where(CommitBatch.status == status)
 
         # Count
-        count_result = await self.db.execute(
-            select(func.count()).select_from(query.subquery())
-        )
+        count_result = await self.db.execute(select(func.count()).select_from(query.subquery()))
         total = count_result.scalar() or 0
 
         # Fetch
@@ -970,20 +1014,24 @@ class ConnectorService:
     async def get_pending_batches(self, tenant_id: str) -> list[CommitBatch]:
         """Get batches pending approval."""
         result = await self.db.execute(
-            select(CommitBatch).where(
+            select(CommitBatch)
+            .where(
                 CommitBatch.tenant_id == tenant_id,
                 CommitBatch.status == BatchStatus.PENDING,
-            ).order_by(CommitBatch.created_at)
+            )
+            .order_by(CommitBatch.created_at)
         )
         return list(result.scalars().all())
 
     async def get_awaiting_ack_batches(self, tenant_id: str) -> list[CommitBatch]:
         """Get batches awaiting acknowledgement."""
         result = await self.db.execute(
-            select(CommitBatch).where(
+            select(CommitBatch)
+            .where(
                 CommitBatch.tenant_id == tenant_id,
                 CommitBatch.status == BatchStatus.TRANSMITTED,
-            ).order_by(CommitBatch.transmitted_at)
+            )
+            .order_by(CommitBatch.transmitted_at)
         )
         return list(result.scalars().all())
 
@@ -1013,9 +1061,7 @@ class ConnectorService:
         resolution_notes: str,
     ) -> CommitRecord:
         """Manually resolve a failed record."""
-        result = await self.db.execute(
-            select(CommitRecord).where(CommitRecord.id == record_id)
-        )
+        result = await self.db.execute(select(CommitRecord).where(CommitRecord.id == record_id))
         record = result.scalar_one_or_none()
 
         if not record:

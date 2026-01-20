@@ -4,73 +4,74 @@ Comprehensive tests for Demo Mode functionality.
 Run with: pytest tests/test_demo_mode.py -v
 """
 
-import pytest
 from decimal import Decimal
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from app.demo import is_demo_mode, require_demo_mode, require_non_production
+from app.demo.providers import (
+    DemoAIProvider,
+    DemoCheckDataProvider,
+    DemoConnectorFactory,
+    get_demo_ai_provider,
+    get_demo_check_provider,
+)
 from app.demo.scenarios import (
-    DemoScenario,
-    DemoAccount,
-    DemoCheckScenario,
     DEMO_ACCOUNTS,
-    DEMO_SCENARIOS,
     DEMO_CREDENTIALS,
     DEMO_PAYEES,
     DEMO_ROUTING_NUMBERS,
+    DEMO_SCENARIOS,
+    DemoAccount,
+    DemoCheckScenario,
+    DemoScenario,
 )
-from app.demo.providers import (
-    DemoCheckDataProvider,
-    DemoAIProvider,
-    DemoConnectorFactory,
-    get_demo_check_provider,
-    get_demo_ai_provider,
-)
-
 
 # =============================================================================
 # Demo Module Core Tests
 # =============================================================================
+
 
 class TestDemoModuleFunctions:
     """Tests for core demo module functions."""
 
     def test_is_demo_mode_enabled(self):
         """Test is_demo_mode returns True when enabled."""
-        with patch('app.demo.settings') as mock_settings:
+        with patch("app.demo.settings") as mock_settings:
             mock_settings.DEMO_MODE = True
             assert is_demo_mode() is True
 
     def test_is_demo_mode_disabled(self):
         """Test is_demo_mode returns False when disabled."""
-        with patch('app.demo.settings') as mock_settings:
+        with patch("app.demo.settings") as mock_settings:
             mock_settings.DEMO_MODE = False
             assert is_demo_mode() is False
 
     def test_require_demo_mode_when_enabled(self):
         """Test require_demo_mode passes when enabled."""
-        with patch('app.demo.settings') as mock_settings:
+        with patch("app.demo.settings") as mock_settings:
             mock_settings.DEMO_MODE = True
             # Should not raise
             require_demo_mode()
 
     def test_require_demo_mode_when_disabled(self):
         """Test require_demo_mode raises when disabled."""
-        with patch('app.demo.settings') as mock_settings:
+        with patch("app.demo.settings") as mock_settings:
             mock_settings.DEMO_MODE = False
             with pytest.raises(RuntimeError, match="requires demo mode"):
                 require_demo_mode()
 
     def test_require_non_production_in_development(self):
         """Test require_non_production passes in development."""
-        with patch('app.demo.settings') as mock_settings:
+        with patch("app.demo.settings") as mock_settings:
             mock_settings.ENVIRONMENT = "development"
             # Should not raise
             require_non_production()
 
     def test_require_non_production_in_production(self):
         """Test require_non_production raises in production."""
-        with patch('app.demo.settings') as mock_settings:
+        with patch("app.demo.settings") as mock_settings:
             mock_settings.ENVIRONMENT = "production"
             with pytest.raises(RuntimeError, match="not allowed in production"):
                 require_non_production()
@@ -79,6 +80,7 @@ class TestDemoModuleFunctions:
 # =============================================================================
 # Demo Scenarios Tests
 # =============================================================================
+
 
 class TestDemoScenarios:
     """Tests for demo scenario definitions."""
@@ -97,9 +99,7 @@ class TestDemoScenarios:
             assert len(config.amount_range) == 2
             assert config.amount_range[0] <= config.amount_range[1]
             assert config.risk_level in ["low", "medium", "high", "critical"]
-            assert config.ai_recommendation in [
-                "likely_legitimate", "needs_review", "likely_fraud"
-            ]
+            assert config.ai_recommendation in ["likely_legitimate", "needs_review", "likely_fraud"]
             assert 0 <= config.ai_confidence <= 1
             assert isinstance(config.flags, list)
             assert isinstance(config.explanation, str)
@@ -122,8 +122,9 @@ class TestDemoScenarios:
         """Verify critical risk scenarios require dual control."""
         for scenario, config in DEMO_SCENARIOS.items():
             if config.risk_level == "critical":
-                assert config.requires_dual_control is True, \
-                    f"{scenario} is critical but doesn't require dual control"
+                assert (
+                    config.requires_dual_control is True
+                ), f"{scenario} is critical but doesn't require dual control"
 
     def test_fraud_scenarios_have_likely_fraud_recommendation(self):
         """Verify fraud scenarios have appropriate recommendations."""
@@ -236,6 +237,7 @@ class TestDemoRoutingNumbers:
 # =============================================================================
 # Demo Providers Tests
 # =============================================================================
+
 
 class TestDemoCheckDataProvider:
     """Tests for DemoCheckDataProvider."""
@@ -428,6 +430,7 @@ class TestProviderSingletons:
         """Test singleton returns same instance."""
         # Reset singleton
         import app.demo.providers as providers
+
         providers._demo_check_provider = None
 
         provider1 = get_demo_check_provider()
@@ -438,6 +441,7 @@ class TestProviderSingletons:
         """Test singleton returns same instance."""
         # Reset singleton
         import app.demo.providers as providers
+
         providers._demo_ai_provider = None
 
         provider1 = get_demo_ai_provider()
@@ -448,6 +452,7 @@ class TestProviderSingletons:
 # =============================================================================
 # Integration Tests
 # =============================================================================
+
 
 class TestDemoModeIntegration:
     """Integration tests for demo mode components working together."""
@@ -491,15 +496,18 @@ class TestDemoModeIntegration:
             check_data = {"amount": 5000.00, "memo": keyword}
             result = await ai_provider.analyze_check(check_data)
 
-            assert result["recommendation"] == expected_rec, \
-                f"Failed for {keyword}: got {result['recommendation']}"
-            assert result["risk_level"] == expected_risk, \
-                f"Failed for {keyword}: got {result['risk_level']}"
+            assert (
+                result["recommendation"] == expected_rec
+            ), f"Failed for {keyword}: got {result['recommendation']}"
+            assert (
+                result["risk_level"] == expected_risk
+            ), f"Failed for {keyword}: got {result['risk_level']}"
 
 
 # =============================================================================
 # Safety Tests
 # =============================================================================
+
 
 class TestDemoSafety:
     """Tests verifying safety of demo mode."""

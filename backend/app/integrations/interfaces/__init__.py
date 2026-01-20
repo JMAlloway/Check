@@ -1,10 +1,10 @@
 """Interface definitions for integration adapters."""
 
 from app.integrations.interfaces.base import (
-    CheckImageProvider,
-    CheckItemProvider,
     AccountContextProvider,
     CheckHistoryProvider,
+    CheckImageProvider,
+    CheckItemProvider,
 )
 
 __all__ = [

@@ -10,17 +10,17 @@ These tests verify the security properties of the token-based image access syste
 CRITICAL FOR: Bank security compliance, vendor risk assessments
 """
 
-import pytest
+import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
-import uuid
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.main import app
-from app.models.image_token import ImageAccessToken
 from app.models.check import CheckImage, CheckItem
+from app.models.image_token import ImageAccessToken
 from app.models.user import User
 
 
@@ -70,17 +70,77 @@ class TestOneTimeTokenSecurity:
     @pytest.fixture
     def mock_image_data(self):
         """Mock image binary data (1x1 transparent PNG)."""
-        return bytes([
-            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-            0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-            0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
-            0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
-            0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-            0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
-            0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
-            0x42, 0x60, 0x82,
-        ])
+        return bytes(
+            [
+                0x89,
+                0x50,
+                0x4E,
+                0x47,
+                0x0D,
+                0x0A,
+                0x1A,
+                0x0A,
+                0x00,
+                0x00,
+                0x00,
+                0x0D,
+                0x49,
+                0x48,
+                0x44,
+                0x52,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x08,
+                0x06,
+                0x00,
+                0x00,
+                0x00,
+                0x1F,
+                0x15,
+                0xC4,
+                0x89,
+                0x00,
+                0x00,
+                0x00,
+                0x0A,
+                0x49,
+                0x44,
+                0x41,
+                0x54,
+                0x78,
+                0x9C,
+                0x63,
+                0x00,
+                0x01,
+                0x00,
+                0x00,
+                0x05,
+                0x00,
+                0x01,
+                0x0D,
+                0x0A,
+                0x2D,
+                0xB4,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x49,
+                0x45,
+                0x4E,
+                0x44,
+                0xAE,
+                0x42,
+                0x60,
+                0x82,
+            ]
+        )
 
 
 class TestTokenModel:
@@ -198,8 +258,9 @@ class TestSecureImageEndpoint:
         """Expired tokens should return 410 Gone."""
         # This is validated by the endpoint checking token.is_expired
         # and raising HTTPException with status_code=410
-        from app.api.v1.endpoints.images import get_secure_image
         from fastapi import HTTPException
+
+        from app.api.v1.endpoints.images import get_secure_image
 
         # The endpoint logic checks is_expired and raises 410
         token = ImageAccessToken(
@@ -236,6 +297,7 @@ class TestSecureImageEndpoint:
         # Verify the endpoint logic marks used_at before serving
         # by checking the source code order (used_at set, then commit, then serve)
         import inspect
+
         from app.api.v1.endpoints.images import get_secure_image
 
         source = inspect.getsource(get_secure_image)
@@ -278,8 +340,9 @@ class TestTenantIsolation:
 
     def test_batch_request_has_max_limit(self):
         """Batch token request should have a maximum limit."""
-        from app.api.v1.endpoints.images import mint_image_tokens_batch
         import inspect
+
+        from app.api.v1.endpoints.images import mint_image_tokens_batch
 
         source = inspect.getsource(mint_image_tokens_batch)
         # Verify there's a limit check for batch size
@@ -365,7 +428,11 @@ class TestMigration:
 
         migration_path = os.path.join(
             os.path.dirname(__file__),
-            "..", "..", "alembic", "versions", "011_one_time_image_tokens.py"
+            "..",
+            "..",
+            "alembic",
+            "versions",
+            "011_one_time_image_tokens.py",
         )
 
         with open(migration_path, "r") as f:
@@ -382,7 +449,11 @@ class TestMigration:
 
         migration_path = os.path.join(
             os.path.dirname(__file__),
-            "..", "..", "alembic", "versions", "011_one_time_image_tokens.py"
+            "..",
+            "..",
+            "alembic",
+            "versions",
+            "011_one_time_image_tokens.py",
         )
 
         with open(migration_path, "r") as f:

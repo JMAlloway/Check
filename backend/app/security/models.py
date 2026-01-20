@@ -4,7 +4,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, Enum as SQLEnum, ForeignKey, Index, String, Text
+from sqlalchemy import Boolean, DateTime
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -15,20 +17,20 @@ from app.models.base import TimestampMixin, UUIDMixin
 class IncidentSeverity(str, Enum):
     """Severity levels for security incidents."""
 
-    LOW = "low"           # Minor policy violation, no data exposure
-    MEDIUM = "medium"     # Potential data exposure, limited scope
-    HIGH = "high"         # Confirmed data exposure, significant scope
-    CRITICAL = "critical" # Major breach, regulatory notification required
+    LOW = "low"  # Minor policy violation, no data exposure
+    MEDIUM = "medium"  # Potential data exposure, limited scope
+    HIGH = "high"  # Confirmed data exposure, significant scope
+    CRITICAL = "critical"  # Major breach, regulatory notification required
 
 
 class IncidentStatus(str, Enum):
     """Status of a security incident."""
 
-    DRAFT = "draft"           # Initial report, under investigation
-    CONFIRMED = "confirmed"   # Breach confirmed
-    CONTAINED = "contained"   # Breach contained, remediation in progress
-    RESOLVED = "resolved"     # Incident resolved
-    CLOSED = "closed"         # Post-incident review complete
+    DRAFT = "draft"  # Initial report, under investigation
+    CONFIRMED = "confirmed"  # Breach confirmed
+    CONTAINED = "contained"  # Breach contained, remediation in progress
+    RESOLVED = "resolved"  # Incident resolved
+    CLOSED = "closed"  # Post-incident review complete
 
 
 class IncidentType(str, Enum):
@@ -100,7 +102,9 @@ class SecurityIncident(Base, UUIDMixin, TimestampMixin):
     # Impact assessment
     affected_users_count: Mapped[int | None] = mapped_column()
     affected_records_count: Mapped[int | None] = mapped_column()
-    data_types_exposed: Mapped[list[str] | None] = mapped_column(JSONB)  # e.g., ["ssn", "account_number"]
+    data_types_exposed: Mapped[list[str] | None] = mapped_column(
+        JSONB
+    )  # e.g., ["ssn", "account_number"]
     pii_exposed: Mapped[bool] = mapped_column(Boolean, default=False)
     financial_data_exposed: Mapped[bool] = mapped_column(Boolean, default=False)
 

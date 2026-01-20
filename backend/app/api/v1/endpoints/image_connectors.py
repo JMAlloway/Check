@@ -3,6 +3,7 @@ Image Connector Management Endpoints.
 
 Admin endpoints for managing bank-side image connectors.
 """
+
 from datetime import datetime
 from typing import List, Optional
 
@@ -11,15 +12,15 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
-    get_db,
     get_current_active_user,
+    get_db,
     require_permission,
 )
+from app.models.image_connector import ConnectorStatus, ImageConnector
 from app.models.user import User
-from app.models.image_connector import ImageConnector, ConnectorStatus
 from app.services.image_connector_service import (
-    ImageConnectorService,
     ConnectorNotFoundError,
+    ImageConnectorService,
     generate_key_pair,
 )
 
@@ -30,8 +31,10 @@ router = APIRouter()
 # Request/Response Schemas
 # =============================================================================
 
+
 class ConnectorCreate(BaseModel):
     """Request to create a new connector."""
+
     connector_id: str = Field(..., min_length=1, max_length=100)
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
@@ -47,13 +50,14 @@ class ConnectorCreate(BaseModel):
                 "description": "Production connector in primary data center",
                 "base_url": "https://connector.bank.local:8443",
                 "public_key_pem": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----",
-                "token_expiry_seconds": 120
+                "token_expiry_seconds": 120,
             }
         }
 
 
 class ConnectorUpdate(BaseModel):
     """Request to update a connector."""
+
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     base_url: Optional[str] = Field(None, min_length=1, max_length=500)
@@ -65,12 +69,14 @@ class ConnectorUpdate(BaseModel):
 
 class KeyRotateRequest(BaseModel):
     """Request to rotate connector public key."""
+
     new_public_key_pem: str = Field(..., min_length=100)
     overlap_hours: int = Field(default=24, ge=1, le=168)
 
 
 class ConnectorResponse(BaseModel):
     """Connector details response."""
+
     id: str
     connector_id: str
     name: str
@@ -100,6 +106,7 @@ class ConnectorResponse(BaseModel):
 
 class HealthCheckResponse(BaseModel):
     """Health check test response."""
+
     success: bool
     latency_ms: int
     error: Optional[str] = None
@@ -108,6 +115,7 @@ class HealthCheckResponse(BaseModel):
 
 class KeyPairResponse(BaseModel):
     """Generated key pair response."""
+
     private_key_pem: str
     public_key_pem: str
 
@@ -115,6 +123,7 @@ class KeyPairResponse(BaseModel):
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
 
 def _connector_to_response(connector: ImageConnector) -> ConnectorResponse:
     """Convert connector model to response."""
@@ -140,13 +149,14 @@ def _connector_to_response(connector: ImageConnector) -> ConnectorResponse:
         health_check_failure_count=connector.health_check_failure_count,
         last_successful_request_at=connector.last_successful_request_at,
         created_at=connector.created_at,
-        updated_at=connector.updated_at
+        updated_at=connector.updated_at,
     )
 
 
 # =============================================================================
 # Endpoints
 # =============================================================================
+
 
 @router.get(
     "/",
@@ -162,8 +172,7 @@ async def list_connectors(
     """List all image connectors."""
     service = ImageConnectorService(db)
     connectors = await service.list_connectors(
-        tenant_id=current_user.tenant_id,
-        enabled_only=enabled_only
+        tenant_id=current_user.tenant_id, enabled_only=enabled_only
     )
     return [_connector_to_response(c) for c in connectors]
 
@@ -185,13 +194,12 @@ async def create_connector(
 
     # Check if connector ID already exists
     existing = await service.get_connector(
-        tenant_id=current_user.tenant_id,
-        connector_id=request.connector_id
+        tenant_id=current_user.tenant_id, connector_id=request.connector_id
     )
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Connector with ID '{request.connector_id}' already exists"
+            detail=f"Connector with ID '{request.connector_id}' already exists",
         )
 
     connector = await service.create_connector(
@@ -223,14 +231,12 @@ async def get_connector(
     """Get a specific image connector."""
     service = ImageConnectorService(db)
     connector = await service.get_connector(
-        tenant_id=current_user.tenant_id,
-        connector_id=connector_id
+        tenant_id=current_user.tenant_id, connector_id=connector_id
     )
 
     if not connector:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Connector '{connector_id}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Connector '{connector_id}' not found"
         )
 
     return _connector_to_response(connector)
@@ -257,15 +263,14 @@ async def update_connector(
             tenant_id=current_user.tenant_id,
             connector_id=connector_id,
             user_id=current_user.id,
-            **updates
+            **updates,
         )
         await db.commit()
         return _connector_to_response(connector)
 
     except ConnectorNotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Connector '{connector_id}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Connector '{connector_id}' not found"
         )
 
 
@@ -285,17 +290,14 @@ async def enable_connector(
 
     try:
         connector = await service.enable_connector(
-            tenant_id=current_user.tenant_id,
-            connector_id=connector_id,
-            user_id=current_user.id
+            tenant_id=current_user.tenant_id, connector_id=connector_id, user_id=current_user.id
         )
         await db.commit()
         return _connector_to_response(connector)
 
     except ConnectorNotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Connector '{connector_id}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Connector '{connector_id}' not found"
         )
 
 
@@ -315,17 +317,14 @@ async def disable_connector(
 
     try:
         connector = await service.disable_connector(
-            tenant_id=current_user.tenant_id,
-            connector_id=connector_id,
-            user_id=current_user.id
+            tenant_id=current_user.tenant_id, connector_id=connector_id, user_id=current_user.id
         )
         await db.commit()
         return _connector_to_response(connector)
 
     except ConnectorNotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Connector '{connector_id}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Connector '{connector_id}' not found"
         )
 
 
@@ -345,16 +344,13 @@ async def delete_connector(
 
     try:
         await service.delete_connector(
-            tenant_id=current_user.tenant_id,
-            connector_id=connector_id,
-            user_id=current_user.id
+            tenant_id=current_user.tenant_id, connector_id=connector_id, user_id=current_user.id
         )
         await db.commit()
 
     except ConnectorNotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Connector '{connector_id}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Connector '{connector_id}' not found"
         )
 
 
@@ -374,17 +370,14 @@ async def test_connector(
 
     try:
         result = await service.test_connection(
-            tenant_id=current_user.tenant_id,
-            connector_id=connector_id,
-            user_id=current_user.id
+            tenant_id=current_user.tenant_id, connector_id=connector_id, user_id=current_user.id
         )
         await db.commit()
         return HealthCheckResponse(**result)
 
     except ConnectorNotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Connector '{connector_id}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Connector '{connector_id}' not found"
         )
 
 
@@ -409,15 +402,14 @@ async def rotate_key(
             connector_id=connector_id,
             new_public_key_pem=request.new_public_key_pem,
             user_id=current_user.id,
-            overlap_hours=request.overlap_hours
+            overlap_hours=request.overlap_hours,
         )
         await db.commit()
         return _connector_to_response(connector)
 
     except ConnectorNotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Connector '{connector_id}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Connector '{connector_id}' not found"
         )
 
 
@@ -438,7 +430,4 @@ async def generate_keypair(
     is used when creating or updating the connector in the SaaS.
     """
     private_key, public_key = generate_key_pair()
-    return KeyPairResponse(
-        private_key_pem=private_key,
-        public_key_pem=public_key
-    )
+    return KeyPairResponse(private_key_pem=private_key, public_key_pem=public_key)

@@ -12,11 +12,11 @@ from slowapi.errors import RateLimitExceeded
 from app.api.v1 import api_router
 from app.core.config import settings
 from app.core.rate_limit import limiter
-from app.db.session import engine, Base
-from app.schemas.common import HealthResponse
+from app.db.session import Base, engine
 
 # Import all models so they're registered with Base.metadata
-from app.models import user, check, decision, policy, queue, audit, fraud, connector  # noqa: F401
+from app.models import audit, check, connector, decision, fraud, policy, queue, user  # noqa: F401
+from app.schemas.common import HealthResponse
 
 
 @asynccontextmanager
@@ -49,27 +49,47 @@ async def lifespan(app: FastAPI):
             # Create PostgreSQL enum types before creating tables
             # These are required by the fraud models which use create_type=False
             from sqlalchemy import text
+
             enum_definitions = [
-                ("fraud_type", [
-                    'check_kiting', 'counterfeit_check', 'forged_signature', 'altered_check',
-                    'account_takeover', 'identity_theft', 'first_party_fraud', 'synthetic_identity',
-                    'duplicate_deposit', 'unauthorized_endorsement', 'payee_alteration',
-                    'amount_alteration', 'fictitious_payee', 'other'
-                ]),
-                ("fraud_channel", ['branch', 'atm', 'mobile', 'rdc', 'mail', 'online', 'other']),
-                ("amount_bucket", [
-                    'under_100', '100_to_500', '500_to_1000', '1000_to_5000',
-                    '5000_to_10000', '10000_to_50000', 'over_50000'
-                ]),
-                ("fraud_event_status", ['draft', 'submitted', 'withdrawn']),
-                ("match_severity", ['low', 'medium', 'high']),
+                (
+                    "fraud_type",
+                    [
+                        "check_kiting",
+                        "counterfeit_check",
+                        "forged_signature",
+                        "altered_check",
+                        "account_takeover",
+                        "identity_theft",
+                        "first_party_fraud",
+                        "synthetic_identity",
+                        "duplicate_deposit",
+                        "unauthorized_endorsement",
+                        "payee_alteration",
+                        "amount_alteration",
+                        "fictitious_payee",
+                        "other",
+                    ],
+                ),
+                ("fraud_channel", ["branch", "atm", "mobile", "rdc", "mail", "online", "other"]),
+                (
+                    "amount_bucket",
+                    [
+                        "under_100",
+                        "100_to_500",
+                        "500_to_1000",
+                        "1000_to_5000",
+                        "5000_to_10000",
+                        "10000_to_50000",
+                        "over_50000",
+                    ],
+                ),
+                ("fraud_event_status", ["draft", "submitted", "withdrawn"]),
+                ("match_severity", ["low", "medium", "high"]),
             ]
             for enum_name, enum_values in enum_definitions:
                 values_str = ", ".join(f"'{v}'" for v in enum_values)
                 # Check if type exists, create if not
-                check_sql = text(
-                    "SELECT 1 FROM pg_type WHERE typname = :name"
-                )
+                check_sql = text("SELECT 1 FROM pg_type WHERE typname = :name")
                 result = await conn.execute(check_sql, {"name": enum_name})
                 if not result.fetchone():
                     create_sql = text(f"CREATE TYPE {enum_name} AS ENUM ({values_str})")
@@ -80,9 +100,7 @@ async def lifespan(app: FastAPI):
 
             # Fix column sizes that may be too small in existing databases
             # audit_logs.resource_id needs to be 255 to accommodate demo image IDs
-            alter_sql = text(
-                "ALTER TABLE audit_logs ALTER COLUMN resource_id TYPE VARCHAR(255)"
-            )
+            alter_sql = text("ALTER TABLE audit_logs ALTER COLUMN resource_id TYPE VARCHAR(255)")
             try:
                 await conn.execute(alter_sql)
                 print("Updated audit_logs.resource_id column size")
@@ -95,6 +113,7 @@ async def lifespan(app: FastAPI):
         if settings.DEMO_MODE:
             print("Checking for demo data...")
             from app.demo.seed import seed_demo_data
+
             try:
                 stats = await seed_demo_data(reset=False, count=settings.DEMO_DATA_COUNT)
                 if stats["users"] > 0:
@@ -163,6 +182,7 @@ async def health_check():
     Returns 503 Service Unavailable if any critical dependency is down.
     """
     from sqlalchemy import text
+
     from app.db.session import AsyncSessionLocal
 
     db_status = "disconnected"
@@ -182,6 +202,7 @@ async def health_check():
     if settings.REDIS_URL:
         try:
             import redis.asyncio as aioredis
+
             redis_client = aioredis.from_url(settings.REDIS_URL)
             pong = await redis_client.ping()
             redis_status = "connected" if pong else "no_response"
@@ -205,6 +226,7 @@ async def health_check():
     # Return 503 if unhealthy so load balancers can detect
     if overall_status == "unhealthy":
         from fastapi.responses import JSONResponse
+
         return JSONResponse(
             status_code=503,
             content=response.model_dump(mode="json"),

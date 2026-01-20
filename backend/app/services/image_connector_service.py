@@ -9,42 +9,46 @@ Handles:
 - Key rotation
 - Request logging
 """
+
 import hashlib
 import secrets
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Optional, List
+from typing import List, Optional
 
 import httpx
 import jwt
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.backends import default_backend
-from sqlalchemy import select, and_, func
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models.image_connector import (
-    ImageConnector,
     ConnectorAuditLog,
     ConnectorRequestLog,
     ConnectorStatus,
+    ImageConnector,
 )
-from app.core.config import settings
 
 
 class ImageConnectorError(Exception):
     """Base exception for connector errors."""
+
     pass
 
 
 class ConnectorNotFoundError(ImageConnectorError):
     """Raised when connector is not found."""
+
     pass
 
 
 class ConnectorUnavailableError(ImageConnectorError):
     """Raised when connector is unavailable."""
+
     pass
 
 
@@ -113,16 +117,13 @@ class ImageConnectorService:
             connector_id=connector.id,
             action="created",
             user_id=created_by_user_id,
-            changes={"new": True}
+            changes={"new": True},
         )
 
         return connector
 
     async def get_connector(
-        self,
-        tenant_id: str,
-        connector_id: str = None,
-        id: str = None
+        self, tenant_id: str, connector_id: str = None, id: str = None
     ) -> Optional[ImageConnector]:
         """
         Get a connector by ID or connector_id.
@@ -137,16 +138,13 @@ class ImageConnectorService:
         """
         if id:
             stmt = select(ImageConnector).where(
-                and_(
-                    ImageConnector.tenant_id == tenant_id,
-                    ImageConnector.id == id
-                )
+                and_(ImageConnector.tenant_id == tenant_id, ImageConnector.id == id)
             )
         else:
             stmt = select(ImageConnector).where(
                 and_(
                     ImageConnector.tenant_id == tenant_id,
-                    ImageConnector.connector_id == connector_id
+                    ImageConnector.connector_id == connector_id,
                 )
             )
 
@@ -154,9 +152,7 @@ class ImageConnectorService:
         return result.scalar_one_or_none()
 
     async def list_connectors(
-        self,
-        tenant_id: str,
-        enabled_only: bool = False
+        self, tenant_id: str, enabled_only: bool = False
     ) -> List[ImageConnector]:
         """
         List all connectors for a tenant.
@@ -168,9 +164,7 @@ class ImageConnectorService:
         Returns:
             List of ImageConnectors
         """
-        stmt = select(ImageConnector).where(
-            ImageConnector.tenant_id == tenant_id
-        )
+        stmt = select(ImageConnector).where(ImageConnector.tenant_id == tenant_id)
 
         if enabled_only:
             stmt = stmt.where(ImageConnector.is_enabled == True)
@@ -181,11 +175,7 @@ class ImageConnectorService:
         return list(result.scalars().all())
 
     async def update_connector(
-        self,
-        tenant_id: str,
-        connector_id: str,
-        user_id: str,
-        **updates
+        self, tenant_id: str, connector_id: str, user_id: str, **updates
     ) -> ImageConnector:
         """
         Update a connector.
@@ -206,9 +196,15 @@ class ImageConnectorService:
         # Track changes
         changes = {}
         allowed_fields = {
-            "name", "description", "base_url", "token_expiry_seconds",
-            "timeout_seconds", "max_retries", "priority",
-            "circuit_breaker_threshold", "circuit_breaker_timeout_seconds"
+            "name",
+            "description",
+            "base_url",
+            "token_expiry_seconds",
+            "timeout_seconds",
+            "max_retries",
+            "priority",
+            "circuit_breaker_threshold",
+            "circuit_breaker_timeout_seconds",
         }
 
         for field, value in updates.items():
@@ -221,19 +217,13 @@ class ImageConnectorService:
         if changes:
             connector.last_modified_by_user_id = user_id
             await self._log_audit(
-                connector_id=connector.id,
-                action="updated",
-                user_id=user_id,
-                changes=changes
+                connector_id=connector.id, action="updated", user_id=user_id, changes=changes
             )
 
         return connector
 
     async def enable_connector(
-        self,
-        tenant_id: str,
-        connector_id: str,
-        user_id: str
+        self, tenant_id: str, connector_id: str, user_id: str
     ) -> ImageConnector:
         """Enable a connector."""
         connector = await self.get_connector(tenant_id, connector_id=connector_id)
@@ -248,16 +238,13 @@ class ImageConnectorService:
             connector_id=connector.id,
             action="enabled",
             user_id=user_id,
-            changes={"is_enabled": {"old": False, "new": True}}
+            changes={"is_enabled": {"old": False, "new": True}},
         )
 
         return connector
 
     async def disable_connector(
-        self,
-        tenant_id: str,
-        connector_id: str,
-        user_id: str
+        self, tenant_id: str, connector_id: str, user_id: str
     ) -> ImageConnector:
         """Disable a connector."""
         connector = await self.get_connector(tenant_id, connector_id=connector_id)
@@ -272,27 +259,19 @@ class ImageConnectorService:
             connector_id=connector.id,
             action="disabled",
             user_id=user_id,
-            changes={"is_enabled": {"old": True, "new": False}}
+            changes={"is_enabled": {"old": True, "new": False}},
         )
 
         return connector
 
-    async def delete_connector(
-        self,
-        tenant_id: str,
-        connector_id: str,
-        user_id: str
-    ):
+    async def delete_connector(self, tenant_id: str, connector_id: str, user_id: str):
         """Delete a connector."""
         connector = await self.get_connector(tenant_id, connector_id=connector_id)
         if not connector:
             raise ConnectorNotFoundError(f"Connector not found: {connector_id}")
 
         await self._log_audit(
-            connector_id=connector.id,
-            action="deleted",
-            user_id=user_id,
-            changes={"deleted": True}
+            connector_id=connector.id, action="deleted", user_id=user_id, changes={"deleted": True}
         )
 
         await self._db.delete(connector)
@@ -307,7 +286,7 @@ class ImageConnectorService:
         connector_id: str,
         new_public_key_pem: str,
         user_id: str,
-        overlap_hours: int = 24
+        overlap_hours: int = 24,
     ) -> ImageConnector:
         """
         Rotate the public key for a connector.
@@ -331,8 +310,8 @@ class ImageConnectorService:
         # Move current key to secondary
         connector.secondary_public_key_pem = connector.public_key_pem
         connector.secondary_public_key_id = connector.public_key_id
-        connector.secondary_public_key_expires_at = (
-            datetime.now(timezone.utc) + timedelta(hours=overlap_hours)
+        connector.secondary_public_key_expires_at = datetime.now(timezone.utc) + timedelta(
+            hours=overlap_hours
         )
 
         # Set new primary key
@@ -350,8 +329,8 @@ class ImageConnectorService:
             changes={
                 "new_key_id": connector.public_key_id,
                 "old_key_id": connector.secondary_public_key_id,
-                "overlap_hours": overlap_hours
-            }
+                "overlap_hours": overlap_hours,
+            },
         )
 
         return connector
@@ -360,12 +339,7 @@ class ImageConnectorService:
     # Health Check
     # =========================================================================
 
-    async def test_connection(
-        self,
-        tenant_id: str,
-        connector_id: str,
-        user_id: str
-    ) -> dict:
+    async def test_connection(self, tenant_id: str, connector_id: str, user_id: str) -> dict:
         """
         Test connection to a connector.
 
@@ -384,8 +358,7 @@ class ImageConnectorService:
         start_time = time.time()
         try:
             async with httpx.AsyncClient(
-                timeout=connector.timeout_seconds,
-                verify=True  # Require valid TLS in production
+                timeout=connector.timeout_seconds, verify=True  # Require valid TLS in production
             ) as client:
                 response = await client.get(f"{connector.base_url}/healthz")
                 latency_ms = int((time.time() - start_time) * 1000)
@@ -408,11 +381,7 @@ class ImageConnectorService:
                     if connector.status == ConnectorStatus.UNREACHABLE:
                         connector.status = ConnectorStatus.ACTIVE
 
-                    return {
-                        "success": True,
-                        "latency_ms": latency_ms,
-                        "data": health_data
-                    }
+                    return {"success": True, "latency_ms": latency_ms, "data": health_data}
                 else:
                     connector.last_health_check_at = datetime.now(timezone.utc)
                     connector.last_health_check_status = "error"
@@ -425,7 +394,7 @@ class ImageConnectorService:
                     return {
                         "success": False,
                         "latency_ms": latency_ms,
-                        "error": f"HTTP {response.status_code}"
+                        "error": f"HTTP {response.status_code}",
                     }
 
         except httpx.ConnectError as e:
@@ -442,7 +411,7 @@ class ImageConnectorService:
             return {
                 "success": False,
                 "latency_ms": latency_ms,
-                "error": f"Connection failed: {str(e)}"
+                "error": f"Connection failed: {str(e)}",
             }
 
         except Exception as e:
@@ -451,22 +420,14 @@ class ImageConnectorService:
             connector.last_connection_test_success = False
             connector.last_connection_test_result = str(e)
 
-            return {
-                "success": False,
-                "latency_ms": latency_ms,
-                "error": str(e)
-            }
+            return {"success": False, "latency_ms": latency_ms, "error": str(e)}
 
     # =========================================================================
     # JWT Token Generation
     # =========================================================================
 
     def generate_image_token(
-        self,
-        connector: ImageConnector,
-        user_id: str,
-        org_id: str,
-        roles: List[str]
+        self, connector: ImageConnector, user_id: str, org_id: str, roles: List[str]
     ) -> str:
         """
         Generate a JWT token for image requests.
@@ -496,11 +457,7 @@ class ImageConnectorService:
         # Sign with the SaaS private key
         # NOTE: In production, the SaaS has a private key that corresponds
         # to the public key configured on each connector
-        token = jwt.encode(
-            payload,
-            settings.CONNECTOR_JWT_PRIVATE_KEY,
-            algorithm="RS256"
-        )
+        token = jwt.encode(payload, settings.CONNECTOR_JWT_PRIVATE_KEY, algorithm="RS256")
 
         return token
 
@@ -525,7 +482,7 @@ class ImageConnectorService:
         latency_ms: int = None,
         bytes_received: int = None,
         from_cache: bool = None,
-        correlation_id: str = None
+        correlation_id: str = None,
     ):
         """Log an image request."""
         log_entry = ConnectorRequestLog(
@@ -546,7 +503,7 @@ class ImageConnectorService:
             latency_ms=latency_ms,
             bytes_received=bytes_received,
             from_cache=from_cache,
-            correlation_id=correlation_id or str(uuid.uuid4())
+            correlation_id=correlation_id or str(uuid.uuid4()),
         )
 
         self._db.add(log_entry)
@@ -562,7 +519,7 @@ class ImageConnectorService:
         user_id: str,
         changes: dict,
         ip_address: str = None,
-        user_agent: str = None
+        user_agent: str = None,
     ):
         """Log an audit event."""
         log_entry = ConnectorAuditLog(
@@ -571,7 +528,7 @@ class ImageConnectorService:
             user_id=user_id,
             changes=changes,
             ip_address=ip_address,
-            user_agent=user_agent
+            user_agent=user_agent,
         )
         self._db.add(log_entry)
 
@@ -584,21 +541,18 @@ def generate_key_pair() -> tuple:
         Tuple of (private_key_pem, public_key_pem)
     """
     private_key = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=2048,
-        backend=default_backend()
+        public_exponent=65537, key_size=2048, backend=default_backend()
     )
 
     private_pem = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
+        encryption_algorithm=serialization.NoEncryption(),
     ).decode()
 
     public_key = private_key.public_key()
     public_pem = public_key.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
+        encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo
     ).decode()
 
     return private_pem, public_pem

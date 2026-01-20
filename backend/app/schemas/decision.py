@@ -9,10 +9,10 @@ from pydantic import BaseModel, Field
 from app.models.decision import DecisionAction, DecisionType
 from app.schemas.common import BaseSchema, TimestampSchema
 
-
 # =============================================================================
 # EVIDENCE SNAPSHOT SCHEMAS
 # =============================================================================
+
 
 class ImageReference(BaseModel):
     """Reference to a check image at decision time."""

@@ -8,37 +8,37 @@ This module provides the core business logic for:
 - Computing network trends and statistics
 """
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import select, func, and_, or_, case
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.models.check import CheckItem
 from app.models.fraud import (
-    FraudEvent,
-    FraudSharedArtifact,
-    NetworkMatchAlert,
-    TenantFraudConfig,
-    FraudType,
-    FraudChannel,
     AmountBucket,
-    SharingLevel,
+    FraudChannel,
+    FraudEvent,
     FraudEventStatus,
+    FraudSharedArtifact,
+    FraudType,
     MatchSeverity,
+    NetworkMatchAlert,
+    SharingLevel,
+    TenantFraudConfig,
     get_amount_bucket,
 )
 from app.schemas.fraud import (
     FraudEventCreate,
-    FraudEventUpdate,
     FraudEventResponse,
+    FraudEventUpdate,
+    MatchReasonDetail,
     NetworkAlertResponse,
     NetworkAlertSummary,
-    MatchReasonDetail,
     PIIDetectionResult,
 )
 from app.services.fraud_hashing import get_hashing_service
@@ -74,7 +74,7 @@ class FraudService:
                 allow_account_indicator_sharing=False,
                 shared_artifact_retention_months=24,
                 receive_network_alerts=True,
-                minimum_alert_severity='low',  # Store as string
+                minimum_alert_severity="low",  # Store as string
             )
             self.db.add(config)
             await self.db.flush()
@@ -117,7 +117,11 @@ class FraudService:
 
         # Use default sharing level if not specified
         # SharingLevel is stored as int (0=PRIVATE, 1=AGGREGATE, 2=NETWORK_MATCH)
-        sharing_level_val = data.sharing_level.value if isinstance(data.sharing_level, SharingLevel) else data.sharing_level
+        sharing_level_val = (
+            data.sharing_level.value
+            if isinstance(data.sharing_level, SharingLevel)
+            else data.sharing_level
+        )
         if sharing_level_val == SharingLevel.PRIVATE.value:
             sharing_level_val = config.default_sharing_level
 
@@ -133,7 +137,9 @@ class FraudService:
             channel=data.channel,
             confidence=data.confidence,
             narrative_private=data.narrative_private,
-            narrative_shareable=data.narrative_shareable if config.allow_narrative_sharing else None,
+            narrative_shareable=(
+                data.narrative_shareable if config.allow_narrative_sharing else None
+            ),
             sharing_level=sharing_level_val,
             status=FraudEventStatus.DRAFT,
             created_by_user_id=user_id,
@@ -234,7 +240,9 @@ class FraudService:
 
         # Override sharing level if specified
         if sharing_level is not None:
-            event.sharing_level = sharing_level.value if isinstance(sharing_level, SharingLevel) else sharing_level
+            event.sharing_level = (
+                sharing_level.value if isinstance(sharing_level, SharingLevel) else sharing_level
+            )
 
         # Check for PII in shareable narrative
         if event.sharing_level != SharingLevel.PRIVATE.value and event.narrative_shareable:
@@ -310,7 +318,9 @@ class FraudService:
                 check_number=check_item.check_number,
                 amount_bucket=event.amount_bucket.value,
                 date_bucket=event.event_date.strftime("%Y-%m"),
-                account_number=check_item.micr_account if config.allow_account_indicator_sharing else None,
+                account_number=(
+                    check_item.micr_account if config.allow_account_indicator_sharing else None
+                ),
                 include_account=config.allow_account_indicator_sharing,
             )
 
@@ -357,7 +367,9 @@ class FraudService:
             highest_severity = None
             for alert in existing_alert_list:
                 alert_responses.append(await self._build_alert_response(alert))
-                if highest_severity is None or self._severity_rank(alert.severity) > self._severity_rank(highest_severity):
+                if highest_severity is None or self._severity_rank(
+                    alert.severity
+                ) > self._severity_rank(highest_severity):
                     highest_severity = alert.severity
             return NetworkAlertSummary(
                 has_alerts=len(alert_responses) > 0,
@@ -367,9 +379,7 @@ class FraudService:
             )
 
         # Get check item
-        result = await self.db.execute(
-            select(CheckItem).where(CheckItem.id == check_item_id)
-        )
+        result = await self.db.execute(select(CheckItem).where(CheckItem.id == check_item_id))
         check_item = result.scalar_one_or_none()
         if not check_item:
             return NetworkAlertSummary(
@@ -395,7 +405,9 @@ class FraudService:
             payee_name=check_item.payee_name,
             check_number=check_item.check_number,
             amount_bucket=get_amount_bucket(check_item.amount).value,
-            date_bucket=check_item.presented_date.strftime("%Y-%m") if check_item.presented_date else None,
+            date_bucket=(
+                check_item.presented_date.strftime("%Y-%m") if check_item.presented_date else None
+            ),
         )
 
         # Use current pepper version indicators as the primary set
@@ -483,21 +495,24 @@ class FraudService:
                 version_conditions.append(
                     and_(
                         FraudSharedArtifact.pepper_version == pepper_version,
-                        FraudSharedArtifact.indicators_json["routing_hash"].astext == indicators["routing_hash"]
+                        FraudSharedArtifact.indicators_json["routing_hash"].astext
+                        == indicators["routing_hash"],
                     )
                 )
             if "payee_hash" in indicators:
                 version_conditions.append(
                     and_(
                         FraudSharedArtifact.pepper_version == pepper_version,
-                        FraudSharedArtifact.indicators_json["payee_hash"].astext == indicators["payee_hash"]
+                        FraudSharedArtifact.indicators_json["payee_hash"].astext
+                        == indicators["payee_hash"],
                     )
                 )
             if "check_fingerprint" in indicators:
                 version_conditions.append(
                     and_(
                         FraudSharedArtifact.pepper_version == pepper_version,
-                        FraudSharedArtifact.indicators_json["check_fingerprint"].astext == indicators["check_fingerprint"]
+                        FraudSharedArtifact.indicators_json["check_fingerprint"].astext
+                        == indicators["check_fingerprint"],
                     )
                 )
 
@@ -601,7 +616,8 @@ class FraudService:
                 continue
 
             matching = [
-                a for a in artifacts
+                a
+                for a in artifacts
                 if a.indicators_json and a.indicators_json.get(ind_type) == indicators[ind_type]
             ]
 
@@ -633,14 +649,14 @@ class FraudService:
 
         # High: 2+ distinct indicator types OR 3+ artifacts
         if indicator_types_matched >= 2 or total_matches >= 3:
-            return 'high'
+            return "high"
 
         # Medium: 2 artifacts on 1 indicator type
         if total_matches >= 2:
-            return 'medium'
+            return "medium"
 
         # Low: 1 artifact matched
-        return 'low'
+        return "low"
 
     def _severity_rank(self, severity: str | MatchSeverity) -> int:
         """Get numeric rank for severity comparison."""
@@ -648,9 +664,9 @@ class FraudService:
         if isinstance(severity, MatchSeverity):
             severity = severity.value
         return {
-            'low': 1,
-            'medium': 2,
-            'high': 3,
+            "low": 1,
+            "medium": 2,
+            "high": 3,
         }.get(severity, 0)
 
     async def _build_alert_response(self, alert: NetworkMatchAlert) -> NetworkAlertResponse:
@@ -659,18 +675,26 @@ class FraudService:
 
         match_reasons = []
         for ind_type, data in alert.match_reasons.items():
-            match_reasons.append(MatchReasonDetail(
-                indicator_type=ind_type,
-                match_count=data["count"],
-                first_seen=data.get("first_seen", ""),
-                last_seen=data.get("last_seen", ""),
-                fraud_types=data.get("fraud_types", []),
-                channels=data.get("channels", []),
-            ))
+            match_reasons.append(
+                MatchReasonDetail(
+                    indicator_type=ind_type,
+                    match_count=data["count"],
+                    first_seen=data.get("first_seen", ""),
+                    last_seen=data.get("last_seen", ""),
+                    fraud_types=data.get("fraud_types", []),
+                    channels=data.get("channels", []),
+                )
+            )
 
         # Apply privacy suppression to counts
-        total_display = f"<{threshold}" if alert.total_matches < threshold else str(alert.total_matches)
-        institutions_display = f"<{threshold}" if alert.distinct_institutions < threshold else str(alert.distinct_institutions)
+        total_display = (
+            f"<{threshold}" if alert.total_matches < threshold else str(alert.total_matches)
+        )
+        institutions_display = (
+            f"<{threshold}"
+            if alert.distinct_institutions < threshold
+            else str(alert.distinct_institutions)
+        )
 
         return NetworkAlertResponse(
             id=alert.id,
@@ -754,38 +778,49 @@ class FraudService:
         # Calculate date range
         end_date = datetime.now(timezone.utc)
         from dateutil.relativedelta import relativedelta
+
         start_date = end_date - relativedelta(months=range_months)
 
         # Get all network data (from all tenants for aggregate view)
-        network_query = select(
-            FraudSharedArtifact.fraud_type,
-            FraudSharedArtifact.channel,
-            FraudSharedArtifact.amount_bucket,
-            FraudSharedArtifact.occurred_month,
-            FraudSharedArtifact.tenant_id,
-            func.count().label("count"),
-            func.sum(
-                case(
-                    (FraudSharedArtifact.amount_bucket == AmountBucket.UNDER_100, 50),
-                    (FraudSharedArtifact.amount_bucket == AmountBucket.FROM_100_TO_500, 300),
-                    (FraudSharedArtifact.amount_bucket == AmountBucket.FROM_500_TO_1000, 750),
-                    (FraudSharedArtifact.amount_bucket == AmountBucket.FROM_1000_TO_5000, 3000),
-                    (FraudSharedArtifact.amount_bucket == AmountBucket.FROM_5000_TO_10000, 7500),
-                    (FraudSharedArtifact.amount_bucket == AmountBucket.FROM_10000_TO_50000, 30000),
-                    (FraudSharedArtifact.amount_bucket == AmountBucket.OVER_50000, 75000),
-                    else_=1000
-                )
-            ).label("estimated_amount"),
-        ).where(
-            FraudSharedArtifact.is_active == True,
-            FraudSharedArtifact.sharing_level >= SharingLevel.AGGREGATE.value,
-            FraudSharedArtifact.occurred_at >= start_date,
-        ).group_by(
-            FraudSharedArtifact.fraud_type,
-            FraudSharedArtifact.channel,
-            FraudSharedArtifact.amount_bucket,
-            FraudSharedArtifact.occurred_month,
-            FraudSharedArtifact.tenant_id,
+        network_query = (
+            select(
+                FraudSharedArtifact.fraud_type,
+                FraudSharedArtifact.channel,
+                FraudSharedArtifact.amount_bucket,
+                FraudSharedArtifact.occurred_month,
+                FraudSharedArtifact.tenant_id,
+                func.count().label("count"),
+                func.sum(
+                    case(
+                        (FraudSharedArtifact.amount_bucket == AmountBucket.UNDER_100, 50),
+                        (FraudSharedArtifact.amount_bucket == AmountBucket.FROM_100_TO_500, 300),
+                        (FraudSharedArtifact.amount_bucket == AmountBucket.FROM_500_TO_1000, 750),
+                        (FraudSharedArtifact.amount_bucket == AmountBucket.FROM_1000_TO_5000, 3000),
+                        (
+                            FraudSharedArtifact.amount_bucket == AmountBucket.FROM_5000_TO_10000,
+                            7500,
+                        ),
+                        (
+                            FraudSharedArtifact.amount_bucket == AmountBucket.FROM_10000_TO_50000,
+                            30000,
+                        ),
+                        (FraudSharedArtifact.amount_bucket == AmountBucket.OVER_50000, 75000),
+                        else_=1000,
+                    )
+                ).label("estimated_amount"),
+            )
+            .where(
+                FraudSharedArtifact.is_active == True,
+                FraudSharedArtifact.sharing_level >= SharingLevel.AGGREGATE.value,
+                FraudSharedArtifact.occurred_at >= start_date,
+            )
+            .group_by(
+                FraudSharedArtifact.fraud_type,
+                FraudSharedArtifact.channel,
+                FraudSharedArtifact.amount_bucket,
+                FraudSharedArtifact.occurred_month,
+                FraudSharedArtifact.tenant_id,
+            )
         )
 
         network_result = await self.db.execute(network_query)
@@ -806,11 +841,13 @@ class FraudService:
             total_amount += row.estimated_amount or 0
 
             # Aggregate by fraud type
-            fraud_type_str = row.fraud_type.value if hasattr(row.fraud_type, 'value') else str(row.fraud_type)
+            fraud_type_str = (
+                row.fraud_type.value if hasattr(row.fraud_type, "value") else str(row.fraud_type)
+            )
             fraud_type_counts[fraud_type_str] = fraud_type_counts.get(fraud_type_str, 0) + row.count
 
             # Aggregate by channel
-            channel_str = row.channel.value if hasattr(row.channel, 'value') else str(row.channel)
+            channel_str = row.channel.value if hasattr(row.channel, "value") else str(row.channel)
             channel_counts[channel_str] = channel_counts.get(channel_str, 0) + row.count
 
             # Build data point for this period
@@ -832,15 +869,23 @@ class FraudService:
             dp["unique_institutions"].add(row.tenant_id)
             dp["by_type"][fraud_type_str] = dp["by_type"].get(fraud_type_str, 0) + row.count
             dp["by_channel"][channel_str] = dp["by_channel"].get(channel_str, 0) + row.count
-            amount_bucket_str = row.amount_bucket.value if hasattr(row.amount_bucket, 'value') else str(row.amount_bucket)
-            dp["by_amount_bucket"][amount_bucket_str] = dp["by_amount_bucket"].get(amount_bucket_str, 0) + row.count
+            amount_bucket_str = (
+                row.amount_bucket.value
+                if hasattr(row.amount_bucket, "value")
+                else str(row.amount_bucket)
+            )
+            dp["by_amount_bucket"][amount_bucket_str] = (
+                dp["by_amount_bucket"].get(amount_bucket_str, 0) + row.count
+            )
 
         # Convert data points to list and finalize
         data_points = []
         for period in sorted(data_points_dict.keys()):
             dp = data_points_dict[period]
             dp["unique_institutions"] = len(dp["unique_institutions"])
-            dp["avg_amount"] = dp["total_amount"] / dp["total_events"] if dp["total_events"] > 0 else 0
+            dp["avg_amount"] = (
+                dp["total_amount"] / dp["total_events"] if dp["total_events"] > 0 else 0
+            )
             data_points.append(dp)
 
         # Build top fraud types and channels lists
@@ -895,12 +940,18 @@ class FraudService:
             your_count = your_grouped.get(key, 0)
             network_count = network_grouped.get(key, 0)
 
-            result.append({
-                field: key.value if hasattr(key, "value") else str(key),
-                "your_bank_count": your_count,
-                "your_bank_display": f"<{threshold}" if your_count < threshold else str(your_count),
-                "network_count": network_count,
-                "network_display": f"<{threshold}" if network_count < threshold else str(network_count),
-            })
+            result.append(
+                {
+                    field: key.value if hasattr(key, "value") else str(key),
+                    "your_bank_count": your_count,
+                    "your_bank_display": (
+                        f"<{threshold}" if your_count < threshold else str(your_count)
+                    ),
+                    "network_count": network_count,
+                    "network_display": (
+                        f"<{threshold}" if network_count < threshold else str(network_count)
+                    ),
+                }
+            )
 
         return result

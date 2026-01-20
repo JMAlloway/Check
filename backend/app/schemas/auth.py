@@ -5,7 +5,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-
 # Password complexity requirements for bank-grade security
 PASSWORD_MIN_LENGTH = 12
 PASSWORD_REQUIREMENTS = """
@@ -49,7 +48,9 @@ class LoginRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=8)  # Login allows existing passwords
     mfa_code: str | None = None
-    device_fingerprint: str | None = Field(None, max_length=255, description="Client device fingerprint for session tracking")
+    device_fingerprint: str | None = Field(
+        None, max_length=255, description="Client device fingerprint for session tracking"
+    )
 
 
 class RefreshTokenRequest(BaseModel):

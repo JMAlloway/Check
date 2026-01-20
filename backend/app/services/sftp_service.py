@@ -27,7 +27,7 @@ from typing import BinaryIO
 
 import paramiko
 from paramiko import SFTPClient, SSHClient, Transport
-from paramiko.ssh_exception import SSHException, AuthenticationException
+from paramiko.ssh_exception import AuthenticationException, SSHException
 
 from app.core.encryption import decrypt_value
 from app.models.item_context_connector import ItemContextConnector
@@ -130,11 +130,7 @@ class SFTPService:
         try:
             # Run blocking paramiko operations in thread pool
             loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
-                None,
-                self._connect_sync,
-                timeout
-            )
+            result = await loop.run_in_executor(None, self._connect_sync, timeout)
 
             latency_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
 
@@ -149,7 +145,7 @@ class SFTPService:
                 success=False,
                 message=f"Connection failed: {str(e)}",
                 latency_ms=latency_ms,
-                error_details=str(e)
+                error_details=str(e),
             )
 
     def _connect_sync(self, timeout: int) -> SFTPConnectionResult:
@@ -184,28 +180,22 @@ class SFTPService:
                 server_version = self._transport.remote_version
 
             return SFTPConnectionResult(
-                success=True,
-                message="Connected successfully",
-                server_version=server_version
+                success=True, message="Connected successfully", server_version=server_version
             )
 
         except AuthenticationException as e:
             return SFTPConnectionResult(
                 success=False,
                 message="Authentication failed - check credentials",
-                error_details=str(e)
+                error_details=str(e),
             )
         except SSHException as e:
             return SFTPConnectionResult(
-                success=False,
-                message=f"SSH error: {str(e)}",
-                error_details=str(e)
+                success=False, message=f"SSH error: {str(e)}", error_details=str(e)
             )
         except OSError as e:
             return SFTPConnectionResult(
-                success=False,
-                message=f"Network error: {str(e)}",
-                error_details=str(e)
+                success=False, message=f"Network error: {str(e)}", error_details=str(e)
             )
 
     async def disconnect(self) -> None:
@@ -248,9 +238,7 @@ class SFTPService:
             try:
                 loop = asyncio.get_event_loop()
                 files = await loop.run_in_executor(
-                    None,
-                    self._list_directory_sync,
-                    self.connector.sftp_remote_path
+                    None, self._list_directory_sync, self.connector.sftp_remote_path
                 )
                 result.message = f"Connected successfully. Found {len(files)} items in {self.connector.sftp_remote_path}"
             except Exception as e:
@@ -263,9 +251,7 @@ class SFTPService:
         return result
 
     async def list_files(
-        self,
-        path: str | None = None,
-        pattern: str | None = None
+        self, path: str | None = None, pattern: str | None = None
     ) -> list[SFTPFile]:
         """
         List files in a directory, optionally filtered by pattern.
@@ -284,11 +270,7 @@ class SFTPService:
         pattern = pattern or self.connector.file_pattern
 
         loop = asyncio.get_event_loop()
-        files = await loop.run_in_executor(
-            None,
-            self._list_directory_sync,
-            path
-        )
+        files = await loop.run_in_executor(None, self._list_directory_sync, path)
 
         # Filter by pattern
         if pattern:
@@ -307,22 +289,26 @@ class SFTPService:
         files = []
         for attr in self._sftp.listdir_attr(path):
             is_dir = stat.S_ISDIR(attr.st_mode) if attr.st_mode else False
-            modified_at = datetime.fromtimestamp(attr.st_mtime, tz=timezone.utc) if attr.st_mtime else datetime.now(timezone.utc)
+            modified_at = (
+                datetime.fromtimestamp(attr.st_mtime, tz=timezone.utc)
+                if attr.st_mtime
+                else datetime.now(timezone.utc)
+            )
 
-            files.append(SFTPFile(
-                name=attr.filename,
-                path=f"{path}/{attr.filename}",
-                size=attr.st_size or 0,
-                modified_at=modified_at,
-                is_directory=is_dir
-            ))
+            files.append(
+                SFTPFile(
+                    name=attr.filename,
+                    path=f"{path}/{attr.filename}",
+                    size=attr.st_size or 0,
+                    modified_at=modified_at,
+                    is_directory=is_dir,
+                )
+            )
 
         return files
 
     async def download_file(
-        self,
-        remote_path: str,
-        local_dir: str | None = None
+        self, remote_path: str, local_dir: str | None = None
     ) -> SFTPDownloadResult:
         """
         Download a file from the SFTP server.
@@ -348,29 +334,18 @@ class SFTPService:
 
             # Download file
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None,
-                self._download_file_sync,
-                remote_path,
-                local_path
-            )
+            await loop.run_in_executor(None, self._download_file_sync, remote_path, local_path)
 
             # Calculate checksum
             checksum = await self._calculate_checksum(local_path)
             file_size = os.path.getsize(local_path)
 
             return SFTPDownloadResult(
-                success=True,
-                local_path=local_path,
-                file_size=file_size,
-                checksum=checksum
+                success=True, local_path=local_path, file_size=file_size, checksum=checksum
             )
 
         except Exception as e:
-            return SFTPDownloadResult(
-                success=False,
-                error=str(e)
-            )
+            return SFTPDownloadResult(success=False, error=str(e))
 
     def _download_file_sync(self, remote_path: str, local_path: str) -> None:
         """Synchronous file download."""
@@ -393,12 +368,7 @@ class SFTPService:
             raise RuntimeError("Not connected - call connect() first")
 
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
-            None,
-            self._move_file_sync,
-            source_path,
-            dest_path
-        )
+        await loop.run_in_executor(None, self._move_file_sync, source_path, dest_path)
         return True
 
     def _move_file_sync(self, source_path: str, dest_path: str) -> None:
@@ -429,11 +399,7 @@ class SFTPService:
             raise RuntimeError("Not connected - call connect() first")
 
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
-            None,
-            self._delete_file_sync,
-            remote_path
-        )
+        await loop.run_in_executor(None, self._delete_file_sync, remote_path)
         return True
 
     def _delete_file_sync(self, remote_path: str) -> None:
@@ -445,17 +411,13 @@ class SFTPService:
     async def _calculate_checksum(self, file_path: str) -> str:
         """Calculate SHA-256 checksum of a file."""
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            self._calculate_checksum_sync,
-            file_path
-        )
+        return await loop.run_in_executor(None, self._calculate_checksum_sync, file_path)
 
     def _calculate_checksum_sync(self, file_path: str) -> str:
         """Synchronous checksum calculation."""
         sha256 = hashlib.sha256()
-        with open(file_path, 'rb') as f:
-            for chunk in iter(lambda: f.read(8192), b''):
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
                 sha256.update(chunk)
         return sha256.hexdigest()
 

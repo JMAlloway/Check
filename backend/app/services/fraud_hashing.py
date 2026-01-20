@@ -57,9 +57,15 @@ class FraudHashingService:
             prior_pepper_version: Optional override for prior pepper version
         """
         self._pepper = pepper or self._get_network_pepper()
-        self._pepper_version = pepper_version if pepper_version is not None else self._get_pepper_version()
+        self._pepper_version = (
+            pepper_version if pepper_version is not None else self._get_pepper_version()
+        )
         self._prior_pepper = prior_pepper if prior_pepper is not None else self._get_prior_pepper()
-        self._prior_pepper_version = prior_pepper_version if prior_pepper_version is not None else self._get_prior_pepper_version()
+        self._prior_pepper_version = (
+            prior_pepper_version
+            if prior_pepper_version is not None
+            else self._get_prior_pepper_version()
+        )
 
     def _get_network_pepper(self) -> str:
         """Get the network pepper from settings or environment."""
@@ -114,9 +120,7 @@ class FraudHashingService:
         """
         use_pepper = pepper or self._pepper
         return hmac.new(
-            use_pepper.encode("utf-8"),
-            value.encode("utf-8"),
-            hashlib.sha256
+            use_pepper.encode("utf-8"), value.encode("utf-8"), hashlib.sha256
         ).hexdigest()
 
     def _hmac_hash_with_prior(self, value: str) -> str | None:
@@ -193,9 +197,17 @@ class FraudHashingService:
 
         # Remove common business suffixes
         suffixes = [
-            r"\bLLC\b", r"\bINC\b", r"\bCORP\b", r"\bCO\b",
-            r"\bLTD\b", r"\bLP\b", r"\bLLP\b", r"\bPC\b",
-            r"\bPLC\b", r"\bDBA\b", r"\bAKA\b"
+            r"\bLLC\b",
+            r"\bINC\b",
+            r"\bCORP\b",
+            r"\bCO\b",
+            r"\bLTD\b",
+            r"\bLP\b",
+            r"\bLLP\b",
+            r"\bPC\b",
+            r"\bPLC\b",
+            r"\bDBA\b",
+            r"\bAKA\b",
         ]
         for suffix in suffixes:
             normalized = re.sub(suffix, "", normalized)
@@ -460,16 +472,26 @@ class FraudHashingService:
         # Generate with current pepper
         result[self._pepper_version] = self._generate_indicators_with_pepper(
             self._pepper,
-            routing_number, payee_name, check_number,
-            amount_bucket, date_bucket, account_number, include_account
+            routing_number,
+            payee_name,
+            check_number,
+            amount_bucket,
+            date_bucket,
+            account_number,
+            include_account,
         )
 
         # Generate with prior pepper if configured
         if self.has_prior_pepper:
             result[self._prior_pepper_version] = self._generate_indicators_with_pepper(
                 self._prior_pepper,
-                routing_number, payee_name, check_number,
-                amount_bucket, date_bucket, account_number, include_account
+                routing_number,
+                payee_name,
+                check_number,
+                amount_bucket,
+                date_bucket,
+                account_number,
+                include_account,
             )
 
         return result

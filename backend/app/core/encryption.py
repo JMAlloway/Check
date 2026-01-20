@@ -23,10 +23,9 @@ import base64
 import os
 from functools import lru_cache
 
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives import hashes
-
 
 # Encryption version prefix for future algorithm migration
 ENCRYPTION_VERSION = b"v1:"
@@ -106,7 +105,7 @@ def decrypt_field(encrypted: str) -> str:
             raise ValueError("Unknown encryption version")
 
         # Remove version prefix
-        encrypted_data = encrypted_data[len(ENCRYPTION_VERSION):]
+        encrypted_data = encrypted_data[len(ENCRYPTION_VERSION) :]
 
         # Extract nonce and ciphertext
         nonce = encrypted_data[:NONCE_SIZE]

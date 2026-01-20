@@ -7,17 +7,17 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.api.deps import DBSession, RequireCheckView, require_permission
+from app.audit.service import AuditService
+from app.models.audit import AuditAction
 from app.models.check import CheckStatus, RiskLevel
 from app.schemas.check import (
-    CheckItemResponse,
-    CheckItemListResponse,
     CheckHistoryResponse,
+    CheckItemListResponse,
+    CheckItemResponse,
     CheckSearchRequest,
 )
 from app.schemas.common import PaginatedResponse
 from app.services.check import CheckService
-from app.audit.service import AuditService
-from app.models.audit import AuditAction
 
 router = APIRouter()
 
@@ -167,6 +167,7 @@ async def assign_check_item(
 ):
     """Assign a check item to a reviewer/approver or queue."""
     from sqlalchemy import select
+
     from app.models.check import CheckItem
 
     # CRITICAL: Always filter by tenant_id for multi-tenant security
@@ -229,6 +230,7 @@ async def update_check_status(
 ):
     """Update check item status."""
     from sqlalchemy import select
+
     from app.models.check import CheckItem
 
     # CRITICAL: Always filter by tenant_id for multi-tenant security

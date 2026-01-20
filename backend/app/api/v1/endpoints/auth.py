@@ -6,20 +6,26 @@ from typing import Annotated
 import pyotp
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 
-from app.api.deps import DBSession, CurrentUser
+from app.api.deps import CurrentUser, DBSession
+from app.audit.service import AuditService
+from app.core.config import settings
 from app.core.rate_limit import limiter
+from app.core.security import get_password_hash, verify_password
+from app.models.audit import AuditAction
 from app.schemas.auth import (
-    LoginRequest, RefreshTokenRequest, Token, PasswordChangeRequest,
-    LoginResponse, LoginUserInfo, LoginRoleInfo,
-    MFASetupResponse, MFAVerifyRequest,
+    LoginRequest,
+    LoginResponse,
+    LoginRoleInfo,
+    LoginUserInfo,
+    MFASetupResponse,
+    MFAVerifyRequest,
+    PasswordChangeRequest,
+    RefreshTokenRequest,
+    Token,
 )
 from app.schemas.common import MessageResponse
 from app.schemas.user import CurrentUserResponse
 from app.services.auth import AuthService
-from app.audit.service import AuditService
-from app.models.audit import AuditAction
-from app.core.security import get_password_hash, verify_password
-from app.core.config import settings
 
 router = APIRouter()
 
@@ -378,12 +384,15 @@ async def change_password(
         description=f"User changed password, {sessions_revoked} sessions invalidated",
     )
 
-    return MessageResponse(message="Password changed successfully. Please log in again.", success=True)
+    return MessageResponse(
+        message="Password changed successfully. Please log in again.", success=True
+    )
 
 
 # =============================================================================
 # MFA (Multi-Factor Authentication) Endpoints
 # =============================================================================
+
 
 @router.post("/mfa/setup", response_model=MFASetupResponse)
 async def setup_mfa(

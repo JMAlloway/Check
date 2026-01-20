@@ -18,9 +18,9 @@ This supports the demo mode feature which provides synthetic data
 for demonstrations without requiring real PII or external integrations.
 """
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "008_demo_mode"

@@ -30,22 +30,30 @@ from app.demo.scenarios import (
     DEMO_SCENARIOS,
     DemoScenario,
 )
-from app.models.audit import AuditLog, AuditAction
-from app.models.check import CheckHistory, CheckImage, CheckItem, CheckStatus, RiskLevel, AccountType, ItemType
+from app.models.audit import AuditAction, AuditLog
+from app.models.check import (
+    AccountType,
+    CheckHistory,
+    CheckImage,
+    CheckItem,
+    CheckStatus,
+    ItemType,
+    RiskLevel,
+)
 from app.models.decision import Decision, DecisionAction, DecisionType, ReasonCode
 from app.models.fraud import (
-    FraudEvent,
-    FraudSharedArtifact,
-    NetworkMatchAlert,
-    FraudType,
     FraudChannel,
+    FraudEvent,
     FraudEventStatus,
-    TenantFraudConfig,
+    FraudSharedArtifact,
+    FraudType,
+    NetworkMatchAlert,
     SharingLevel,
+    TenantFraudConfig,
     get_amount_bucket,
 )
-from app.models.image_connector import ImageConnector, ConnectorStatus
-from app.models.policy import Policy, PolicyVersion, PolicyRule, PolicyStatus, RuleType
+from app.models.image_connector import ConnectorStatus, ImageConnector
+from app.models.policy import Policy, PolicyRule, PolicyStatus, PolicyVersion, RuleType
 from app.models.queue import Queue, QueueType
 from app.models.user import User
 
@@ -96,7 +104,9 @@ class DemoSeeder:
         stats["policies"] = await self._seed_policies()
         stats["image_connectors"] = await self._seed_image_connectors()
         await self.db.commit()
-        print(f"Committed {stats['policies']} policies and {stats['image_connectors']} image connectors")
+        print(
+            f"Committed {stats['policies']} policies and {stats['image_connectors']} image connectors"
+        )
 
         stats["reason_codes"] = await self._seed_reason_codes()
         stats["check_items"], stats["check_images"] = await self._seed_checks()
@@ -132,16 +142,12 @@ class DemoSeeder:
         # Clear fraud shared artifacts (must clear before fraud events)
         # Include both demo tenant and fake network tenants
         await self.db.execute(
-            delete(FraudSharedArtifact).where(
-                FraudSharedArtifact.tenant_id.like("DEMO-%")
-            )
+            delete(FraudSharedArtifact).where(FraudSharedArtifact.tenant_id.like("DEMO-%"))
         )
 
         # Clear fraud events (must clear before check items due to FK)
         await self.db.execute(
-            delete(FraudEvent).where(
-                FraudEvent.tenant_id == "DEMO-TENANT-000000000000000000000000"
-            )
+            delete(FraudEvent).where(FraudEvent.tenant_id == "DEMO-TENANT-000000000000000000000000")
         )
 
         # Clear decisions
@@ -182,9 +188,7 @@ class DemoSeeder:
 
         for role, creds in DEMO_CREDENTIALS.items():
             # Check if user exists
-            result = await self.db.execute(
-                select(User).where(User.username == creds["username"])
-            )
+            result = await self.db.execute(select(User).where(User.username == creds["username"]))
             existing = result.scalar_one_or_none()
 
             if existing:
@@ -243,9 +247,7 @@ class DemoSeeder:
 
         count = 0
         for config in queue_configs:
-            result = await self.db.execute(
-                select(Queue).where(Queue.name == config["name"])
-            )
+            result = await self.db.execute(select(Queue).where(Queue.name == config["name"]))
             existing = result.scalar_one_or_none()
 
             if existing:
@@ -327,24 +329,48 @@ class DemoSeeder:
                         "name": "High Value Dual Control",
                         "rule_type": RuleType.DUAL_CONTROL,
                         "priority": 100,
-                        "conditions": json.dumps([
-                            {"field": "amount", "operator": "greater_or_equal", "value": 10000, "value_type": "number"}
-                        ]),
-                        "actions": json.dumps([
-                            {"action": "require_dual_control", "params": {"approver_role": "senior_approver"}}
-                        ]),
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "amount",
+                                    "operator": "greater_or_equal",
+                                    "value": 10000,
+                                    "value_type": "number",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {
+                                    "action": "require_dual_control",
+                                    "params": {"approver_role": "senior_approver"},
+                                }
+                            ]
+                        ),
                         "amount_threshold": Decimal("10000.00"),
                     },
                     {
                         "name": "Very High Value Escalation",
                         "rule_type": RuleType.ESCALATION,
                         "priority": 90,
-                        "conditions": json.dumps([
-                            {"field": "amount", "operator": "greater_or_equal", "value": 50000, "value_type": "number"}
-                        ]),
-                        "actions": json.dumps([
-                            {"action": "escalate", "params": {"queue": "management_review", "notify": True}}
-                        ]),
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "amount",
+                                    "operator": "greater_or_equal",
+                                    "value": 50000,
+                                    "value_type": "number",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {
+                                    "action": "escalate",
+                                    "params": {"queue": "management_review", "notify": True},
+                                }
+                            ]
+                        ),
                         "amount_threshold": Decimal("50000.00"),
                     },
                 ],
@@ -358,36 +384,69 @@ class DemoSeeder:
                         "name": "High Risk Auto-Escalate",
                         "rule_type": RuleType.ESCALATION,
                         "priority": 100,
-                        "conditions": json.dumps([
-                            {"field": "risk_level", "operator": "in", "value": ["high", "critical"], "value_type": "array"}
-                        ]),
-                        "actions": json.dumps([
-                            {"action": "escalate", "params": {"queue": "fraud_review"}},
-                            {"action": "require_dual_control", "params": {}}
-                        ]),
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "risk_level",
+                                    "operator": "in",
+                                    "value": ["high", "critical"],
+                                    "value_type": "array",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "escalate", "params": {"queue": "fraud_review"}},
+                                {"action": "require_dual_control", "params": {}},
+                            ]
+                        ),
                         "risk_level_threshold": "high",
                     },
                     {
                         "name": "AI Flag Review Required",
                         "rule_type": RuleType.REQUIRE_REASON,
                         "priority": 80,
-                        "conditions": json.dumps([
-                            {"field": "has_ai_flags", "operator": "equals", "value": True, "value_type": "boolean"}
-                        ]),
-                        "actions": json.dumps([
-                            {"action": "require_reason", "params": {"reason_category": "ai_override"}}
-                        ]),
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "has_ai_flags",
+                                    "operator": "equals",
+                                    "value": True,
+                                    "value_type": "boolean",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {
+                                    "action": "require_reason",
+                                    "params": {"reason_category": "ai_override"},
+                                }
+                            ]
+                        ),
                     },
                     {
                         "name": "Network Alert Dual Control",
                         "rule_type": RuleType.DUAL_CONTROL,
                         "priority": 95,
-                        "conditions": json.dumps([
-                            {"field": "has_network_alerts", "operator": "equals", "value": True, "value_type": "boolean"}
-                        ]),
-                        "actions": json.dumps([
-                            {"action": "require_dual_control", "params": {"approver_role": "fraud_analyst"}}
-                        ]),
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "has_network_alerts",
+                                    "operator": "equals",
+                                    "value": True,
+                                    "value_type": "boolean",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {
+                                    "action": "require_dual_control",
+                                    "params": {"approver_role": "fraud_analyst"},
+                                }
+                            ]
+                        ),
                     },
                 ],
             },
@@ -400,25 +459,51 @@ class DemoSeeder:
                         "name": "New Account Enhanced Review",
                         "rule_type": RuleType.ROUTING,
                         "priority": 70,
-                        "conditions": json.dumps([
-                            {"field": "account_tenure_days", "operator": "less_than", "value": 90, "value_type": "number"}
-                        ]),
-                        "actions": json.dumps([
-                            {"action": "route_to_queue", "params": {"queue": "new_account_review"}}
-                        ]),
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "account_tenure_days",
+                                    "operator": "less_than",
+                                    "value": 90,
+                                    "value_type": "number",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {
+                                    "action": "route_to_queue",
+                                    "params": {"queue": "new_account_review"},
+                                }
+                            ]
+                        ),
                     },
                     {
                         "name": "New Account High Value",
                         "rule_type": RuleType.DUAL_CONTROL,
                         "priority": 85,
-                        "conditions": json.dumps([
-                            {"field": "account_tenure_days", "operator": "less_than", "value": 90, "value_type": "number"},
-                            {"field": "amount", "operator": "greater_or_equal", "value": 5000, "value_type": "number"}
-                        ]),
-                        "actions": json.dumps([
-                            {"action": "require_dual_control", "params": {}},
-                            {"action": "escalate", "params": {"notify": True}}
-                        ]),
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "account_tenure_days",
+                                    "operator": "less_than",
+                                    "value": 90,
+                                    "value_type": "number",
+                                },
+                                {
+                                    "field": "amount",
+                                    "operator": "greater_or_equal",
+                                    "value": 5000,
+                                    "value_type": "number",
+                                },
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "require_dual_control", "params": {}},
+                                {"action": "escalate", "params": {"notify": True}},
+                            ]
+                        ),
                         "amount_threshold": Decimal("5000.00"),
                     },
                 ],
@@ -432,13 +517,22 @@ class DemoSeeder:
                         "name": "SLA Breach High Priority",
                         "rule_type": RuleType.ROUTING,
                         "priority": 100,
-                        "conditions": json.dumps([
-                            {"field": "sla_breached", "operator": "equals", "value": True, "value_type": "boolean"}
-                        ]),
-                        "actions": json.dumps([
-                            {"action": "route_to_queue", "params": {"queue": "high_priority"}},
-                            {"action": "notify", "params": {"channel": "supervisor"}}
-                        ]),
+                        "conditions": json.dumps(
+                            [
+                                {
+                                    "field": "sla_breached",
+                                    "operator": "equals",
+                                    "value": True,
+                                    "value_type": "boolean",
+                                }
+                            ]
+                        ),
+                        "actions": json.dumps(
+                            [
+                                {"action": "route_to_queue", "params": {"queue": "high_priority"}},
+                                {"action": "notify", "params": {"channel": "supervisor"}},
+                            ]
+                        ),
                     },
                 ],
             },
@@ -446,9 +540,7 @@ class DemoSeeder:
 
         for config in policy_configs:
             # Check if policy already exists
-            result = await self.db.execute(
-                select(Policy).where(Policy.name == config["name"])
-            )
+            result = await self.db.execute(select(Policy).where(Policy.name == config["name"]))
             existing = result.scalar_one_or_none()
             if existing:
                 continue
@@ -574,11 +666,19 @@ mwIDAQAB
                 public_key_expires_at=datetime.now(timezone.utc) + timedelta(days=365),
                 token_expiry_seconds=120,
                 jwt_issuer="check-review-demo",
-                last_health_check_at=datetime.now(timezone.utc) - timedelta(minutes=5) if config["is_enabled"] else None,
+                last_health_check_at=(
+                    datetime.now(timezone.utc) - timedelta(minutes=5)
+                    if config["is_enabled"]
+                    else None
+                ),
                 last_health_check_status="healthy" if config["is_enabled"] else None,
                 last_health_check_latency_ms=45 if config["is_enabled"] else None,
                 health_check_failure_count=0,
-                last_successful_request_at=datetime.now(timezone.utc) - timedelta(hours=1) if config["is_enabled"] else None,
+                last_successful_request_at=(
+                    datetime.now(timezone.utc) - timedelta(hours=1)
+                    if config["is_enabled"]
+                    else None
+                ),
                 connector_version=config["connector_version"],
                 connector_mode=config["connector_mode"],
                 allowed_roots=config["allowed_roots"],
@@ -588,8 +688,14 @@ mwIDAQAB
                 circuit_breaker_timeout_seconds=60,
                 priority=config["priority"],
                 created_by_user_id=admin_id,
-                last_connection_test_at=datetime.now(timezone.utc) - timedelta(hours=2) if config["is_enabled"] else None,
-                last_connection_test_result="Connection successful" if config["is_enabled"] else None,
+                last_connection_test_at=(
+                    datetime.now(timezone.utc) - timedelta(hours=2)
+                    if config["is_enabled"]
+                    else None
+                ),
+                last_connection_test_result=(
+                    "Connection successful" if config["is_enabled"] else None
+                ),
                 last_connection_test_success=True if config["is_enabled"] else None,
             )
             self.db.add(connector)
@@ -819,10 +925,14 @@ mwIDAQAB
             )[0]
 
             # Generate amount within scenario range
-            amount = Decimal(str(random.uniform(
-                float(scenario_config.amount_range[0]),
-                float(scenario_config.amount_range[1])
-            ))).quantize(Decimal("0.01"))
+            amount = Decimal(
+                str(
+                    random.uniform(
+                        float(scenario_config.amount_range[0]),
+                        float(scenario_config.amount_range[1]),
+                    )
+                )
+            ).quantize(Decimal("0.01"))
 
             # Generate dates
             presented_date = datetime.now(timezone.utc) - timedelta(
@@ -842,8 +952,7 @@ mwIDAQAB
 
             # Determine if dual control is required
             requires_dual_control = (
-                scenario_config.requires_dual_control or
-                amount >= settings.DUAL_CONTROL_THRESHOLD
+                scenario_config.requires_dual_control or amount >= settings.DUAL_CONTROL_THRESHOLD
             )
 
             # Map risk level
@@ -893,15 +1002,23 @@ mwIDAQAB
                 sla_due_at=presented_date + timedelta(hours=settings.DEFAULT_SLA_HOURS),
                 sla_breached=random.random() < 0.1,  # 10% SLA breach rate
                 requires_dual_control=requires_dual_control,
-                dual_control_reason="amount_threshold" if amount >= settings.DUAL_CONTROL_THRESHOLD else "policy_rule" if requires_dual_control else None,
+                dual_control_reason=(
+                    "amount_threshold"
+                    if amount >= settings.DUAL_CONTROL_THRESHOLD
+                    else "policy_rule" if requires_dual_control else None
+                ),
                 has_ai_flags=len(scenario_config.flags) > 0,
-                ai_risk_score=Decimal(str(1 - scenario_config.ai_confidence)).quantize(Decimal("0.0001")),
+                ai_risk_score=Decimal(str(1 - scenario_config.ai_confidence)).quantize(
+                    Decimal("0.0001")
+                ),
                 risk_flags=str(scenario_config.flags) if scenario_config.flags else None,
                 ai_model_id="demo-risk-analyzer",
                 ai_model_version="demo-1.0.0",
                 ai_analyzed_at=datetime.now(timezone.utc),
                 ai_recommendation=scenario_config.ai_recommendation,
-                ai_confidence=Decimal(str(scenario_config.ai_confidence)).quantize(Decimal("0.0001")),
+                ai_confidence=Decimal(str(scenario_config.ai_confidence)).quantize(
+                    Decimal("0.0001")
+                ),
                 ai_explanation=scenario_config.explanation,
                 ai_risk_factors=str(scenario_config.flags) if scenario_config.flags else None,
                 account_tenure_days=account.tenure_days,
@@ -917,10 +1034,14 @@ mwIDAQAB
 
             # Assign reviewers for non-new items
             if status != CheckStatus.NEW:
-                check_item.assigned_reviewer_id = self.demo_users.get("reviewer", self.demo_users.get("system_admin")).id
+                check_item.assigned_reviewer_id = self.demo_users.get(
+                    "reviewer", self.demo_users.get("system_admin")
+                ).id
 
             if status == CheckStatus.PENDING_DUAL_CONTROL:
-                check_item.assigned_approver_id = self.demo_users.get("senior_reviewer", self.demo_users.get("system_admin")).id
+                check_item.assigned_approver_id = self.demo_users.get(
+                    "senior_reviewer", self.demo_users.get("system_admin")
+                ).id
 
             self.db.add(check_item)
             self.demo_checks.append(check_item)
@@ -956,9 +1077,7 @@ mwIDAQAB
             history_count = random.randint(8, 20)
 
             for i in range(history_count):
-                check_date = datetime.now(timezone.utc) - timedelta(
-                    days=random.randint(30, 365)
-                )
+                check_date = datetime.now(timezone.utc) - timedelta(days=random.randint(30, 365))
                 amount = account.avg_check_amount * Decimal(str(random.uniform(0.5, 1.5)))
                 history_id = str(uuid.uuid4())
                 external_id = f"DEMO-HIST-{account.account_id}-{i}"
@@ -977,7 +1096,9 @@ mwIDAQAB
                     return_reason = random.choice(["NSF", "Stop Payment", "Account Closed"])
                 else:
                     status = "returned"
-                    return_reason = random.choice(["Signature Mismatch", "Stale Dated", "Duplicate"])
+                    return_reason = random.choice(
+                        ["Signature Mismatch", "Stale Dated", "Duplicate"]
+                    )
 
                 history = CheckHistory(
                     id=history_id,
@@ -1021,7 +1142,11 @@ mwIDAQAB
                     tenant_id="DEMO-TENANT-000000000000000000000000",
                     check_item_id=check.id,
                     user_id=reviewer.id,
-                    decision_type=DecisionType.REVIEW_RECOMMENDATION if check.requires_dual_control else DecisionType.APPROVAL_DECISION,
+                    decision_type=(
+                        DecisionType.REVIEW_RECOMMENDATION
+                        if check.requires_dual_control
+                        else DecisionType.APPROVAL_DECISION
+                    ),
                     action=action_map[check.status],
                     notes=f"Demo decision for {check.status.value} scenario",
                     previous_status=CheckStatus.IN_REVIEW.value,
@@ -1034,7 +1159,9 @@ mwIDAQAB
 
                 # Add approver decision for dual control items
                 if check.requires_dual_control:
-                    approver = self.demo_users.get("senior_reviewer", self.demo_users.get("system_admin"))
+                    approver = self.demo_users.get(
+                        "senior_reviewer", self.demo_users.get("system_admin")
+                    )
                     approval_decision = Decision(
                         id=str(uuid.uuid4()),
                         tenant_id="DEMO-TENANT-000000000000000000000000",
@@ -1158,7 +1285,9 @@ mwIDAQAB
         ]
 
         # Create fraud events for some high-risk demo checks
-        high_risk_checks = [c for c in self.demo_checks if c.risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]]
+        high_risk_checks = [
+            c for c in self.demo_checks if c.risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]
+        ]
         rejected_checks = [c for c in self.demo_checks if c.status == CheckStatus.REJECTED]
         fraud_check_pool = list(set(high_risk_checks + rejected_checks))[:15]  # Limit to 15
 
@@ -1179,9 +1308,15 @@ mwIDAQAB
                 channel=scenario["channel"],
                 confidence=scenario["confidence"],
                 narrative_private=scenario["narrative"],
-                narrative_shareable=f"Fraud indicator detected via {scenario['channel'].value} channel" if random.random() > 0.5 else None,
+                narrative_shareable=(
+                    f"Fraud indicator detected via {scenario['channel'].value} channel"
+                    if random.random() > 0.5
+                    else None
+                ),
                 sharing_level=random.choice([0, 1, 2]),  # Mix of sharing levels
-                status=random.choice([FraudEventStatus.DRAFT, FraudEventStatus.SUBMITTED, FraudEventStatus.SUBMITTED]),
+                status=random.choice(
+                    [FraudEventStatus.DRAFT, FraudEventStatus.SUBMITTED, FraudEventStatus.SUBMITTED]
+                ),
                 created_by_user_id=reviewer.id,
                 submitted_at=datetime.now(timezone.utc) if random.random() > 0.3 else None,
                 submitted_by_user_id=reviewer.id if random.random() > 0.3 else None,
@@ -1201,11 +1336,15 @@ mwIDAQAB
                     fraud_type=scenario["fraud_type"],
                     channel=scenario["channel"],
                     amount_bucket=fraud_event.amount_bucket,
-                    indicators_json={
-                        "routing_hash": f"demo_routing_{uuid.uuid4().hex[:8]}",
-                        "payee_hash": f"demo_payee_{uuid.uuid4().hex[:8]}",
-                        "check_fingerprint": f"demo_fp_{uuid.uuid4().hex[:12]}",
-                    } if fraud_event.sharing_level == 2 else None,
+                    indicators_json=(
+                        {
+                            "routing_hash": f"demo_routing_{uuid.uuid4().hex[:8]}",
+                            "payee_hash": f"demo_payee_{uuid.uuid4().hex[:8]}",
+                            "check_fingerprint": f"demo_fp_{uuid.uuid4().hex[:12]}",
+                        }
+                        if fraud_event.sharing_level == 2
+                        else None
+                    ),
                     pepper_version=1,
                     is_active=True,
                 )
@@ -1220,15 +1359,17 @@ mwIDAQAB
 
         # Create alerts for ~40% of checks to ensure users see network intelligence in demos
         # Prioritize higher risk checks but include some lower risk ones too
-        high_risk_checks = [c for c in self.demo_checks if c.risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]]
+        high_risk_checks = [
+            c for c in self.demo_checks if c.risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]
+        ]
         medium_risk_checks = [c for c in self.demo_checks if c.risk_level == RiskLevel.MEDIUM]
         low_risk_checks = [c for c in self.demo_checks if c.risk_level == RiskLevel.LOW]
 
         # Take most high-risk, some medium, few low for variety
         alertable_checks = (
-            high_risk_checks[:15] +  # Most high-risk checks
-            medium_risk_checks[:10] +  # Some medium risk
-            low_risk_checks[:5]  # A few low risk (false positive scenarios)
+            high_risk_checks[:15]  # Most high-risk checks
+            + medium_risk_checks[:10]  # Some medium risk
+            + low_risk_checks[:5]  # A few low risk (false positive scenarios)
         )
 
         for check in alertable_checks:
@@ -1251,15 +1392,23 @@ mwIDAQAB
 
             # Fraud types and channels for realistic match reasons
             fraud_type_options = [
-                "counterfeit_check", "forged_signature", "altered_check",
-                "duplicate_deposit", "account_takeover", "check_kiting"
+                "counterfeit_check",
+                "forged_signature",
+                "altered_check",
+                "duplicate_deposit",
+                "account_takeover",
+                "check_kiting",
             ]
             channel_options = ["branch", "mobile", "atm", "rdc", "online"]
 
             for reason_key, reason_desc in selected_reasons:
                 months_back = random.randint(1, 12)
-                first_seen = (datetime.now(timezone.utc) - timedelta(days=30 * months_back)).strftime("%Y-%m")
-                last_seen = (datetime.now(timezone.utc) - timedelta(days=random.randint(1, 30))).strftime("%Y-%m")
+                first_seen = (
+                    datetime.now(timezone.utc) - timedelta(days=30 * months_back)
+                ).strftime("%Y-%m")
+                last_seen = (
+                    datetime.now(timezone.utc) - timedelta(days=random.randint(1, 30))
+                ).strftime("%Y-%m")
 
                 match_reasons[reason_key] = {
                     "count": random.randint(1, total_matches),
@@ -1279,11 +1428,21 @@ mwIDAQAB
                 severity=severity,
                 total_matches=total_matches,
                 distinct_institutions=distinct_institutions,
-                earliest_match_date=datetime.now(timezone.utc) - timedelta(days=random.randint(30, 180)),
-                latest_match_date=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 30)),
-                dismissed_at=datetime.now(timezone.utc) if random.random() < 0.2 else None,  # 20% dismissed
-                dismissed_by_user_id=self.demo_users.get("reviewer", self.demo_users.get("system_admin")).id if random.random() < 0.2 else None,
-                dismissed_reason="False positive - verified with customer" if random.random() < 0.2 else None,
+                earliest_match_date=datetime.now(timezone.utc)
+                - timedelta(days=random.randint(30, 180)),
+                latest_match_date=datetime.now(timezone.utc)
+                - timedelta(days=random.randint(1, 30)),
+                dismissed_at=(
+                    datetime.now(timezone.utc) if random.random() < 0.2 else None
+                ),  # 20% dismissed
+                dismissed_by_user_id=(
+                    self.demo_users.get("reviewer", self.demo_users.get("system_admin")).id
+                    if random.random() < 0.2
+                    else None
+                ),
+                dismissed_reason=(
+                    "False positive - verified with customer" if random.random() < 0.2 else None
+                ),
                 last_checked_at=datetime.now(timezone.utc),
             )
             self.db.add(alert)
@@ -1329,12 +1488,18 @@ mwIDAQAB
                     channel = random.choice(channels)
 
                     # Realistic amount distribution
-                    amount = Decimal(str(random.choice([
-                        random.uniform(100, 500),
-                        random.uniform(500, 2000),
-                        random.uniform(2000, 10000),
-                        random.uniform(10000, 50000),
-                    ]))).quantize(Decimal("0.01"))
+                    amount = Decimal(
+                        str(
+                            random.choice(
+                                [
+                                    random.uniform(100, 500),
+                                    random.uniform(500, 2000),
+                                    random.uniform(2000, 10000),
+                                    random.uniform(10000, 50000),
+                                ]
+                            )
+                        )
+                    ).quantize(Decimal("0.01"))
 
                     # Random day within the month
                     day_offset = random.randint(0, 28)
@@ -1393,7 +1558,9 @@ mwIDAQAB
         await self.db.flush()
         return count
 
-    def _select_queue_for_status(self, status: CheckStatus, requires_dual_control: bool) -> Queue | None:
+    def _select_queue_for_status(
+        self, status: CheckStatus, requires_dual_control: bool
+    ) -> Queue | None:
         """Select appropriate queue based on status."""
         if status == CheckStatus.PENDING_DUAL_CONTROL:
             return self.demo_queues.get("Demo Dual Control")

@@ -28,11 +28,10 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.models.item_context_connector import (
-    ItemContextConnector,
     ContextConnectorStatus,
+    ItemContextConnector,
 )
 from app.services.item_context_service import ItemContextImportService
-
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +50,7 @@ async def run_scheduled_import(connector_id: str) -> None:
     async with AsyncSessionLocal() as db:
         # Get connector
         result = await db.execute(
-            select(ItemContextConnector).where(
-                ItemContextConnector.id == connector_id
-            )
+            select(ItemContextConnector).where(ItemContextConnector.id == connector_id)
         )
         connector = result.scalar_one_or_none()
 
@@ -146,10 +143,7 @@ async def sync_connector_schedules() -> None:
             existing_job = _scheduler.get_job(job_id)
 
             try:
-                trigger = create_cron_trigger(
-                    connector.schedule_cron,
-                    connector.schedule_timezone
-                )
+                trigger = create_cron_trigger(connector.schedule_cron, connector.schedule_timezone)
 
                 if existing_job:
                     # Update existing job
@@ -165,7 +159,9 @@ async def sync_connector_schedules() -> None:
                         name=f"Import: {connector.name}",
                         replace_existing=True,
                     )
-                    logger.info(f"Added schedule for connector {connector.name}: {connector.schedule_cron}")
+                    logger.info(
+                        f"Added schedule for connector {connector.name}: {connector.schedule_cron}"
+                    )
 
             except Exception as e:
                 logger.error(f"Failed to schedule connector {connector.name}: {e}")
@@ -242,12 +238,14 @@ def get_scheduler_status() -> dict[str, Any]:
     jobs = []
     for job in _scheduler.get_jobs():
         next_run = job.next_run_time
-        jobs.append({
-            "id": job.id,
-            "name": job.name,
-            "next_run": next_run.isoformat() if next_run else None,
-            "trigger": str(job.trigger),
-        })
+        jobs.append(
+            {
+                "id": job.id,
+                "name": job.name,
+                "next_run": next_run.isoformat() if next_run else None,
+                "trigger": str(job.trigger),
+            }
+        )
 
     return {
         "running": _scheduler.running,
@@ -260,8 +258,7 @@ if __name__ == "__main__":
     import sys
 
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
 
     async def main():
@@ -272,7 +269,7 @@ if __name__ == "__main__":
         status = get_scheduler_status()
         print(f"  Running: {status['running']}")
         print(f"  Jobs: {len(status['jobs'])}")
-        for job in status['jobs']:
+        for job in status["jobs"]:
             print(f"    - {job['name']}: next run at {job['next_run']}")
 
         print("\nPress Ctrl+C to stop...")

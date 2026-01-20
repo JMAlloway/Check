@@ -139,15 +139,10 @@ class PIIDetectionService:
         """
         self.strict = strict
         self._compiled_patterns = [
-            {
-                **p,
-                "regex": re.compile(p["pattern"], re.IGNORECASE)
-            }
-            for p in self.PATTERNS
+            {**p, "regex": re.compile(p["pattern"], re.IGNORECASE)} for p in self.PATTERNS
         ]
         self._keyword_pattern = re.compile(
-            r"\b(" + "|".join(re.escape(kw) for kw in self.PII_KEYWORDS) + r")\b",
-            re.IGNORECASE
+            r"\b(" + "|".join(re.escape(kw) for kw in self.PII_KEYWORDS) + r")\b", re.IGNORECASE
         )
 
     def detect(self, text: str) -> list[PIIMatch]:
@@ -172,23 +167,27 @@ class PIIDetectionService:
                 continue
 
             for match in pattern_def["regex"].finditer(text):
-                matches.append(PIIMatch(
-                    pattern_type=pattern_def["name"],
-                    matched_text=match.group(),
-                    start_position=match.start(),
-                    end_position=match.end(),
-                    confidence=pattern_def["confidence"],
-                ))
+                matches.append(
+                    PIIMatch(
+                        pattern_type=pattern_def["name"],
+                        matched_text=match.group(),
+                        start_position=match.start(),
+                        end_position=match.end(),
+                        confidence=pattern_def["confidence"],
+                    )
+                )
 
         # Check for PII keywords
         for match in self._keyword_pattern.finditer(text):
-            matches.append(PIIMatch(
-                pattern_type="pii_keyword",
-                matched_text=match.group(),
-                start_position=match.start(),
-                end_position=match.end(),
-                confidence="medium",
-            ))
+            matches.append(
+                PIIMatch(
+                    pattern_type="pii_keyword",
+                    matched_text=match.group(),
+                    start_position=match.start(),
+                    end_position=match.end(),
+                    confidence="medium",
+                )
+            )
 
         return matches
 
@@ -234,13 +233,10 @@ class PIIDetectionService:
 
                 if description:
                     warnings.append(
-                        f"Potential {description} detected "
-                        f"({match.confidence} confidence)"
+                        f"Potential {description} detected " f"({match.confidence} confidence)"
                     )
                 elif match.pattern_type == "pii_keyword":
-                    warnings.append(
-                        f"PII keyword '{match.matched_text}' detected"
-                    )
+                    warnings.append(f"PII keyword '{match.matched_text}' detected")
 
         return warnings
 
@@ -267,11 +263,7 @@ class PIIDetectionService:
 
         result = text
         for match in matches:
-            result = (
-                result[:match.start_position] +
-                replacement +
-                result[match.end_position:]
-            )
+            result = result[: match.start_position] + replacement + result[match.end_position :]
 
         return result
 
@@ -298,11 +290,13 @@ class PIIDetectionService:
             "matches": [
                 {
                     "type": m.pattern_type,
-                    "text": m.matched_text[:20] + "..." if len(m.matched_text) > 20 else m.matched_text,
+                    "text": (
+                        m.matched_text[:20] + "..." if len(m.matched_text) > 20 else m.matched_text
+                    ),
                     "confidence": m.confidence,
                 }
                 for m in matches
-            ]
+            ],
         }
 
 

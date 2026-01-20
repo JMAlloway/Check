@@ -41,6 +41,7 @@ class DemoScenario(str, Enum):
 @dataclass
 class DemoAccount:
     """Synthetic account for demo purposes."""
+
     account_id: str
     account_number_masked: str
     account_type: str
@@ -56,6 +57,7 @@ class DemoAccount:
 @dataclass
 class DemoCheckScenario:
     """Configuration for a demo check scenario."""
+
     scenario: DemoScenario
     amount_range: tuple[Decimal, Decimal]
     risk_level: str

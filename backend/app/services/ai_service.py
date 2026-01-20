@@ -139,6 +139,7 @@ class AIService:
             AIAnalysisResult with advisory recommendation and confidence scores
         """
         import time
+
         start_time = time.monotonic()
 
         analyzed_at = datetime.now(timezone.utc)
@@ -151,60 +152,70 @@ class AIService:
             amount_ratio = amount / avg_check_amount_30d
             if amount_ratio > Decimal("3.0"):
                 risk_score += Decimal("0.2500")
-                risk_factors.append({
-                    "factor": "amount_anomaly",
-                    "weight": 0.25,
-                    "description": f"Amount is {amount_ratio:.1f}x the 30-day average",
-                    "value": str(amount_ratio),
-                })
+                risk_factors.append(
+                    {
+                        "factor": "amount_anomaly",
+                        "weight": 0.25,
+                        "description": f"Amount is {amount_ratio:.1f}x the 30-day average",
+                        "value": str(amount_ratio),
+                    }
+                )
                 flags.append("Amount significantly above average")
 
         # Risk factor: New account
         if account_tenure_days is not None and account_tenure_days < 90:
             tenure_risk = Decimal("0.1500") if account_tenure_days < 30 else Decimal("0.0750")
             risk_score += tenure_risk
-            risk_factors.append({
-                "factor": "new_account",
-                "weight": float(tenure_risk),
-                "description": f"Account is only {account_tenure_days} days old",
-                "value": account_tenure_days,
-            })
+            risk_factors.append(
+                {
+                    "factor": "new_account",
+                    "weight": float(tenure_risk),
+                    "description": f"Account is only {account_tenure_days} days old",
+                    "value": account_tenure_days,
+                }
+            )
             flags.append(f"New account ({account_tenure_days} days)")
 
         # Risk factor: Return history
         if returned_item_count_90d and returned_item_count_90d > 0:
             return_risk = min(Decimal("0.3000"), Decimal(str(returned_item_count_90d * 0.10)))
             risk_score += return_risk
-            risk_factors.append({
-                "factor": "return_history",
-                "weight": float(return_risk),
-                "description": f"{returned_item_count_90d} returned items in last 90 days",
-                "value": returned_item_count_90d,
-            })
+            risk_factors.append(
+                {
+                    "factor": "return_history",
+                    "weight": float(return_risk),
+                    "description": f"{returned_item_count_90d} returned items in last 90 days",
+                    "value": returned_item_count_90d,
+                }
+            )
             flags.append(f"Return history ({returned_item_count_90d} in 90d)")
 
         # Risk factor: Balance coverage
         if current_balance is not None and amount > current_balance:
             coverage_risk = Decimal("0.2000")
             risk_score += coverage_risk
-            risk_factors.append({
-                "factor": "insufficient_balance",
-                "weight": float(coverage_risk),
-                "description": "Check amount exceeds current balance",
-                "value": str(current_balance),
-            })
+            risk_factors.append(
+                {
+                    "factor": "insufficient_balance",
+                    "weight": float(coverage_risk),
+                    "description": "Check amount exceeds current balance",
+                    "value": str(current_balance),
+                }
+            )
             flags.append("Amount exceeds current balance")
 
         # Risk factor: Upstream flags
         if upstream_flags:
             upstream_risk = min(Decimal("0.2000"), Decimal(str(len(upstream_flags) * 0.05)))
             risk_score += upstream_risk
-            risk_factors.append({
-                "factor": "upstream_flags",
-                "weight": float(upstream_risk),
-                "description": f"{len(upstream_flags)} flags from source system",
-                "value": upstream_flags,
-            })
+            risk_factors.append(
+                {
+                    "factor": "upstream_flags",
+                    "weight": float(upstream_risk),
+                    "description": f"{len(upstream_flags)} flags from source system",
+                    "value": upstream_flags,
+                }
+            )
             for flag in upstream_flags[:3]:  # Limit to first 3
                 flags.append(f"Upstream: {flag}")
 
@@ -235,7 +246,9 @@ class AIService:
             factor_desc = ", ".join([f["description"] for f in risk_factors[:3]])
             explanation = f"ADVISORY: Risk score {risk_score:.2%}. Key factors: {factor_desc}"
         else:
-            explanation = "ADVISORY: No significant risk factors detected. Standard review recommended."
+            explanation = (
+                "ADVISORY: No significant risk factors detected. Standard review recommended."
+            )
 
         processing_time_ms = int((time.monotonic() - start_time) * 1000)
 
@@ -301,11 +314,17 @@ class AIService:
 
         # If AI analysis exists, reviewer must acknowledge
         if not ai_assisted:
-            return False, "AI analysis was performed but not acknowledged. Set ai_assisted=True to proceed."
+            return (
+                False,
+                "AI analysis was performed but not acknowledged. Set ai_assisted=True to proceed.",
+            )
 
         # If AI generated flags, they should be reviewed
         if ai_analysis.flags and not ai_flags_reviewed:
-            return False, f"AI generated {len(ai_analysis.flags)} flags that must be reviewed before decision"
+            return (
+                False,
+                f"AI generated {len(ai_analysis.flags)} flags that must be reviewed before decision",
+            )
 
         return True, None
 

@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import select, or_
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.check import CheckItem
@@ -174,7 +174,9 @@ class EntitlementService:
                     allowed=True,
                     entitlement_id=entitlement.id,
                     entitlement_details={
-                        "max_amount": float(entitlement.max_amount) if entitlement.max_amount else None,
+                        "max_amount": (
+                            float(entitlement.max_amount) if entitlement.max_amount else None
+                        ),
                         "allowed_account_types": entitlement.allowed_account_types,
                         "allowed_risk_levels": entitlement.allowed_risk_levels,
                     },
@@ -261,8 +263,12 @@ class EntitlementService:
     async def get_entitlement_summary(self, user: User) -> dict:
         """Get a summary of user's entitlements for UI display."""
         review_entitlements = await self.get_user_entitlements(user, ApprovalEntitlementType.REVIEW)
-        approve_entitlements = await self.get_user_entitlements(user, ApprovalEntitlementType.APPROVE)
-        override_entitlements = await self.get_user_entitlements(user, ApprovalEntitlementType.OVERRIDE)
+        approve_entitlements = await self.get_user_entitlements(
+            user, ApprovalEntitlementType.APPROVE
+        )
+        override_entitlements = await self.get_user_entitlements(
+            user, ApprovalEntitlementType.OVERRIDE
+        )
 
         def summarize(entitlements: list[ApprovalEntitlement]) -> dict:
             if not entitlements:

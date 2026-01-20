@@ -51,18 +51,12 @@ class ImageAccessToken(Base, UUIDMixin, TimestampMixin):
 
     # Reference to the check image this token grants access to
     # Note: Index created by migration (ix_image_access_tokens_image_id)
-    image_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("check_images.id"), nullable=False
-    )
+    image_id: Mapped[str] = mapped_column(String(36), ForeignKey("check_images.id"), nullable=False)
 
     # Token lifecycle
     # Note: Index created by migration (ix_image_access_tokens_expires_at)
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    used_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Audit trail
     created_by_user_id: Mapped[str] = mapped_column(

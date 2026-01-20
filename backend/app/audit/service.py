@@ -1,7 +1,7 @@
 """Audit logging service."""
 
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
@@ -156,21 +156,21 @@ class AuditService:
             return None
 
         view.view_ended_at = datetime.now(timezone.utc)
-        view.duration_seconds = int(
-            (view.view_ended_at - view.view_started_at).total_seconds()
-        )
+        view.duration_seconds = int((view.view_ended_at - view.view_started_at).total_seconds())
 
         # Save interaction summary
-        view.interaction_summary = json.dumps({
-            "front_image_viewed": view.front_image_viewed,
-            "back_image_viewed": view.back_image_viewed,
-            "zoom_used": view.zoom_used,
-            "magnifier_used": view.magnifier_used,
-            "history_compared": view.history_compared,
-            "ai_assists_viewed": view.ai_assists_viewed,
-            "context_panel_viewed": view.context_panel_viewed,
-            "duration_seconds": view.duration_seconds,
-        })
+        view.interaction_summary = json.dumps(
+            {
+                "front_image_viewed": view.front_image_viewed,
+                "back_image_viewed": view.back_image_viewed,
+                "zoom_used": view.zoom_used,
+                "magnifier_used": view.magnifier_used,
+                "history_compared": view.history_compared,
+                "ai_assists_viewed": view.ai_assists_viewed,
+                "context_panel_viewed": view.context_panel_viewed,
+                "duration_seconds": view.duration_seconds,
+            }
+        )
 
         return view
 
@@ -287,6 +287,7 @@ class AuditService:
             conditions.append(AuditLog.timestamp <= date_to)
 
         from sqlalchemy import and_
+
         query = query.where(and_(*conditions))
         count_query = count_query.where(and_(*conditions))
 

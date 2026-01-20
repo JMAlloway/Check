@@ -20,7 +20,9 @@ from typing import Any
 from sqlalchemy import (
     Boolean,
     DateTime,
-    Enum as SQLEnum,
+)
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
@@ -35,62 +37,62 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.session import Base
 from app.models.base import TimestampMixin, UUIDMixin
 
-
 # =============================================================================
 # ENUMERATIONS
 # =============================================================================
 
+
 class CommitDecisionType(str, Enum):
     """Decision types for batch commit records."""
 
-    RELEASE = "release"              # Release funds / remove hold
-    HOLD = "hold"                    # Place new hold
-    EXTEND_HOLD = "extend_hold"      # Extend existing hold
-    MODIFY_HOLD = "modify_hold"      # Modify hold amount/reason
-    RETURN = "return"                # Return item
-    REJECT = "reject"                # Reject item
-    ESCALATE = "escalate"            # Escalate to ops/fraud
+    RELEASE = "release"  # Release funds / remove hold
+    HOLD = "hold"  # Place new hold
+    EXTEND_HOLD = "extend_hold"  # Extend existing hold
+    MODIFY_HOLD = "modify_hold"  # Modify hold amount/reason
+    RETURN = "return"  # Return item
+    REJECT = "reject"  # Reject item
+    ESCALATE = "escalate"  # Escalate to ops/fraud
 
 
 class HoldReasonCode(str, Enum):
     """Reg CC hold reason codes."""
 
     # Regulation CC Reason Codes
-    NEW_ACCOUNT = "new_account"                      # Account less than 30 days old
-    LARGE_DEPOSIT = "large_deposit"                  # Exceeds $5,525 threshold
-    REDEPOSIT = "redeposit"                          # Previously returned item
-    REPEATED_OVERDRAFT = "repeated_overdraft"        # Account overdrawn repeatedly
-    REASONABLE_DOUBT = "reasonable_doubt"            # Reasonable cause to doubt collectibility
-    EMERGENCY_CONDITIONS = "emergency_conditions"    # Emergency conditions
-    NEXT_DAY_UNAVAILABLE = "next_day_unavailable"    # Next-day items exceeding limit
-    OTHER = "other"                                  # Other (requires explanation)
+    NEW_ACCOUNT = "new_account"  # Account less than 30 days old
+    LARGE_DEPOSIT = "large_deposit"  # Exceeds $5,525 threshold
+    REDEPOSIT = "redeposit"  # Previously returned item
+    REPEATED_OVERDRAFT = "repeated_overdraft"  # Account overdrawn repeatedly
+    REASONABLE_DOUBT = "reasonable_doubt"  # Reasonable cause to doubt collectibility
+    EMERGENCY_CONDITIONS = "emergency_conditions"  # Emergency conditions
+    NEXT_DAY_UNAVAILABLE = "next_day_unavailable"  # Next-day items exceeding limit
+    OTHER = "other"  # Other (requires explanation)
 
 
 class BatchStatus(str, Enum):
     """Batch lifecycle status."""
 
-    PENDING = "pending"              # Awaiting approval
-    APPROVED = "approved"            # Approved, ready for file generation
-    GENERATING = "generating"        # File generation in progress
-    GENERATED = "generated"          # File generated, awaiting transmission
-    TRANSMITTED = "transmitted"      # File sent to bank middleware
-    ACKNOWLEDGED = "acknowledged"    # Acknowledgement received
+    PENDING = "pending"  # Awaiting approval
+    APPROVED = "approved"  # Approved, ready for file generation
+    GENERATING = "generating"  # File generation in progress
+    GENERATED = "generated"  # File generated, awaiting transmission
+    TRANSMITTED = "transmitted"  # File sent to bank middleware
+    ACKNOWLEDGED = "acknowledged"  # Acknowledgement received
     PARTIALLY_PROCESSED = "partially_processed"  # Some records failed
-    COMPLETED = "completed"          # All records processed successfully
-    FAILED = "failed"                # Batch failed
-    CANCELLED = "cancelled"          # Batch cancelled before processing
+    COMPLETED = "completed"  # All records processed successfully
+    FAILED = "failed"  # Batch failed
+    CANCELLED = "cancelled"  # Batch cancelled before processing
 
 
 class RecordStatus(str, Enum):
     """Individual record status within a batch."""
 
-    PENDING = "pending"              # Awaiting batch processing
-    INCLUDED = "included"            # Included in generated file
-    TRANSMITTED = "transmitted"      # Sent to bank
-    ACCEPTED = "accepted"            # Accepted by core
-    REJECTED = "rejected"            # Rejected by core
-    FAILED = "failed"                # System failure
-    RETRYING = "retrying"            # Retry in progress
+    PENDING = "pending"  # Awaiting batch processing
+    INCLUDED = "included"  # Included in generated file
+    TRANSMITTED = "transmitted"  # Sent to bank
+    ACCEPTED = "accepted"  # Accepted by core
+    REJECTED = "rejected"  # Rejected by core
+    FAILED = "failed"  # System failure
+    RETRYING = "retrying"  # Retry in progress
     MANUALLY_RESOLVED = "manually_resolved"  # Manually resolved by ops
 
 
@@ -115,11 +117,11 @@ class DeliveryMethod(str, Enum):
 class ErrorCategory(str, Enum):
     """Error classification for troubleshooting."""
 
-    VALIDATION = "validation"        # Bad data in request
+    VALIDATION = "validation"  # Bad data in request
     BUSINESS_RULE = "business_rule"  # Core rejected due to business rule
-    SYSTEM = "system"                # Infrastructure failure
-    TIMEOUT = "timeout"              # Communication timeout
-    AUTH = "auth"                    # Authentication/authorization failure
+    SYSTEM = "system"  # Infrastructure failure
+    TIMEOUT = "timeout"  # Communication timeout
+    AUTH = "auth"  # Authentication/authorization failure
 
 
 class AcknowledgementStatus(str, Enum):
@@ -134,6 +136,7 @@ class AcknowledgementStatus(str, Enum):
 # =============================================================================
 # CONFIGURATION MODELS
 # =============================================================================
+
 
 class BankConnectorConfig(Base, UUIDMixin, TimestampMixin):
     """
@@ -155,7 +158,7 @@ class BankConnectorConfig(Base, UUIDMixin, TimestampMixin):
     file_format: Mapped[FileFormat] = mapped_column(
         SQLEnum(FileFormat, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
-        default=FileFormat.CSV
+        default=FileFormat.CSV,
     )
     file_encoding: Mapped[str] = mapped_column(String(20), default="UTF-8")
     file_line_ending: Mapped[str] = mapped_column(String(10), default="CRLF")  # CRLF or LF
@@ -163,8 +166,7 @@ class BankConnectorConfig(Base, UUIDMixin, TimestampMixin):
     # File naming convention (supports placeholders)
     # e.g., "CHECK_COMMIT_{BANK_ID}_{BATCH_ID}_{TIMESTAMP}.csv"
     file_name_pattern: Mapped[str] = mapped_column(
-        String(255),
-        default="COMMIT_{BANK_ID}_{BATCH_ID}_{YYYYMMDD_HHMMSS}.csv"
+        String(255), default="COMMIT_{BANK_ID}_{BATCH_ID}_{YYYYMMDD_HHMMSS}.csv"
     )
 
     # Field configuration (JSONB for flexibility)
@@ -175,7 +177,7 @@ class BankConnectorConfig(Base, UUIDMixin, TimestampMixin):
     delivery_method: Mapped[DeliveryMethod] = mapped_column(
         SQLEnum(DeliveryMethod, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
-        default=DeliveryMethod.SFTP
+        default=DeliveryMethod.SFTP,
     )
 
     # Delivery settings (encrypted in production)
@@ -217,6 +219,7 @@ class BankConnectorConfig(Base, UUIDMixin, TimestampMixin):
 # BATCH MODELS
 # =============================================================================
 
+
 class CommitBatch(Base, UUIDMixin, TimestampMixin):
     """
     A batch of approved decisions ready for commit to downstream systems.
@@ -233,9 +236,7 @@ class CommitBatch(Base, UUIDMixin, TimestampMixin):
     # Batch identification
     batch_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     bank_config_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("bank_connector_configs.id"),
-        nullable=False
+        String(36), ForeignKey("bank_connector_configs.id"), nullable=False
     )
 
     # Batch description
@@ -245,7 +246,7 @@ class CommitBatch(Base, UUIDMixin, TimestampMixin):
     status: Mapped[BatchStatus] = mapped_column(
         SQLEnum(BatchStatus, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
-        default=BatchStatus.PENDING
+        default=BatchStatus.PENDING,
     )
 
     # Aggregates (denormalized for performance)
@@ -310,12 +311,10 @@ class CommitBatch(Base, UUIDMixin, TimestampMixin):
     # Relationships
     bank_config: Mapped["BankConnectorConfig"] = relationship()
     records: Mapped[list["CommitRecord"]] = relationship(
-        back_populates="batch",
-        cascade="all, delete-orphan"
+        back_populates="batch", cascade="all, delete-orphan"
     )
     acknowledgements: Mapped[list["BatchAcknowledgement"]] = relationship(
-        back_populates="batch",
-        cascade="all, delete-orphan"
+        back_populates="batch", cascade="all, delete-orphan"
     )
 
     __table_args__ = (
@@ -337,24 +336,16 @@ class CommitRecord(Base, UUIDMixin, TimestampMixin):
 
     # Batch linkage
     batch_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("commit_batches.id", ondelete="CASCADE"),
-        nullable=False
+        String(36), ForeignKey("commit_batches.id", ondelete="CASCADE"), nullable=False
     )
 
     # Sequence within batch (for ordered processing)
     sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # Link to original decision (audit trail)
-    decision_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("decisions.id"),
-        nullable=False
-    )
+    decision_id: Mapped[str] = mapped_column(String(36), ForeignKey("decisions.id"), nullable=False)
     check_item_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("check_items.id"),
-        nullable=False
+        String(36), ForeignKey("check_items.id"), nullable=False
     )
 
     # Idempotency - unique hash of this decision record
@@ -365,13 +356,12 @@ class CommitRecord(Base, UUIDMixin, TimestampMixin):
     status: Mapped[RecordStatus] = mapped_column(
         SQLEnum(RecordStatus, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
-        default=RecordStatus.PENDING
+        default=RecordStatus.PENDING,
     )
 
     # Decision details (frozen at time of batch creation)
     decision_type: Mapped[CommitDecisionType] = mapped_column(
-        SQLEnum(CommitDecisionType, values_callable=lambda x: [e.value for e in x]),
-        nullable=False
+        SQLEnum(CommitDecisionType, values_callable=lambda x: [e.value for e in x]), nullable=False
     )
 
     # Bank/account identifiers
@@ -450,9 +440,7 @@ class BatchAcknowledgement(Base, UUIDMixin, TimestampMixin):
 
     # Batch linkage
     batch_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("commit_batches.id", ondelete="CASCADE"),
-        nullable=False
+        String(36), ForeignKey("commit_batches.id", ondelete="CASCADE"), nullable=False
     )
 
     # Acknowledgement file info
@@ -463,7 +451,7 @@ class BatchAcknowledgement(Base, UUIDMixin, TimestampMixin):
     # Overall status
     status: Mapped[AcknowledgementStatus] = mapped_column(
         SQLEnum(AcknowledgementStatus, values_callable=lambda x: [e.value for e in x]),
-        nullable=False
+        nullable=False,
     )
 
     # External reference from bank
@@ -500,6 +488,7 @@ class BatchAcknowledgement(Base, UUIDMixin, TimestampMixin):
 # =============================================================================
 # RECONCILIATION MODELS
 # =============================================================================
+
 
 class ReconciliationReport(Base, UUIDMixin, TimestampMixin):
     """
@@ -569,5 +558,5 @@ class ReconciliationReport(Base, UUIDMixin, TimestampMixin):
 # IMPORTS FOR RELATIONSHIPS
 # =============================================================================
 
-from app.models.decision import Decision  # noqa: E402
 from app.models.check import CheckItem  # noqa: E402
+from app.models.decision import Decision  # noqa: E402

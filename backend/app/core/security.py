@@ -93,6 +93,7 @@ class SignedUrlPayload:
 
     Note: user_id is for audit logging only - access is NOT restricted to this user.
     """
+
     def __init__(self, resource_id: str, user_id: str):
         self.resource_id = resource_id
         self.user_id = user_id  # For audit logging, not access control

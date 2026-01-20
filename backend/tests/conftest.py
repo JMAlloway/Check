@@ -19,15 +19,14 @@ import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.main import app
-from app.db.session import Base, get_db
-from app.core.security import create_access_token, get_password_hash
 from app.core.config import settings
-
+from app.core.security import create_access_token, get_password_hash
+from app.db.session import Base, get_db
+from app.main import app
 
 # =============================================================================
 # Event Loop Configuration
@@ -88,6 +87,7 @@ async def db_session(async_engine) -> AsyncGenerator[AsyncSession, None]:
 @pytest.fixture(scope="function")
 def override_get_db(db_session):
     """Override the get_db dependency for tests."""
+
     async def _override():
         yield db_session
 

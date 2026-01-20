@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from app.integrations.interfaces.base import (
     AccountContext,
+    AccountContextProvider,
     CheckBehaviorStats,
     CheckHistoryProvider,
     CheckImageData,
@@ -21,7 +22,6 @@ from app.integrations.interfaces.base import (
     CheckItemProvider,
     HistoricalCheck,
     PresentedItem,
-    AccountContextProvider,
 )
 
 
@@ -133,28 +133,32 @@ class MockAdapter(
                 flags.append("MICR_ANOMALY")
 
             item_id = f"CHK{1000000 + i:07d}"
-            items.append({
-                "external_item_id": item_id,
-                "source_system": "mock",
-                "account_id": account_id,
-                "account_number_masked": account["account_number_masked"],
-                "account_type": account["account_type"],
-                "routing_number": "123456789",
-                "check_number": str(1000 + i),
-                "amount": amount,
-                "currency": "USD",
-                "payee_name": random.choice(payees),
-                "memo": random.choice(["Invoice #" + str(random.randint(1000, 9999)), None, None]),
-                "micr_line": f"T123456789T {account_id} {1000 + i}",
-                "micr_account": account_id,
-                "micr_routing": "123456789",
-                "micr_check_number": str(1000 + i),
-                "presented_date": presented_date,
-                "check_date": presented_date - timedelta(days=random.randint(0, 5)),
-                "front_image_id": f"IMG_{item_id}_FRONT",
-                "back_image_id": f"IMG_{item_id}_BACK",
-                "upstream_flags": flags if flags else None,
-            })
+            items.append(
+                {
+                    "external_item_id": item_id,
+                    "source_system": "mock",
+                    "account_id": account_id,
+                    "account_number_masked": account["account_number_masked"],
+                    "account_type": account["account_type"],
+                    "routing_number": "123456789",
+                    "check_number": str(1000 + i),
+                    "amount": amount,
+                    "currency": "USD",
+                    "payee_name": random.choice(payees),
+                    "memo": random.choice(
+                        ["Invoice #" + str(random.randint(1000, 9999)), None, None]
+                    ),
+                    "micr_line": f"T123456789T {account_id} {1000 + i}",
+                    "micr_account": account_id,
+                    "micr_routing": "123456789",
+                    "micr_check_number": str(1000 + i),
+                    "presented_date": presented_date,
+                    "check_date": presented_date - timedelta(days=random.randint(0, 5)),
+                    "front_image_id": f"IMG_{item_id}_FRONT",
+                    "back_image_id": f"IMG_{item_id}_BACK",
+                    "upstream_flags": flags if flags else None,
+                }
+            )
 
         return sorted(items, key=lambda x: x["presented_date"], reverse=True)
 
@@ -177,31 +181,37 @@ class MockAdapter(
                     return_reason = None
                 else:
                     status = "returned"
-                    return_reason = random.choice([
-                        "NSF",
-                        "Stop Payment",
-                        "Signature Mismatch",
-                        "Stale Dated",
-                    ])
+                    return_reason = random.choice(
+                        [
+                            "NSF",
+                            "Stop Payment",
+                            "Signature Mismatch",
+                            "Stale Dated",
+                        ]
+                    )
 
                 item_id = f"HIST{random.randint(1000000, 9999999)}"
-                account_history.append({
-                    "external_item_id": item_id,
-                    "account_id": account_id,
-                    "check_number": str(random.randint(100, 9999)),
-                    "amount": amount,
-                    "check_date": check_date,
-                    "payee_name": random.choice([
-                        "ABC Supplies Inc",
-                        "Johnson & Associates",
-                        "City Utilities",
-                        None,
-                    ]),
-                    "status": status,
-                    "return_reason": return_reason,
-                    "front_image_id": f"IMG_{item_id}_FRONT",
-                    "back_image_id": f"IMG_{item_id}_BACK",
-                })
+                account_history.append(
+                    {
+                        "external_item_id": item_id,
+                        "account_id": account_id,
+                        "check_number": str(random.randint(100, 9999)),
+                        "amount": amount,
+                        "check_date": check_date,
+                        "payee_name": random.choice(
+                            [
+                                "ABC Supplies Inc",
+                                "Johnson & Associates",
+                                "City Utilities",
+                                None,
+                            ]
+                        ),
+                        "status": status,
+                        "return_reason": return_reason,
+                        "front_image_id": f"IMG_{item_id}_FRONT",
+                        "back_image_id": f"IMG_{item_id}_BACK",
+                    }
+                )
 
             history[account_id] = sorted(
                 account_history,
@@ -279,10 +289,12 @@ class MockAdapter(
             points = [(width - 350, 340)]
             for _ in range(20):
                 last = points[-1]
-                points.append((
-                    last[0] + random.randint(10, 20),
-                    last[1] + random.randint(-10, 10),
-                ))
+                points.append(
+                    (
+                        last[0] + random.randint(10, 20),
+                        last[1] + random.randint(-10, 10),
+                    )
+                )
             draw.line(points, fill=(0, 0, 150), width=2)
 
         else:

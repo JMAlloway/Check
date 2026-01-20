@@ -10,26 +10,26 @@ CRITICAL FOR: Vendor risk assessments, SOC 2 audits, bank compliance
 Run with: pytest tests/integration/test_tenant_isolation.py -v
 """
 
-import pytest
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.check import CheckItem, CheckImage, CheckStatus, RiskLevel, AccountType
-from app.models.decision import Decision, DecisionType, DecisionAction
+from app.models.audit import AuditAction, AuditLog, ItemView
+from app.models.check import AccountType, CheckImage, CheckItem, CheckStatus, RiskLevel
+from app.models.decision import Decision, DecisionAction, DecisionType
 from app.models.queue import Queue, QueueType
-from app.models.audit import AuditLog, ItemView, AuditAction
 from app.models.user import User
-
 
 # =============================================================================
 # Test Fixtures & Helpers
 # =============================================================================
+
 
 class MockUser:
     """Mock user for testing with tenant isolation."""
@@ -151,6 +151,7 @@ def create_item_view(tenant_id: str, check_item_id: str, user_id: str) -> ItemVi
 # Multi-Tenant Isolation Tests
 # =============================================================================
 
+
 class TestTenantIsolation:
     """
     Critical tests for multi-tenant data isolation.
@@ -179,7 +180,6 @@ class TestTenantIsolation:
         """Create a mock database session."""
         db = AsyncMock(spec=AsyncSession)
         return db
-
 
     # -------------------------------------------------------------------------
     # Test 1: Tenant A cannot GET Tenant B's check item
@@ -217,7 +217,6 @@ class TestTenantIsolation:
         query_str = str(call_args)
         assert "tenant_id" in query_str.lower() or tenant_a.tenant_id in query_str
 
-
     # -------------------------------------------------------------------------
     # Test 2: Tenant A cannot LIST Tenant B's checks
     # -------------------------------------------------------------------------
@@ -253,7 +252,6 @@ class TestTenantIsolation:
         # Verify tenant_id was used in the query
         assert mock_db.execute.called
 
-
     # -------------------------------------------------------------------------
     # Test 3: Tenant A cannot ASSIGN Tenant B's check item
     # -------------------------------------------------------------------------
@@ -284,7 +282,6 @@ class TestTenantIsolation:
             )
 
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
-
 
     # -------------------------------------------------------------------------
     # Test 4: Tenant A cannot UPDATE STATUS of Tenant B's check item
@@ -320,7 +317,6 @@ class TestTenantIsolation:
             )
 
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
-
 
     # -------------------------------------------------------------------------
     # Test 5: Tenant A cannot CREATE DECISION for Tenant B's check item
@@ -360,7 +356,6 @@ class TestTenantIsolation:
 
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
 
-
     # -------------------------------------------------------------------------
     # Test 6: Tenant A cannot VIEW IMAGE belonging to Tenant B's check item
     # -------------------------------------------------------------------------
@@ -393,7 +388,6 @@ class TestTenantIsolation:
 
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
 
-
     # -------------------------------------------------------------------------
     # Additional Critical Tests
     # -------------------------------------------------------------------------
@@ -424,7 +418,6 @@ class TestTenantIsolation:
         # Should return empty list, not Tenant B's decisions
         assert result == []
 
-
     @pytest.mark.asyncio
     async def test_audit_trail_tenant_isolation(self, tenant_a, tenant_b, mock_db):
         """
@@ -451,7 +444,6 @@ class TestTenantIsolation:
         # Should return empty list, not Tenant B's audit entries
         assert result == []
 
-
     @pytest.mark.asyncio
     async def test_queue_tenant_isolation(self, tenant_a, tenant_b, mock_db):
         """
@@ -477,7 +469,6 @@ class TestTenantIsolation:
 
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
 
-
     @pytest.mark.asyncio
     async def test_dual_control_approval_tenant_isolation(self, tenant_a, tenant_b, mock_db):
         """
@@ -489,11 +480,7 @@ class TestTenantIsolation:
 
         # Tenant B's decision requiring dual control
         tenant_b_check = create_check_item(tenant_b.tenant_id)
-        tenant_b_decision = create_decision(
-            tenant_b.tenant_id,
-            tenant_b_check.id,
-            tenant_b.user.id
-        )
+        tenant_b_decision = create_decision(tenant_b.tenant_id, tenant_b_check.id, tenant_b.user.id)
 
         # Mock database to return None (tenant filter blocks access)
         mock_result = MagicMock()
@@ -515,7 +502,6 @@ class TestTenantIsolation:
             )
 
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
-
 
     @pytest.mark.asyncio
     async def test_dashboard_stats_tenant_isolation(self, tenant_a, tenant_b, mock_db):
@@ -540,7 +526,6 @@ class TestTenantIsolation:
         assert mock_db.execute.called
         # All counts should be from tenant A only
         assert "summary" in result
-
 
     @pytest.mark.asyncio
     async def test_csv_export_tenant_isolation(self, tenant_a, tenant_b, mock_db):
@@ -574,6 +559,7 @@ class TestTenantIsolation:
 # Isolation Verification Helpers
 # =============================================================================
 
+
 class TestTenantIsolationQueries:
     """
     Tests that verify the SQL queries include proper tenant filtering.
@@ -583,8 +569,9 @@ class TestTenantIsolationQueries:
 
     def test_check_service_includes_tenant_filter(self):
         """Verify CheckService.search_items requires tenant_id."""
-        from app.services.check import CheckService
         import inspect
+
+        from app.services.check import CheckService
 
         # Get the signature of search_items
         sig = inspect.signature(CheckService.search_items)
@@ -595,8 +582,9 @@ class TestTenantIsolationQueries:
 
     def test_check_service_get_item_includes_tenant_filter(self):
         """Verify CheckService.get_check_item requires tenant_id."""
-        from app.services.check import CheckService
         import inspect
+
+        from app.services.check import CheckService
 
         sig = inspect.signature(CheckService.get_check_item)
         params = list(sig.parameters.keys())
@@ -605,8 +593,9 @@ class TestTenantIsolationQueries:
 
     def test_audit_service_search_requires_tenant_id(self):
         """Verify AuditService.search_audit_logs requires tenant_id."""
-        from app.audit.service import AuditService
         import inspect
+
+        from app.audit.service import AuditService
 
         sig = inspect.signature(AuditService.search_audit_logs)
         params = list(sig.parameters.keys())
@@ -616,8 +605,9 @@ class TestTenantIsolationQueries:
 
     def test_audit_service_get_trail_requires_tenant_id(self):
         """Verify AuditService.get_item_audit_trail requires tenant_id."""
-        from app.audit.service import AuditService
         import inspect
+
+        from app.audit.service import AuditService
 
         sig = inspect.signature(AuditService.get_item_audit_trail)
         params = list(sig.parameters.keys())
@@ -628,6 +618,7 @@ class TestTenantIsolationQueries:
 # =============================================================================
 # Cross-Tenant Attack Scenario Tests
 # =============================================================================
+
 
 class TestCrossTenantAttacks:
     """
@@ -650,7 +641,6 @@ class TestCrossTenantAttacks:
     def mock_db(self):
         """Create a mock database session."""
         return AsyncMock(spec=AsyncSession)
-
 
     @pytest.mark.asyncio
     async def test_id_enumeration_attack(self, attacker, victim, mock_db):
@@ -678,7 +668,6 @@ class TestCrossTenantAttacks:
 
         # Must return 404 (not 403) to prevent existence disclosure
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
-
 
     @pytest.mark.asyncio
     async def test_parameter_tampering_attack(self, attacker, victim, mock_db):
@@ -708,7 +697,6 @@ class TestCrossTenantAttacks:
         # Verify no victim data returned
         assert items == []
         assert total == 0
-
 
     @pytest.mark.asyncio
     async def test_batch_request_attack(self, attacker, victim, mock_db):
@@ -740,6 +728,7 @@ class TestCrossTenantAttacks:
 # Model-Level Isolation Tests
 # =============================================================================
 
+
 class TestModelTenantFields:
     """
     Verify that all multi-tenant models have tenant_id fields.
@@ -769,6 +758,7 @@ class TestModelTenantFields:
 # =============================================================================
 # Compliance Verification Tests
 # =============================================================================
+
 
 class TestComplianceRequirements:
     """
@@ -812,6 +802,7 @@ class TestComplianceRequirements:
 # External Item ID Multi-Tenant Uniqueness Tests
 # =============================================================================
 
+
 class TestExternalItemIdTenantUniqueness:
     """
     Tests verifying that external_item_id is unique per-tenant, not globally.
@@ -828,19 +819,24 @@ class TestExternalItemIdTenantUniqueness:
         from app.models.check import CheckItem
 
         # Check that external_item_id column does NOT have unique=True
-        column = CheckItem.__table__.columns['external_item_id']
+        column = CheckItem.__table__.columns["external_item_id"]
         assert not column.unique, "external_item_id should not have global unique=True"
 
         # Check that the composite unique constraint exists
-        constraints = [c for c in CheckItem.__table__.constraints
-                       if hasattr(c, 'name') and c.name == 'uq_check_items_tenant_external_id']
-        assert len(constraints) == 1, "Missing composite unique constraint uq_check_items_tenant_external_id"
+        constraints = [
+            c
+            for c in CheckItem.__table__.constraints
+            if hasattr(c, "name") and c.name == "uq_check_items_tenant_external_id"
+        ]
+        assert (
+            len(constraints) == 1
+        ), "Missing composite unique constraint uq_check_items_tenant_external_id"
 
         # Verify the constraint columns
         constraint = constraints[0]
         column_names = [col.name for col in constraint.columns]
-        assert 'tenant_id' in column_names
-        assert 'external_item_id' in column_names
+        assert "tenant_id" in column_names
+        assert "external_item_id" in column_names
 
     def test_same_external_id_allowed_in_different_tenants(self):
         """Two tenants can have check items with the same external_item_id."""
@@ -934,11 +930,13 @@ class TestExternalItemIdTenantUniqueness:
     def test_migration_revision_exists(self):
         """Verify the migration for tenant-scoped uniqueness exists."""
         import os
+
         migration_path = os.path.join(
-            os.path.dirname(__file__),
-            '../../alembic/versions/009_tenant_unique_external_id.py'
+            os.path.dirname(__file__), "../../alembic/versions/009_tenant_unique_external_id.py"
         )
-        assert os.path.exists(migration_path), "Migration 009_tenant_unique_external_id.py not found"
+        assert os.path.exists(
+            migration_path
+        ), "Migration 009_tenant_unique_external_id.py not found"
 
 
 if __name__ == "__main__":

@@ -7,14 +7,14 @@ security headers to prevent bearer token leakage via referrer headers.
 CRITICAL FOR: Bank vendor risk assessments, security compliance
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
-from app.core.security import generate_signed_url
 from app.core.config import settings
+from app.core.security import generate_signed_url
+from app.main import app
 
 
 class TestSecureImageSecurityHeaders:
@@ -29,23 +29,85 @@ class TestSecureImageSecurityHeaders:
     def mock_image_data(self):
         """Mock image binary data."""
         # Simple 1x1 transparent PNG
-        return bytes([
-            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-            0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-            0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
-            0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
-            0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-            0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
-            0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
-            0x42, 0x60, 0x82,
-        ])
+        return bytes(
+            [
+                0x89,
+                0x50,
+                0x4E,
+                0x47,
+                0x0D,
+                0x0A,
+                0x1A,
+                0x0A,
+                0x00,
+                0x00,
+                0x00,
+                0x0D,
+                0x49,
+                0x48,
+                0x44,
+                0x52,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x08,
+                0x06,
+                0x00,
+                0x00,
+                0x00,
+                0x1F,
+                0x15,
+                0xC4,
+                0x89,
+                0x00,
+                0x00,
+                0x00,
+                0x0A,
+                0x49,
+                0x44,
+                0x41,
+                0x54,
+                0x78,
+                0x9C,
+                0x63,
+                0x00,
+                0x01,
+                0x00,
+                0x00,
+                0x05,
+                0x00,
+                0x01,
+                0x0D,
+                0x0A,
+                0x2D,
+                0xB4,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x49,
+                0x45,
+                0x4E,
+                0x44,
+                0xAE,
+                0x42,
+                0x60,
+                0x82,
+            ]
+        )
 
     def test_referrer_policy_header_present(self, client, mock_image_data):
         """Secure image endpoint should include Referrer-Policy: no-referrer."""
-        with patch("app.api.v1.endpoints.images.verify_signed_url") as mock_verify, \
-             patch("app.api.v1.endpoints.images.get_adapter") as mock_adapter, \
-             patch("app.api.v1.endpoints.images.AuditService"):
+        with (
+            patch("app.api.v1.endpoints.images.verify_signed_url") as mock_verify,
+            patch("app.api.v1.endpoints.images.get_adapter") as mock_adapter,
+            patch("app.api.v1.endpoints.images.AuditService"),
+        ):
 
             # Mock valid token verification
             mock_payload = MagicMock()
@@ -54,8 +116,10 @@ class TestSecureImageSecurityHeaders:
             mock_verify.return_value = mock_payload
 
             # Mock user lookup
-            with patch("app.api.v1.endpoints.images.select"), \
-                 patch.object(client.app.state, "limiter", MagicMock()):
+            with (
+                patch("app.api.v1.endpoints.images.select"),
+                patch.object(client.app.state, "limiter", MagicMock()),
+            ):
 
                 # For this test, we'll check the response headers from SECURE_IMAGE_HEADERS
                 # by importing and verifying the constant
@@ -117,8 +181,9 @@ class TestTokenRedactionMiddleware:
         middleware_types = [type(m.cls).__name__ for m in app.user_middleware]
         # Check that our middleware or its class is in the chain
         # Note: Starlette wraps middleware, so we check for the presence
-        assert any("TokenRedaction" in str(m) for m in app.user_middleware) or \
-               TokenRedactionMiddleware in [m.cls for m in app.user_middleware]
+        assert any(
+            "TokenRedaction" in str(m) for m in app.user_middleware
+        ) or TokenRedactionMiddleware in [m.cls for m in app.user_middleware]
 
 
 class TestNginxConfigSecurityHeaders:
@@ -132,9 +197,9 @@ class TestNginxConfigSecurityHeaders:
     def nginx_config(self):
         """Load the nginx configuration file."""
         import os
+
         config_path = os.path.join(
-            os.path.dirname(__file__),
-            "..", "..", "..", "docker", "nginx.conf"
+            os.path.dirname(__file__), "..", "..", "..", "docker", "nginx.conf"
         )
         with open(config_path, "r") as f:
             return f.read()

@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.security import decode_token
 from app.db.session import AsyncSessionLocal
-from app.models.user import User, Role
+from app.models.user import Role, User
 
 # Security audit logger - separate from general logging for SIEM integration
 auth_logger = logging.getLogger("security.auth")

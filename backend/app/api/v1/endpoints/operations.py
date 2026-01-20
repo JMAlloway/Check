@@ -5,17 +5,17 @@ Provides system health, metrics, alerts, and DR status for the Operations Dashbo
 """
 
 import asyncio
-import httpx
 from datetime import datetime, timezone
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.api.deps import get_current_active_user
+from app.core.config import settings
 from app.db.session import get_db
 from app.models.user import User
 
@@ -26,8 +26,10 @@ router = APIRouter()
 # Response Models
 # =============================================================================
 
+
 class ServiceStatus(BaseModel):
     """Status of a single service."""
+
     name: str
     status: str  # "healthy", "degraded", "unhealthy", "unknown"
     latency_ms: float | None = None
@@ -37,6 +39,7 @@ class ServiceStatus(BaseModel):
 
 class SystemHealth(BaseModel):
     """Overall system health status."""
+
     overall_status: str
     services: list[ServiceStatus]
     timestamp: datetime
@@ -44,6 +47,7 @@ class SystemHealth(BaseModel):
 
 class PerformanceMetrics(BaseModel):
     """Performance metrics summary."""
+
     requests_per_minute: float
     avg_response_time_ms: float
     error_rate_percent: float
@@ -55,6 +59,7 @@ class PerformanceMetrics(BaseModel):
 
 class Alert(BaseModel):
     """Active alert from Alertmanager."""
+
     name: str
     severity: str
     status: str
@@ -66,6 +71,7 @@ class Alert(BaseModel):
 
 class AlertsSummary(BaseModel):
     """Summary of active alerts."""
+
     total: int
     critical: int
     warning: int
@@ -76,6 +82,7 @@ class AlertsSummary(BaseModel):
 
 class BackupStatus(BaseModel):
     """Backup and DR status."""
+
     last_backup: datetime | None
     backup_size_mb: float | None
     backup_location: str | None
@@ -90,6 +97,7 @@ class BackupStatus(BaseModel):
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
 
 async def check_database_health(db: AsyncSession) -> ServiceStatus:
     """Check database connectivity and health."""
@@ -110,7 +118,7 @@ async def check_database_health(db: AsyncSession) -> ServiceStatus:
             status="healthy" if latency < 100 else "degraded",
             latency_ms=round(latency, 2),
             details={"connections": conn_count},
-            last_checked=datetime.now(timezone.utc)
+            last_checked=datetime.now(timezone.utc),
         )
     except Exception as e:
         return ServiceStatus(
@@ -118,7 +126,7 @@ async def check_database_health(db: AsyncSession) -> ServiceStatus:
             status="unhealthy",
             latency_ms=None,
             details={"error": str(e)},
-            last_checked=datetime.now(timezone.utc)
+            last_checked=datetime.now(timezone.utc),
         )
 
 
@@ -127,6 +135,7 @@ async def check_redis_health() -> ServiceStatus:
     start = datetime.now(timezone.utc)
     try:
         import redis.asyncio as redis
+
         r = redis.from_url(settings.REDIS_URL)
         await r.ping()
         latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
@@ -139,7 +148,7 @@ async def check_redis_health() -> ServiceStatus:
             status="healthy" if latency < 50 else "degraded",
             latency_ms=round(latency, 2),
             details={"used_memory_mb": round(info.get("used_memory", 0) / 1024 / 1024, 2)},
-            last_checked=datetime.now(timezone.utc)
+            last_checked=datetime.now(timezone.utc),
         )
     except Exception as e:
         return ServiceStatus(
@@ -147,7 +156,7 @@ async def check_redis_health() -> ServiceStatus:
             status="unhealthy",
             latency_ms=None,
             details={"error": str(e)},
-            last_checked=datetime.now(timezone.utc)
+            last_checked=datetime.now(timezone.utc),
         )
 
 
@@ -165,7 +174,7 @@ async def check_prometheus_health() -> ServiceStatus:
                     status="healthy",
                     latency_ms=round(latency, 2),
                     details=None,
-                    last_checked=datetime.now(timezone.utc)
+                    last_checked=datetime.now(timezone.utc),
                 )
             else:
                 return ServiceStatus(
@@ -173,7 +182,7 @@ async def check_prometheus_health() -> ServiceStatus:
                     status="degraded",
                     latency_ms=round(latency, 2),
                     details={"status_code": response.status_code},
-                    last_checked=datetime.now(timezone.utc)
+                    last_checked=datetime.now(timezone.utc),
                 )
     except Exception as e:
         return ServiceStatus(
@@ -181,7 +190,7 @@ async def check_prometheus_health() -> ServiceStatus:
             status="unknown",
             latency_ms=None,
             details={"error": str(e)},
-            last_checked=datetime.now(timezone.utc)
+            last_checked=datetime.now(timezone.utc),
         )
 
 
@@ -198,7 +207,7 @@ async def check_alertmanager_health() -> ServiceStatus:
                 status="healthy" if response.status_code == 200 else "degraded",
                 latency_ms=round(latency, 2),
                 details=None,
-                last_checked=datetime.now(timezone.utc)
+                last_checked=datetime.now(timezone.utc),
             )
     except Exception as e:
         return ServiceStatus(
@@ -206,7 +215,7 @@ async def check_alertmanager_health() -> ServiceStatus:
             status="unknown",
             latency_ms=None,
             details={"error": str(e)},
-            last_checked=datetime.now(timezone.utc)
+            last_checked=datetime.now(timezone.utc),
         )
 
 
@@ -215,8 +224,7 @@ async def fetch_prometheus_metric(query: str) -> float | None:
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(
-                f"{settings.PROMETHEUS_URL}/api/v1/query",
-                params={"query": query}
+                f"{settings.PROMETHEUS_URL}/api/v1/query", params={"query": query}
             )
             if response.status_code == 200:
                 data = response.json()
@@ -235,17 +243,23 @@ async def fetch_alerts_from_alertmanager() -> list[Alert]:
             response = await client.get(f"{settings.ALERTMANAGER_URL}/api/v2/alerts")
             if response.status_code == 200:
                 for alert_data in response.json():
-                    alerts.append(Alert(
-                        name=alert_data.get("labels", {}).get("alertname", "Unknown"),
-                        severity=alert_data.get("labels", {}).get("severity", "unknown"),
-                        status=alert_data.get("status", {}).get("state", "unknown"),
-                        summary=alert_data.get("annotations", {}).get("summary", ""),
-                        description=alert_data.get("annotations", {}).get("description"),
-                        started_at=datetime.fromisoformat(
-                            alert_data.get("startsAt", "").replace("Z", "+00:00")
-                        ) if alert_data.get("startsAt") else datetime.now(timezone.utc),
-                        labels=alert_data.get("labels", {})
-                    ))
+                    alerts.append(
+                        Alert(
+                            name=alert_data.get("labels", {}).get("alertname", "Unknown"),
+                            severity=alert_data.get("labels", {}).get("severity", "unknown"),
+                            status=alert_data.get("status", {}).get("state", "unknown"),
+                            summary=alert_data.get("annotations", {}).get("summary", ""),
+                            description=alert_data.get("annotations", {}).get("description"),
+                            started_at=(
+                                datetime.fromisoformat(
+                                    alert_data.get("startsAt", "").replace("Z", "+00:00")
+                                )
+                                if alert_data.get("startsAt")
+                                else datetime.now(timezone.utc)
+                            ),
+                            labels=alert_data.get("labels", {}),
+                        )
+                    )
     except Exception:
         pass
     return alerts
@@ -254,6 +268,7 @@ async def fetch_alerts_from_alertmanager() -> list[Alert]:
 # =============================================================================
 # API Endpoints
 # =============================================================================
+
 
 @router.get("/health", response_model=SystemHealth)
 async def get_system_health(
@@ -289,9 +304,7 @@ async def get_system_health(
         overall = "unknown"
 
     return SystemHealth(
-        overall_status=overall,
-        services=list(services),
-        timestamp=datetime.now(timezone.utc)
+        overall_status=overall, services=list(services), timestamp=datetime.now(timezone.utc)
     )
 
 
@@ -307,28 +320,38 @@ async def get_performance_metrics(
     """
     # Fetch metrics from Prometheus concurrently
     rpm, latency, error_rate = await asyncio.gather(
-        fetch_prometheus_metric('sum(rate(http_requests_total[1m])) * 60'),
-        fetch_prometheus_metric('histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) * 1000'),
-        fetch_prometheus_metric('sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) * 100'),
+        fetch_prometheus_metric("sum(rate(http_requests_total[1m])) * 60"),
+        fetch_prometheus_metric(
+            "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) * 1000"
+        ),
+        fetch_prometheus_metric(
+            'sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) * 100'
+        ),
     )
 
     # Get database stats
     try:
         # Active sessions (approximate active users)
         active_result = await db.execute(
-            text("SELECT COUNT(DISTINCT user_id) FROM audit_logs WHERE timestamp > NOW() - INTERVAL '15 minutes'")
+            text(
+                "SELECT COUNT(DISTINCT user_id) FROM audit_logs WHERE timestamp > NOW() - INTERVAL '15 minutes'"
+            )
         )
         active_users = active_result.scalar() or 0
 
         # Pending checks
         pending_result = await db.execute(
-            text("SELECT COUNT(*) FROM check_items WHERE status IN ('new', 'in_review', 'pending_dual_control')")
+            text(
+                "SELECT COUNT(*) FROM check_items WHERE status IN ('new', 'in_review', 'pending_dual_control')"
+            )
         )
         pending_checks = pending_result.scalar() or 0
 
         # Checks processed today
         processed_result = await db.execute(
-            text("SELECT COUNT(*) FROM check_items WHERE status IN ('approved', 'rejected', 'returned') AND updated_at > CURRENT_DATE")
+            text(
+                "SELECT COUNT(*) FROM check_items WHERE status IN ('approved', 'rejected', 'returned') AND updated_at > CURRENT_DATE"
+            )
         )
         checks_processed = processed_result.scalar() or 0
     except Exception:
@@ -343,7 +366,7 @@ async def get_performance_metrics(
         active_users=active_users,
         pending_checks=pending_checks,
         checks_processed_today=checks_processed,
-        timestamp=datetime.now(timezone.utc)
+        timestamp=datetime.now(timezone.utc),
     )
 
 
@@ -362,7 +385,7 @@ async def get_alerts(
         warning=sum(1 for a in alerts if a.severity == "warning"),
         info=sum(1 for a in alerts if a.severity == "info"),
         alerts=alerts,
-        timestamp=datetime.now(timezone.utc)
+        timestamp=datetime.now(timezone.utc),
     )
 
 
@@ -402,7 +425,7 @@ async def get_dr_status(
         last_dr_drill=datetime(2024, 1, 15, tzinfo=timezone.utc),  # From DR drill logs
         rto_target_hours=1.0,
         rpo_target_minutes=15.0,
-        timestamp=datetime.now(timezone.utc)
+        timestamp=datetime.now(timezone.utc),
     )
 
 
@@ -420,15 +443,18 @@ async def get_quick_links(
                 {"name": "Application Overview", "path": "/d/app-overview"},
                 {"name": "Database Metrics", "path": "/d/db-metrics"},
                 {"name": "Security Metrics", "path": "/d/security-metrics"},
-            ]
+            ],
         },
         "prometheus": {
             "url": settings.PROMETHEUS_URL,
             "useful_queries": [
                 {"name": "Request Rate", "query": "rate(http_requests_total[5m])"},
                 {"name": "Error Rate", "query": "rate(http_requests_total{status=~'5..'}[5m])"},
-                {"name": "Latency P95", "query": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))"},
-            ]
+                {
+                    "name": "Latency P95",
+                    "query": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+                },
+            ],
         },
         "alertmanager": {
             "url": settings.ALERTMANAGER_URL,
@@ -437,5 +463,5 @@ async def get_quick_links(
             {"name": "Rollback Procedures", "path": "/docs/ROLLBACK_PROCEDURES.md"},
             {"name": "DR Drill Guide", "path": "/docs/DISASTER_RECOVERY_DRILL.md"},
             {"name": "Capacity Planning", "path": "/docs/CAPACITY_PLANNING.md"},
-        ]
+        ],
     }

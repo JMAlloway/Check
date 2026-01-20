@@ -20,13 +20,14 @@ should also configure the application database role with INSERT/SELECT only
 permissions on these tables.
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
+
 # revision identifiers, used by Alembic.
-revision = '004_audit_immutability'
-down_revision = '003_connector_b'
+revision = "004_audit_immutability"
+down_revision = "003_connector_b"
 branch_labels = None
 depends_on = None
 
@@ -43,7 +44,8 @@ def upgrade() -> None:
     # This function raises an exception when UPDATE or DELETE is attempted,
     # enforcing write-once semantics on audit tables.
 
-    op.execute("""
+    op.execute(
+        """
         CREATE OR REPLACE FUNCTION prevent_audit_modification()
         RETURNS TRIGGER AS $$
         BEGIN
@@ -57,66 +59,75 @@ def upgrade() -> None:
             RETURN NULL;
         END;
         $$ LANGUAGE plpgsql;
-    """)
+    """
+    )
 
     # ==========================================================================
     # CREATE TRIGGERS ON AUDIT_LOGS TABLE
     # ==========================================================================
 
     # Trigger to block UPDATE on audit_logs
-    op.execute("""
+    op.execute(
+        """
         CREATE TRIGGER audit_logs_prevent_update
         BEFORE UPDATE ON audit_logs
         FOR EACH ROW
         EXECUTE FUNCTION prevent_audit_modification();
-    """)
+    """
+    )
 
     # Trigger to block DELETE on audit_logs
-    op.execute("""
+    op.execute(
+        """
         CREATE TRIGGER audit_logs_prevent_delete
         BEFORE DELETE ON audit_logs
         FOR EACH ROW
         EXECUTE FUNCTION prevent_audit_modification();
-    """)
+    """
+    )
 
     # ==========================================================================
     # CREATE TRIGGERS ON ITEM_VIEWS TABLE
     # ==========================================================================
 
     # Trigger to block UPDATE on item_views
-    op.execute("""
+    op.execute(
+        """
         CREATE TRIGGER item_views_prevent_update
         BEFORE UPDATE ON item_views
         FOR EACH ROW
         EXECUTE FUNCTION prevent_audit_modification();
-    """)
+    """
+    )
 
     # Trigger to block DELETE on item_views
-    op.execute("""
+    op.execute(
+        """
         CREATE TRIGGER item_views_prevent_delete
         BEFORE DELETE ON item_views
         FOR EACH ROW
         EXECUTE FUNCTION prevent_audit_modification();
-    """)
+    """
+    )
 
     # ==========================================================================
     # ADD GIN INDEXES FOR JSONB COLUMNS (efficient querying)
     # ==========================================================================
 
     op.create_index(
-        'ix_audit_logs_extra_data_gin',
-        'audit_logs',
-        ['extra_data'],
-        postgresql_using='gin',
-        postgresql_ops={'extra_data': 'jsonb_path_ops'}
+        "ix_audit_logs_extra_data_gin",
+        "audit_logs",
+        ["extra_data"],
+        postgresql_using="gin",
+        postgresql_ops={"extra_data": "jsonb_path_ops"},
     )
 
     op.create_index(
-        'ix_item_views_interaction_summary_gin',
-        'item_views',
-        ['interaction_summary'],
-        postgresql_using='gin',
-        postgresql_ops={'interaction_summary': 'jsonb_path_ops'}
+        "ix_item_views_interaction_summary_gin",
+        "item_views",
+        ["interaction_summary"],
+        postgresql_using="gin",
+        postgresql_ops={"interaction_summary": "jsonb_path_ops"},
     )
 
 
@@ -124,8 +135,8 @@ def downgrade() -> None:
     # ==========================================================================
     # DROP GIN INDEXES
     # ==========================================================================
-    op.drop_index('ix_item_views_interaction_summary_gin', table_name='item_views')
-    op.drop_index('ix_audit_logs_extra_data_gin', table_name='audit_logs')
+    op.drop_index("ix_item_views_interaction_summary_gin", table_name="item_views")
+    op.drop_index("ix_audit_logs_extra_data_gin", table_name="audit_logs")
 
     # ==========================================================================
     # DROP TRIGGERS

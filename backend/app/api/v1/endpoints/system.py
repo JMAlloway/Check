@@ -16,7 +16,6 @@ from app.api.deps import get_current_active_superuser, get_db
 from app.core.config import settings
 from app.models.user import User
 
-
 router = APIRouter()
 
 

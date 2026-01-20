@@ -7,18 +7,18 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator
 
 from app.models.fraud import (
-    FraudType,
-    FraudChannel,
     AmountBucket,
-    SharingLevel,
+    FraudChannel,
     FraudEventStatus,
+    FraudType,
     MatchSeverity,
+    SharingLevel,
 )
-
 
 # ============================================================================
 # Fraud Event Schemas
 # ============================================================================
+
 
 class FraudEventCreate(BaseModel):
     """Schema for creating a new fraud event."""
@@ -126,6 +126,7 @@ class FraudEventListResponse(BaseModel):
 # Network Alert Schemas
 # ============================================================================
 
+
 class MatchReasonDetail(BaseModel):
     """Details about a match reason."""
 
@@ -179,6 +180,7 @@ class NetworkAlertDismiss(BaseModel):
 # ============================================================================
 # Network Trends Schemas
 # ============================================================================
+
 
 class TrendDataPoint(BaseModel):
     """Single data point in a trend."""
@@ -249,6 +251,7 @@ class NetworkTrendsRequest(BaseModel):
 # Tenant Configuration Schemas
 # ============================================================================
 
+
 class TenantFraudConfigResponse(BaseModel):
     """Tenant fraud configuration response."""
 
@@ -280,6 +283,7 @@ class TenantFraudConfigUpdate(BaseModel):
 # PII Detection Schemas
 # ============================================================================
 
+
 class PIIDetectionResult(BaseModel):
     """Result of PII detection in text."""
 
@@ -298,6 +302,7 @@ class PIICheckRequest(BaseModel):
 # ============================================================================
 # Shared Artifact Schemas (internal use)
 # ============================================================================
+
 
 class SharedArtifactIndicators(BaseModel):
     """Hashed indicators stored in shared artifact."""

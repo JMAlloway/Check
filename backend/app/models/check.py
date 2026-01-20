@@ -7,7 +7,9 @@ from enum import Enum
 from sqlalchemy import (
     Boolean,
     DateTime,
-    Enum as SQLEnum,
+)
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
@@ -101,12 +103,14 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
         nullable=False,
         default=ItemType.TRANSIT,
         index=True,
-        comment="on_us=check drawn on our customer, transit=check deposited by our customer"
+        comment="on_us=check drawn on our customer, transit=check deposited by our customer",
     )
 
     # Account information
     account_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    account_number_masked: Mapped[str] = mapped_column(String(20), nullable=False)  # e.g., "****1234"
+    account_number_masked: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # e.g., "****1234"
     account_type: Mapped[AccountType] = mapped_column(
         SQLEnum(AccountType, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
@@ -127,7 +131,9 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     micr_check_number: Mapped[str | None] = mapped_column(String(20))
 
     # Dates
-    presented_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    presented_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
     check_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     process_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -163,7 +169,9 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
         nullable=True,
         index=True,
     )
-    dual_control_reason: Mapped[str | None] = mapped_column(String(100))  # e.g., "amount_threshold", "policy_rule"
+    dual_control_reason: Mapped[str | None] = mapped_column(
+        String(100)
+    )  # e.g., "amount_threshold", "policy_rule"
 
     # Flags and context
     has_ai_flags: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -177,7 +185,9 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     ai_model_id: Mapped[str | None] = mapped_column(String(100))  # e.g., "check-risk-analyzer"
     ai_model_version: Mapped[str | None] = mapped_column(String(50))  # e.g., "1.0.0"
     ai_analyzed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    ai_recommendation: Mapped[str | None] = mapped_column(String(50))  # ADVISORY: "likely_legitimate", "needs_review", etc.
+    ai_recommendation: Mapped[str | None] = mapped_column(
+        String(50)
+    )  # ADVISORY: "likely_legitimate", "needs_review", etc.
     ai_confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))  # 0.0000 to 1.0000
     ai_explanation: Mapped[str | None] = mapped_column(Text)  # Human-readable explanation
     ai_risk_factors: Mapped[str | None] = mapped_column(Text)  # JSON array of risk factors
@@ -197,13 +207,17 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     relationship_id: Mapped[str | None] = mapped_column(String(50))
 
     # Policy tracking
-    policy_version_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("policy_versions.id"))
+    policy_version_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("policy_versions.id")
+    )
 
     # Demo mode flag - marks synthetic demo data
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 
     # Relationships
-    images: Mapped[list["CheckImage"]] = relationship(back_populates="check_item", cascade="all, delete-orphan")
+    images: Mapped[list["CheckImage"]] = relationship(
+        back_populates="check_item", cascade="all, delete-orphan"
+    )
     decisions: Mapped[list["Decision"]] = relationship(
         back_populates="check_item",
         cascade="all, delete-orphan",
@@ -216,7 +230,9 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     assigned_reviewer: Mapped["User"] = relationship(foreign_keys=[assigned_reviewer_id])
     assigned_approver: Mapped["User"] = relationship(foreign_keys=[assigned_approver_id])
     fraud_events: Mapped[list["FraudEvent"]] = relationship(back_populates="check_item")
-    network_alerts: Mapped[list["NetworkMatchAlert"]] = relationship(back_populates="check_item", cascade="all, delete-orphan")
+    network_alerts: Mapped[list["NetworkMatchAlert"]] = relationship(
+        back_populates="check_item", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("ix_check_items_status_priority", "status", "priority"),
@@ -232,9 +248,13 @@ class CheckImage(Base, UUIDMixin, TimestampMixin):
 
     __tablename__ = "check_images"
 
-    check_item_id: Mapped[str] = mapped_column(String(36), ForeignKey("check_items.id"), nullable=False)
+    check_item_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("check_items.id"), nullable=False
+    )
     image_type: Mapped[str] = mapped_column(String(20), nullable=False)  # "front", "back"
-    external_image_id: Mapped[str | None] = mapped_column(String(100))  # Reference to external storage
+    external_image_id: Mapped[str | None] = mapped_column(
+        String(100)
+    )  # Reference to external storage
     storage_path: Mapped[str | None] = mapped_column(String(500))  # Local/cloud storage path
     content_type: Mapped[str] = mapped_column(String(50), default="image/tiff")
     file_size: Mapped[int | None] = mapped_column(Integer)
@@ -270,12 +290,10 @@ class CheckHistory(Base, UUIDMixin, TimestampMixin):
     # Demo mode flag
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    __table_args__ = (
-        Index("ix_check_history_account_date", "account_id", "check_date"),
-    )
+    __table_args__ = (Index("ix_check_history_account_date", "account_id", "check_date"),)
 
 
 # Import for relationship
 from app.models.decision import Decision  # noqa: E402
-from app.models.user import User  # noqa: E402
 from app.models.fraud import FraudEvent, NetworkMatchAlert  # noqa: E402
+from app.models.user import User  # noqa: E402

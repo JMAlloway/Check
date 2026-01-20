@@ -3,20 +3,20 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
+    audit,
     auth,
     checks,
     connector,
     decisions,
-    images,
+    fraud,
     image_connectors,
+    images,
     item_context_connectors,
     policies,
     queues,
-    users,
-    audit,
     reports,
-    fraud,
     system,
+    users,
 )
 
 api_router = APIRouter()
@@ -31,7 +31,15 @@ api_router.include_router(policies.router, prefix="/policies", tags=["Policies"]
 api_router.include_router(audit.router, prefix="/audit", tags=["Audit"])
 api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
 api_router.include_router(fraud.router, prefix="/fraud", tags=["Fraud Intelligence"])
-api_router.include_router(connector.router, prefix="/connector", tags=["Connector B - Batch Commit"])
-api_router.include_router(image_connectors.router, prefix="/image-connectors", tags=["Connector A - Image Connectors"])
-api_router.include_router(item_context_connectors.router, prefix="/item-context-connectors", tags=["Connector C - Item Context SFTP"])
+api_router.include_router(
+    connector.router, prefix="/connector", tags=["Connector B - Batch Commit"]
+)
+api_router.include_router(
+    image_connectors.router, prefix="/image-connectors", tags=["Connector A - Image Connectors"]
+)
+api_router.include_router(
+    item_context_connectors.router,
+    prefix="/item-context-connectors",
+    tags=["Connector C - Item Context SFTP"],
+)
 api_router.include_router(system.router, prefix="/system", tags=["System"])

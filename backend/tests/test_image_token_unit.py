@@ -5,9 +5,10 @@ These tests verify the security properties of the token model without
 requiring the full application stack.
 """
 
-import pytest
-from datetime import datetime, timedelta, timezone
 import uuid
+from datetime import datetime, timedelta, timezone
+
+import pytest
 
 
 class TestImageAccessTokenModel:
@@ -17,7 +18,8 @@ class TestImageAccessTokenModel:
         """Token should be expired when current time is past expires_at."""
         # Import inside test to avoid app startup issues
         import sys
-        sys.path.insert(0, '/home/user/Check/backend')
+
+        sys.path.insert(0, "/home/user/Check/backend")
 
         from app.models.image_token import ImageAccessToken
 
@@ -33,7 +35,8 @@ class TestImageAccessTokenModel:
     def test_is_not_expired_when_before_expiry(self):
         """Token should not be expired when current time is before expires_at."""
         import sys
-        sys.path.insert(0, '/home/user/Check/backend')
+
+        sys.path.insert(0, "/home/user/Check/backend")
 
         from app.models.image_token import ImageAccessToken
 
@@ -49,7 +52,8 @@ class TestImageAccessTokenModel:
     def test_is_used_when_used_at_set(self):
         """Token should be marked as used when used_at is set."""
         import sys
-        sys.path.insert(0, '/home/user/Check/backend')
+
+        sys.path.insert(0, "/home/user/Check/backend")
 
         from app.models.image_token import ImageAccessToken
 
@@ -66,7 +70,8 @@ class TestImageAccessTokenModel:
     def test_is_not_used_when_used_at_none(self):
         """Token should not be marked as used when used_at is None."""
         import sys
-        sys.path.insert(0, '/home/user/Check/backend')
+
+        sys.path.insert(0, "/home/user/Check/backend")
 
         from app.models.image_token import ImageAccessToken
 
@@ -83,7 +88,8 @@ class TestImageAccessTokenModel:
     def test_is_valid_when_not_expired_and_not_used(self):
         """Token should be valid when neither expired nor used."""
         import sys
-        sys.path.insert(0, '/home/user/Check/backend')
+
+        sys.path.insert(0, "/home/user/Check/backend")
 
         from app.models.image_token import ImageAccessToken
 
@@ -100,7 +106,8 @@ class TestImageAccessTokenModel:
     def test_is_not_valid_when_expired(self):
         """Token should not be valid when expired."""
         import sys
-        sys.path.insert(0, '/home/user/Check/backend')
+
+        sys.path.insert(0, "/home/user/Check/backend")
 
         from app.models.image_token import ImageAccessToken
 
@@ -117,7 +124,8 @@ class TestImageAccessTokenModel:
     def test_is_not_valid_when_used(self):
         """Token should not be valid when already used."""
         import sys
-        sys.path.insert(0, '/home/user/Check/backend')
+
+        sys.path.insert(0, "/home/user/Check/backend")
 
         from app.models.image_token import ImageAccessToken
 
@@ -134,7 +142,8 @@ class TestImageAccessTokenModel:
     def test_token_contains_tenant_id(self):
         """Token should store tenant_id for validation."""
         import sys
-        sys.path.insert(0, '/home/user/Check/backend')
+
+        sys.path.insert(0, "/home/user/Check/backend")
 
         from app.models.image_token import ImageAccessToken
 
@@ -150,7 +159,8 @@ class TestImageAccessTokenModel:
     def test_token_tracks_created_by_user(self):
         """Token should track which user created it."""
         import sys
-        sys.path.insert(0, '/home/user/Check/backend')
+
+        sys.path.insert(0, "/home/user/Check/backend")
 
         from app.models.image_token import ImageAccessToken
 
@@ -167,7 +177,8 @@ class TestImageAccessTokenModel:
     def test_token_tracks_usage_metadata(self):
         """Token should track usage metadata (IP, user agent)."""
         import sys
-        sys.path.insert(0, '/home/user/Check/backend')
+
+        sys.path.insert(0, "/home/user/Check/backend")
 
         from app.models.image_token import ImageAccessToken
 
@@ -191,7 +202,8 @@ class TestAuditActionEnum:
     def test_audit_action_has_token_created(self):
         """AuditAction should have IMAGE_TOKEN_CREATED action."""
         import sys
-        sys.path.insert(0, '/home/user/Check/backend')
+
+        sys.path.insert(0, "/home/user/Check/backend")
 
         from app.models.audit import AuditAction
 
@@ -201,7 +213,8 @@ class TestAuditActionEnum:
     def test_audit_action_has_token_used(self):
         """AuditAction should have IMAGE_TOKEN_USED action."""
         import sys
-        sys.path.insert(0, '/home/user/Check/backend')
+
+        sys.path.insert(0, "/home/user/Check/backend")
 
         from app.models.audit import AuditAction
 
@@ -211,7 +224,8 @@ class TestAuditActionEnum:
     def test_audit_action_has_token_expired(self):
         """AuditAction should have IMAGE_TOKEN_EXPIRED action."""
         import sys
-        sys.path.insert(0, '/home/user/Check/backend')
+
+        sys.path.insert(0, "/home/user/Check/backend")
 
         from app.models.audit import AuditAction
 
@@ -227,8 +241,7 @@ class TestMigrationFile:
         import os
 
         migration_path = os.path.join(
-            os.path.dirname(__file__),
-            "..", "alembic", "versions", "011_one_time_image_tokens.py"
+            os.path.dirname(__file__), "..", "alembic", "versions", "011_one_time_image_tokens.py"
         )
 
         with open(migration_path, "r") as f:
@@ -244,8 +257,7 @@ class TestMigrationFile:
         import os
 
         migration_path = os.path.join(
-            os.path.dirname(__file__),
-            "..", "alembic", "versions", "011_one_time_image_tokens.py"
+            os.path.dirname(__file__), "..", "alembic", "versions", "011_one_time_image_tokens.py"
         )
 
         with open(migration_path, "r") as f:
@@ -263,13 +275,14 @@ class TestSecurityHeaders:
     def test_secure_image_headers_defined(self):
         """Security headers constant should be defined."""
         import sys
-        sys.path.insert(0, '/home/user/Check/backend')
+
+        sys.path.insert(0, "/home/user/Check/backend")
 
         # Import just the headers constant without full app
         import importlib.util
+
         spec = importlib.util.spec_from_file_location(
-            "images",
-            "/home/user/Check/backend/app/api/v1/endpoints/images.py"
+            "images", "/home/user/Check/backend/app/api/v1/endpoints/images.py"
         )
         # This will fail if the file has import errors, so we read it instead
 

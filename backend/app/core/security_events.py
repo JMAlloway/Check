@@ -32,6 +32,7 @@ security_logger = logging.getLogger("security.events")
 
 class EventSeverity(str, Enum):
     """Security event severity levels."""
+
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"
@@ -43,6 +44,7 @@ class SecurityEventType(str, Enum):
 
     Hierarchical naming: category.subcategory.event
     """
+
     # Authentication events
     AUTH_LOGIN_SUCCESS = "security.auth.login_success"
     AUTH_LOGIN_FAILURE = "security.auth.login_failure"

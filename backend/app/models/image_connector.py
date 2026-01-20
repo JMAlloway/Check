@@ -20,7 +20,9 @@ from typing import Any
 from sqlalchemy import (
     Boolean,
     DateTime,
-    Enum as SQLEnum,
+)
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
@@ -38,10 +40,10 @@ from app.models.base import TimestampMixin, UUIDMixin
 class ConnectorStatus(str, Enum):
     """Connector operational status."""
 
-    ACTIVE = "active"          # Connector is active and accepting requests
-    INACTIVE = "inactive"      # Connector is disabled (manual)
+    ACTIVE = "active"  # Connector is active and accepting requests
+    INACTIVE = "inactive"  # Connector is disabled (manual)
     UNREACHABLE = "unreachable"  # Health check failed
-    ROTATING = "rotating"      # Key rotation in progress
+    ROTATING = "rotating"  # Key rotation in progress
 
 
 class ImageConnector(Base, UUIDMixin, TimestampMixin):
@@ -61,12 +63,10 @@ class ImageConnector(Base, UUIDMixin, TimestampMixin):
     connector_id: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
-        comment="Unique identifier matching the connector's CONNECTOR_ID"
+        comment="Unique identifier matching the connector's CONNECTOR_ID",
     )
     name: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False,
-        comment="Human-friendly name (e.g., 'Primary DC Connector')"
+        String(255), nullable=False, comment="Human-friendly name (e.g., 'Primary DC Connector')"
     )
     description: Mapped[str | None] = mapped_column(Text)
 
@@ -74,32 +74,27 @@ class ImageConnector(Base, UUIDMixin, TimestampMixin):
     base_url: Mapped[str] = mapped_column(
         String(500),
         nullable=False,
-        comment="Base URL for the connector (e.g., 'https://connector.bank.local:8443')"
+        comment="Base URL for the connector (e.g., 'https://connector.bank.local:8443')",
     )
 
     # Status
     status: Mapped[ConnectorStatus] = mapped_column(
         SQLEnum(ConnectorStatus, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
-        default=ConnectorStatus.INACTIVE
+        default=ConnectorStatus.INACTIVE,
     )
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # JWT Authentication Keys (RS256)
     # Primary key currently in use
     public_key_pem: Mapped[str] = mapped_column(
-        Text,
-        nullable=False,
-        comment="RSA public key in PEM format for JWT signing"
+        Text, nullable=False, comment="RSA public key in PEM format for JWT signing"
     )
     public_key_id: Mapped[str] = mapped_column(
-        String(100),
-        nullable=False,
-        comment="Key identifier (for key rotation)"
+        String(100), nullable=False, comment="Key identifier (for key rotation)"
     )
     public_key_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        comment="When this key expires (null = never)"
+        DateTime(timezone=True), comment="When this key expires (null = never)"
     )
 
     # Secondary key for rotation (overlap period)
@@ -111,14 +106,10 @@ class ImageConnector(Base, UUIDMixin, TimestampMixin):
 
     # JWT token settings
     token_expiry_seconds: Mapped[int] = mapped_column(
-        Integer,
-        default=120,
-        comment="JWT token expiry in seconds (60-300)"
+        Integer, default=120, comment="JWT token expiry in seconds (60-300)"
     )
     jwt_issuer: Mapped[str] = mapped_column(
-        String(100),
-        default="check-review-saas",
-        comment="Issuer claim for JWTs"
+        String(100), default="check-review-saas", comment="Issuer claim for JWTs"
     )
 
     # Health check
@@ -137,14 +128,10 @@ class ImageConnector(Base, UUIDMixin, TimestampMixin):
     timeout_seconds: Mapped[int] = mapped_column(Integer, default=30)
     max_retries: Mapped[int] = mapped_column(Integer, default=2)
     circuit_breaker_threshold: Mapped[int] = mapped_column(
-        Integer,
-        default=5,
-        comment="Consecutive failures before circuit opens"
+        Integer, default=5, comment="Consecutive failures before circuit opens"
     )
     circuit_breaker_timeout_seconds: Mapped[int] = mapped_column(
-        Integer,
-        default=60,
-        comment="Seconds before retrying after circuit opens"
+        Integer, default=60, comment="Seconds before retrying after circuit opens"
     )
 
     # Priority for load balancing (lower = higher priority)
@@ -160,10 +147,7 @@ class ImageConnector(Base, UUIDMixin, TimestampMixin):
     last_connection_test_success: Mapped[bool | None] = mapped_column(Boolean)
 
     __table_args__ = (
-        UniqueConstraint(
-            "tenant_id", "connector_id",
-            name="uq_image_connectors_tenant_connector"
-        ),
+        UniqueConstraint("tenant_id", "connector_id", name="uq_image_connectors_tenant_connector"),
         Index("ix_image_connectors_tenant_enabled", "tenant_id", "is_enabled"),
         Index("ix_image_connectors_status", "status"),
     )
@@ -180,25 +164,20 @@ class ConnectorAuditLog(Base, UUIDMixin, TimestampMixin):
 
     # Connector reference
     connector_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("image_connectors.id", ondelete="CASCADE"),
-        nullable=False
+        String(36), ForeignKey("image_connectors.id", ondelete="CASCADE"), nullable=False
     )
 
     # Action details
     action: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
-        comment="Action type: created, updated, enabled, disabled, key_rotated, deleted"
+        comment="Action type: created, updated, enabled, disabled, key_rotated, deleted",
     )
     user_id: Mapped[str] = mapped_column(String(36), nullable=False)
 
     # Change details
     changes: Mapped[dict[str, Any]] = mapped_column(
-        JSONB,
-        nullable=False,
-        default=dict,
-        comment="Before/after values for changed fields"
+        JSONB, nullable=False, default=dict, comment="Before/after values for changed fields"
     )
 
     # Request context
@@ -224,16 +203,12 @@ class ConnectorRequestLog(Base, UUIDMixin):
 
     # Timing
     requested_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        index=True
+        DateTime(timezone=True), nullable=False, index=True
     )
 
     # Connector reference
     connector_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("image_connectors.id", ondelete="SET NULL"),
-        nullable=True
+        String(36), ForeignKey("image_connectors.id", ondelete="SET NULL"), nullable=True
     )
     connector_name: Mapped[str] = mapped_column(String(255), nullable=False)
 
@@ -241,9 +216,7 @@ class ConnectorRequestLog(Base, UUIDMixin):
     tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(String(36), nullable=False)
     request_type: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-        comment="by-handle, by-item, lookup"
+        String(50), nullable=False, comment="by-handle, by-item, lookup"
     )
 
     # Item identification (for tracking, not secrets)

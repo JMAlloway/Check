@@ -1,12 +1,13 @@
 """Tests for the policy engine."""
 
 import json
-import pytest
-from decimal import Decimal
 from datetime import datetime, timezone
+from decimal import Decimal
 
+import pytest
+
+from app.models.check import AccountType, CheckItem, CheckStatus, RiskLevel
 from app.policy.engine import PolicyEngine
-from app.models.check import CheckItem, CheckStatus, RiskLevel, AccountType
 
 
 class MockCheckItem:
@@ -44,9 +45,9 @@ class TestPolicyConditionEvaluation:
 
     def test_greater_than_condition(self):
         """Test greater_than operator."""
+        from app.models.policy import RuleConditionOperator
         from app.policy.engine import PolicyEngine
         from app.schemas.policy import RuleCondition
-        from app.models.policy import RuleConditionOperator
 
         engine = PolicyEngine(None)  # No DB needed for condition evaluation
         item = MockCheckItem(amount=Decimal("10000"))
@@ -67,9 +68,9 @@ class TestPolicyConditionEvaluation:
 
     def test_less_than_condition(self):
         """Test less_than operator."""
+        from app.models.policy import RuleConditionOperator
         from app.policy.engine import PolicyEngine
         from app.schemas.policy import RuleCondition
-        from app.models.policy import RuleConditionOperator
 
         engine = PolicyEngine(None)
         item = MockCheckItem(account_tenure_days=15)
@@ -86,9 +87,9 @@ class TestPolicyConditionEvaluation:
 
     def test_equals_condition(self):
         """Test equals operator."""
+        from app.models.policy import RuleConditionOperator
         from app.policy.engine import PolicyEngine
         from app.schemas.policy import RuleCondition
-        from app.models.policy import RuleConditionOperator
 
         engine = PolicyEngine(None)
         item = MockCheckItem(account_type=AccountType.BUSINESS)
@@ -105,9 +106,9 @@ class TestPolicyConditionEvaluation:
 
     def test_in_condition(self):
         """Test in operator."""
+        from app.models.policy import RuleConditionOperator
         from app.policy.engine import PolicyEngine
         from app.schemas.policy import RuleCondition
-        from app.models.policy import RuleConditionOperator
 
         engine = PolicyEngine(None)
         item = MockCheckItem(risk_level=RiskLevel.HIGH)
@@ -124,9 +125,9 @@ class TestPolicyConditionEvaluation:
 
     def test_computed_field_amount_vs_avg_ratio(self):
         """Test computed field for amount vs average ratio."""
+        from app.models.policy import RuleConditionOperator
         from app.policy.engine import PolicyEngine
         from app.schemas.policy import RuleCondition
-        from app.models.policy import RuleConditionOperator
 
         engine = PolicyEngine(None)
         item = MockCheckItem(

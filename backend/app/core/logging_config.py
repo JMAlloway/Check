@@ -18,19 +18,18 @@ All logs include:
 Security events are tagged for easy SIEM rule creation.
 """
 
+import json
 import logging
 import logging.handlers
-import json
 import os
 import sys
 from datetime import datetime, timezone
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 from pythonjsonlogger import jsonlogger
 
 from app.core.config import settings
-
 
 # Log directory for file-based shipping
 LOG_DIR = Path("/var/log/check-review")
@@ -51,13 +50,13 @@ class SIEMJsonFormatter(jsonlogger.JsonFormatter):
         # Include all standard fields
         super().__init__(
             *args,
-            fmt='%(asctime)s %(levelname)s %(name)s %(message)s',
+            fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
             rename_fields={
-                'asctime': '@timestamp',
-                'levelname': 'level',
-                'name': 'logger',
+                "asctime": "@timestamp",
+                "levelname": "level",
+                "name": "logger",
             },
-            **kwargs
+            **kwargs,
         )
 
     def add_fields(
@@ -70,36 +69,36 @@ class SIEMJsonFormatter(jsonlogger.JsonFormatter):
         super().add_fields(log_record, record, message_dict)
 
         # Add timestamp in ISO8601 format
-        log_record['@timestamp'] = datetime.now(timezone.utc).isoformat()
+        log_record["@timestamp"] = datetime.now(timezone.utc).isoformat()
 
         # Add service metadata
-        log_record['service'] = {
-            'name': settings.APP_NAME,
-            'version': settings.APP_VERSION,
-            'environment': settings.ENVIRONMENT,
+        log_record["service"] = {
+            "name": settings.APP_NAME,
+            "version": settings.APP_VERSION,
+            "environment": settings.ENVIRONMENT,
         }
 
         # Ensure level is uppercase for consistency
-        if 'level' in log_record:
-            log_record['level'] = log_record['level'].upper()
+        if "level" in log_record:
+            log_record["level"] = log_record["level"].upper()
 
         # Add event_type if not present (for filtering)
-        if 'event_type' not in log_record:
-            log_record['event_type'] = f"log.{record.name}"
+        if "event_type" not in log_record:
+            log_record["event_type"] = f"log.{record.name}"
 
         # Add source file information for debugging
-        log_record['source'] = {
-            'file': record.pathname,
-            'line': record.lineno,
-            'function': record.funcName,
+        log_record["source"] = {
+            "file": record.pathname,
+            "line": record.lineno,
+            "function": record.funcName,
         }
 
         # Add process/thread info for concurrency debugging
-        log_record['process'] = {
-            'id': record.process,
-            'name': record.processName,
-            'thread_id': record.thread,
-            'thread_name': record.threadName,
+        log_record["process"] = {
+            "id": record.process,
+            "name": record.processName,
+            "thread_id": record.thread,
+            "thread_name": record.threadName,
         }
 
 
@@ -110,43 +109,51 @@ class SecurityEventFilter(logging.Filter):
     """
 
     SECURITY_LOGGERS = {
-        'security.auth',
-        'security.events',
-        'security.access',
-        'alertmanager.webhook',
-        'frontend.monitoring',
+        "security.auth",
+        "security.events",
+        "security.access",
+        "alertmanager.webhook",
+        "frontend.monitoring",
     }
 
     SECURITY_KEYWORDS = {
-        'login', 'logout', 'authentication', 'authorization',
-        'permission', 'access', 'denied', 'blocked', 'violation',
-        'tenant', 'cross-tenant', 'token', 'session', 'mfa',
-        'alert', 'security', 'breach', 'attack',
+        "login",
+        "logout",
+        "authentication",
+        "authorization",
+        "permission",
+        "access",
+        "denied",
+        "blocked",
+        "violation",
+        "tenant",
+        "cross-tenant",
+        "token",
+        "session",
+        "mfa",
+        "alert",
+        "security",
+        "breach",
+        "attack",
     }
 
     def filter(self, record: logging.LogRecord) -> bool:
         """Add security tags to relevant log records."""
         # Check if from security logger
-        is_security_logger = any(
-            record.name.startswith(logger)
-            for logger in self.SECURITY_LOGGERS
-        )
+        is_security_logger = any(record.name.startswith(logger) for logger in self.SECURITY_LOGGERS)
 
         # Check message for security keywords
         msg_lower = str(record.getMessage()).lower()
-        has_security_keyword = any(
-            keyword in msg_lower
-            for keyword in self.SECURITY_KEYWORDS
-        )
+        has_security_keyword = any(keyword in msg_lower for keyword in self.SECURITY_KEYWORDS)
 
         # Tag the record
         record.is_security_event = is_security_logger or has_security_keyword
 
         # Add SOC2 control reference if present in extra
-        if hasattr(record, 'soc2_control'):
+        if hasattr(record, "soc2_control"):
             pass  # Already set
         elif is_security_logger:
-            record.soc2_control = 'CC6.1'  # Default for security events
+            record.soc2_control = "CC6.1"  # Default for security events
 
         return True  # Always allow through
 
@@ -191,7 +198,7 @@ def configure_logging() -> None:
             "event_type": "system.startup.logging_configured",
             "log_level": "INFO",
             "file_logging": LOG_DIR.exists(),
-        }
+        },
     )
 
 
@@ -253,19 +260,25 @@ class _SecurityOnlyFilter(logging.Filter):
     """Filter that only allows security events."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        return getattr(record, 'is_security_event', False)
+        return getattr(record, "is_security_event", False)
 
 
 class _AuditOnlyFilter(logging.Filter):
     """Filter that only allows audit events."""
 
     AUDIT_EVENT_TYPES = {
-        'audit.', 'decision.', 'login', 'logout',
-        'permission', 'role', 'user.', 'mfa',
+        "audit.",
+        "decision.",
+        "login",
+        "logout",
+        "permission",
+        "role",
+        "user.",
+        "mfa",
     }
 
     def filter(self, record: logging.LogRecord) -> bool:
-        event_type = getattr(record, 'event_type', '')
+        event_type = getattr(record, "event_type", "")
         return any(
             event_type.startswith(prefix) or prefix in event_type
             for prefix in self.AUDIT_EVENT_TYPES
@@ -274,7 +287,7 @@ class _AuditOnlyFilter(logging.Filter):
 
 def _configure_uvicorn_loggers(formatter: logging.Formatter) -> None:
     """Configure uvicorn loggers to use JSON format."""
-    for logger_name in ['uvicorn', 'uvicorn.error', 'uvicorn.access']:
+    for logger_name in ["uvicorn", "uvicorn.error", "uvicorn.access"]:
         logger = logging.getLogger(logger_name)
         # Remove default handlers
         for handler in logger.handlers[:]:
@@ -288,6 +301,7 @@ def _configure_uvicorn_loggers(formatter: logging.Formatter) -> None:
 # =============================================================================
 # SIEM Export Utilities
 # =============================================================================
+
 
 def format_security_event(
     event_type: str,

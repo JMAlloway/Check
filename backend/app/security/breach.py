@@ -17,19 +17,19 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.service import AuditService
 from app.models.audit import AuditAction
 from app.security.models import (
-    SecurityIncident,
     BreachNotification,
-    IncidentUpdate,
     IncidentSeverity,
     IncidentStatus,
     IncidentType,
+    IncidentUpdate,
     NotificationStatus,
+    SecurityIncident,
 )
 
 logger = logging.getLogger("security.breach")
@@ -48,12 +48,12 @@ class BreachNotificationService:
 
     # Notification deadlines by type (in hours)
     NOTIFICATION_DEADLINES = {
-        "regulator_occ": 36,      # OCC cyber incident notification
-        "regulator_fdic": 36,     # FDIC notification
-        "regulator_state": 72,    # State banking regulator
-        "customer": 720,          # 30 days (varies by state)
-        "law_enforcement": 72,    # When required
-        "credit_bureau": 720,     # When SSN/credit data exposed
+        "regulator_occ": 36,  # OCC cyber incident notification
+        "regulator_fdic": 36,  # FDIC notification
+        "regulator_state": 72,  # State banking regulator
+        "customer": 720,  # 30 days (varies by state)
+        "law_enforcement": 72,  # When required
+        "credit_bureau": 720,  # When SSN/credit data exposed
     }
 
     # Data types that trigger specific notification requirements
@@ -174,7 +174,9 @@ class BreachNotificationService:
                 "pii_exposed": pii_exposed,
                 "financial_data_exposed": financial_data_exposed,
                 "requires_regulator_notification": requires_regulator,
-                "notification_deadline": notification_deadline.isoformat() if notification_deadline else None,
+                "notification_deadline": (
+                    notification_deadline.isoformat() if notification_deadline else None
+                ),
                 "is_security_event": True,
                 "soc2_control": "CC7.2",
             },
@@ -453,20 +455,26 @@ class BreachNotificationService:
 
         notifications = []
         for notification, incident in result.all():
-            notifications.append({
-                "notification_id": str(notification.id),
-                "incident_id": str(incident.id),
-                "incident_title": incident.title,
-                "severity": incident.severity.value,
-                "notification_type": notification.notification_type,
-                "recipient": notification.recipient,
-                "subject": notification.subject,
-                "deadline": incident.notification_deadline.isoformat() if incident.notification_deadline else None,
-                "is_overdue": (
-                    incident.notification_deadline and
-                    incident.notification_deadline < datetime.now(timezone.utc)
-                ),
-            })
+            notifications.append(
+                {
+                    "notification_id": str(notification.id),
+                    "incident_id": str(incident.id),
+                    "incident_title": incident.title,
+                    "severity": incident.severity.value,
+                    "notification_type": notification.notification_type,
+                    "recipient": notification.recipient,
+                    "subject": notification.subject,
+                    "deadline": (
+                        incident.notification_deadline.isoformat()
+                        if incident.notification_deadline
+                        else None
+                    ),
+                    "is_overdue": (
+                        incident.notification_deadline
+                        and incident.notification_deadline < datetime.now(timezone.utc)
+                    ),
+                }
+            )
 
         return notifications
 
@@ -480,15 +488,17 @@ class BreachNotificationService:
 
         updates = []
         for update in result.scalars().all():
-            updates.append({
-                "id": str(update.id),
-                "type": update.update_type,
-                "content": update.content,
-                "user_id": update.user_id,
-                "previous_value": update.previous_value,
-                "new_value": update.new_value,
-                "created_at": update.created_at.isoformat(),
-            })
+            updates.append(
+                {
+                    "id": str(update.id),
+                    "type": update.update_type,
+                    "content": update.content,
+                    "user_id": update.user_id,
+                    "previous_value": update.previous_value,
+                    "new_value": update.new_value,
+                    "created_at": update.created_at.isoformat(),
+                }
+            )
 
         return updates
 
@@ -560,40 +570,48 @@ class BreachNotificationService:
 
         if incident.requires_regulator_notification:
             # OCC notification
-            notifications.append(await self._create_notification(
-                incident,
-                "regulator_occ",
-                "Office of the Comptroller of the Currency",
-                f"Cyber Security Incident Report: {incident.title}",
-                self._generate_regulator_notification_content(incident),
-            ))
+            notifications.append(
+                await self._create_notification(
+                    incident,
+                    "regulator_occ",
+                    "Office of the Comptroller of the Currency",
+                    f"Cyber Security Incident Report: {incident.title}",
+                    self._generate_regulator_notification_content(incident),
+                )
+            )
 
             # State regulator
-            notifications.append(await self._create_notification(
-                incident,
-                "regulator_state",
-                "State Banking Regulator",
-                f"Security Incident Notification: {incident.title}",
-                self._generate_regulator_notification_content(incident),
-            ))
+            notifications.append(
+                await self._create_notification(
+                    incident,
+                    "regulator_state",
+                    "State Banking Regulator",
+                    f"Security Incident Notification: {incident.title}",
+                    self._generate_regulator_notification_content(incident),
+                )
+            )
 
         if incident.requires_customer_notification:
-            notifications.append(await self._create_notification(
-                incident,
-                "customer",
-                "Affected Customers",
-                f"Important Security Notice from Your Bank",
-                self._generate_customer_notification_content(incident),
-            ))
+            notifications.append(
+                await self._create_notification(
+                    incident,
+                    "customer",
+                    "Affected Customers",
+                    f"Important Security Notice from Your Bank",
+                    self._generate_customer_notification_content(incident),
+                )
+            )
 
         # Internal notification always required
-        notifications.append(await self._create_notification(
-            incident,
-            "internal",
-            "Security Team",
-            f"[{incident.severity.value.upper()}] Security Incident: {incident.title}",
-            self._generate_internal_notification_content(incident),
-        ))
+        notifications.append(
+            await self._create_notification(
+                incident,
+                "internal",
+                "Security Team",
+                f"[{incident.severity.value.upper()}] Security Incident: {incident.title}",
+                self._generate_internal_notification_content(incident),
+            )
+        )
 
         return notifications
 

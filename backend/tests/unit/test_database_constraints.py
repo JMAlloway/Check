@@ -11,19 +11,19 @@ Tests cover:
 - Audit log immutability
 """
 
-import pytest
+import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
-import uuid
 
-from sqlalchemy import inspect
+import pytest
 from pydantic import ValidationError
+from sqlalchemy import inspect
 
+from app.models.audit import AuditAction, AuditLog, ItemView
 from app.models.check import CheckItem, CheckStatus, RiskLevel
 from app.models.decision import Decision, DecisionAction
-from app.models.user import User, Role, Permission
-from app.models.audit import AuditLog, AuditAction, ItemView
 from app.models.queue import Queue, QueueType
+from app.models.user import Permission, Role, User
 
 
 class TestCheckItemConstraints:
@@ -50,15 +50,22 @@ class TestCheckItemConstraints:
         amount_col = mapper.columns.get("amount")
         assert amount_col is not None
         # Check it's a numeric type
-        assert "NUMERIC" in str(amount_col.type).upper() or \
-               "DECIMAL" in str(amount_col.type).upper() or \
-               "FLOAT" in str(amount_col.type).upper()
+        assert (
+            "NUMERIC" in str(amount_col.type).upper()
+            or "DECIMAL" in str(amount_col.type).upper()
+            or "FLOAT" in str(amount_col.type).upper()
+        )
 
     def test_check_status_enum_values(self):
         """CheckStatus enum should have expected values."""
         expected_statuses = [
-            "new", "in_review", "pending_approval", "approved",
-            "returned", "rejected", "escalated"
+            "new",
+            "in_review",
+            "pending_approval",
+            "approved",
+            "returned",
+            "rejected",
+            "escalated",
         ]
         actual_values = [s.value for s in CheckStatus]
 
@@ -79,10 +86,7 @@ class TestCheckItemConstraints:
         indexes = mapper.persist_selectable.indexes
 
         # Check for tenant_id in any index
-        tenant_indexed = any(
-            "tenant_id" in str(idx.columns)
-            for idx in indexes
-        )
+        tenant_indexed = any("tenant_id" in str(idx.columns) for idx in indexes)
         # tenant_id column should have index=True
         tenant_col = mapper.columns.get("tenant_id")
         assert tenant_col.index is True or tenant_indexed
@@ -114,10 +118,7 @@ class TestDecisionConstraints:
 
     def test_decision_action_enum_values(self):
         """DecisionAction enum should have expected values."""
-        expected_actions = [
-            "approve", "return", "reject", "escalate",
-            "hold", "needs_more_info"
-        ]
+        expected_actions = ["approve", "return", "reject", "escalate", "hold", "needs_more_info"]
         actual_values = [a.value for a in DecisionAction]
 
         for action in expected_actions:
@@ -166,8 +167,9 @@ class TestUserConstraints:
 
         # Check for unique constraint or index
         # The actual unique constraint may be composite (tenant_id, username)
-        assert username_col.unique is True or \
-               any("username" in str(idx) for idx in mapper.persist_selectable.indexes)
+        assert username_col.unique is True or any(
+            "username" in str(idx) for idx in mapper.persist_selectable.indexes
+        )
 
 
 class TestAuditLogConstraints:

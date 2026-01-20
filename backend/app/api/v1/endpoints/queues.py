@@ -7,19 +7,19 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import DBSession, require_permission
-from app.models.queue import Queue, QueueAssignment
+from app.audit.service import AuditService
+from app.models.audit import AuditAction
 from app.models.check import CheckItem, CheckStatus
+from app.models.queue import Queue, QueueAssignment
+from app.schemas.common import MessageResponse, PaginatedResponse
 from app.schemas.queue import (
+    QueueAssignmentCreate,
+    QueueAssignmentResponse,
     QueueCreate,
     QueueResponse,
     QueueStatsResponse,
     QueueUpdate,
-    QueueAssignmentCreate,
-    QueueAssignmentResponse,
 )
-from app.schemas.common import PaginatedResponse, MessageResponse
-from app.audit.service import AuditService
-from app.models.audit import AuditAction
 
 router = APIRouter()
 
@@ -32,7 +32,11 @@ async def list_queues(
 ):
     """List all queues."""
     # CRITICAL: Filter by tenant_id for multi-tenant security
-    query = select(Queue).where(Queue.tenant_id == current_user.tenant_id).order_by(Queue.display_order, Queue.name)
+    query = (
+        select(Queue)
+        .where(Queue.tenant_id == current_user.tenant_id)
+        .order_by(Queue.display_order, Queue.name)
+    )
 
     if not include_inactive:
         query = query.where(Queue.is_active == True)
@@ -76,9 +80,15 @@ async def create_queue(
         queue_type=queue_data.queue_type,
         sla_hours=queue_data.sla_hours,
         warning_threshold_minutes=queue_data.warning_threshold_minutes,
-        routing_criteria=json.dumps(queue_data.routing_criteria) if queue_data.routing_criteria else None,
-        allowed_roles=json.dumps(queue_data.allowed_role_ids) if queue_data.allowed_role_ids else None,
-        allowed_users=json.dumps(queue_data.allowed_user_ids) if queue_data.allowed_user_ids else None,
+        routing_criteria=(
+            json.dumps(queue_data.routing_criteria) if queue_data.routing_criteria else None
+        ),
+        allowed_roles=(
+            json.dumps(queue_data.allowed_role_ids) if queue_data.allowed_role_ids else None
+        ),
+        allowed_users=(
+            json.dumps(queue_data.allowed_user_ids) if queue_data.allowed_user_ids else None
+        ),
     )
 
     db.add(queue)
@@ -256,6 +266,7 @@ async def get_queue_stats(
     # Get item counts by risk level
     # CRITICAL: Filter by tenant_id for multi-tenant security
     from app.models.check import RiskLevel
+
     risk_counts = {}
     for risk_val in RiskLevel:
         count_result = await db.execute(
@@ -263,7 +274,9 @@ async def get_queue_stats(
                 CheckItem.queue_id == queue_id,
                 CheckItem.tenant_id == current_user.tenant_id,
                 CheckItem.risk_level == risk_val,
-                CheckItem.status.in_([CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]),
+                CheckItem.status.in_(
+                    [CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]
+                ),
             )
         )
         count = count_result.scalar() or 0
@@ -277,7 +290,9 @@ async def get_queue_stats(
             CheckItem.queue_id == queue_id,
             CheckItem.tenant_id == current_user.tenant_id,
             CheckItem.sla_breached == True,
-            CheckItem.status.in_([CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]),
+            CheckItem.status.in_(
+                [CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]
+            ),
         )
     )
     sla_breached = sla_result.scalar() or 0
@@ -288,7 +303,9 @@ async def get_queue_stats(
         select(func.count(CheckItem.id)).where(
             CheckItem.queue_id == queue_id,
             CheckItem.tenant_id == current_user.tenant_id,
-            CheckItem.status.in_([CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]),
+            CheckItem.status.in_(
+                [CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]
+            ),
         )
     )
     total = total_result.scalar() or 0

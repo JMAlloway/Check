@@ -31,12 +31,14 @@ async def get_dashboard_stats(
     pending_result = await db.execute(
         select(func.count(CheckItem.id)).where(
             CheckItem.tenant_id == tenant_id,
-            CheckItem.status.in_([
-                CheckStatus.NEW,
-                CheckStatus.IN_REVIEW,
-                CheckStatus.PENDING_APPROVAL,
-                CheckStatus.ESCALATED,
-            ])
+            CheckItem.status.in_(
+                [
+                    CheckStatus.NEW,
+                    CheckStatus.IN_REVIEW,
+                    CheckStatus.PENDING_APPROVAL,
+                    CheckStatus.ESCALATED,
+                ]
+            ),
         )
     )
     pending_count = pending_result.scalar() or 0
@@ -45,7 +47,9 @@ async def get_dashboard_stats(
     processed_result = await db.execute(
         select(func.count(CheckItem.id)).where(
             CheckItem.tenant_id == tenant_id,
-            CheckItem.status.in_([CheckStatus.APPROVED, CheckStatus.RETURNED, CheckStatus.REJECTED]),
+            CheckItem.status.in_(
+                [CheckStatus.APPROVED, CheckStatus.RETURNED, CheckStatus.REJECTED]
+            ),
             CheckItem.updated_at >= today_start,
         )
     )
@@ -56,7 +60,9 @@ async def get_dashboard_stats(
         select(func.count(CheckItem.id)).where(
             CheckItem.tenant_id == tenant_id,
             CheckItem.sla_breached == True,
-            CheckItem.status.in_([CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]),
+            CheckItem.status.in_(
+                [CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]
+            ),
         )
     )
     sla_breached = sla_result.scalar() or 0
@@ -68,7 +74,9 @@ async def get_dashboard_stats(
             select(func.count(CheckItem.id)).where(
                 CheckItem.tenant_id == tenant_id,
                 CheckItem.risk_level == risk,
-                CheckItem.status.in_([CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]),
+                CheckItem.status.in_(
+                    [CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]
+                ),
             )
         )
         risk_counts[risk.value] = count_result.scalar() or 0
@@ -125,13 +133,17 @@ async def get_throughput_report(
     # Get daily processing counts
     daily_data = []
     for i in range(days):
-        day_start = (start_date + timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
+        day_start = (start_date + timedelta(days=i)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
         day_end = day_start + timedelta(days=1)
 
         processed_result = await db.execute(
             select(func.count(CheckItem.id)).where(
                 CheckItem.tenant_id == tenant_id,
-                CheckItem.status.in_([CheckStatus.APPROVED, CheckStatus.RETURNED, CheckStatus.REJECTED]),
+                CheckItem.status.in_(
+                    [CheckStatus.APPROVED, CheckStatus.RETURNED, CheckStatus.REJECTED]
+                ),
                 CheckItem.updated_at >= day_start,
                 CheckItem.updated_at < day_end,
             )
@@ -145,11 +157,13 @@ async def get_throughput_report(
             )
         )
 
-        daily_data.append({
-            "date": day_start.date().isoformat(),
-            "processed": processed_result.scalar() or 0,
-            "received": received_result.scalar() or 0,
-        })
+        daily_data.append(
+            {
+                "date": day_start.date().isoformat(),
+                "processed": processed_result.scalar() or 0,
+                "received": received_result.scalar() or 0,
+            }
+        )
 
     return {
         "period": {"start": start_date.isoformat(), "end": now.isoformat()},
@@ -188,7 +202,9 @@ async def get_decision_report(
     total_final = await db.execute(
         select(func.count(Decision.id)).where(
             Decision.tenant_id == tenant_id,
-            Decision.action.in_([DecisionAction.APPROVE, DecisionAction.RETURN, DecisionAction.REJECT]),
+            Decision.action.in_(
+                [DecisionAction.APPROVE, DecisionAction.RETURN, DecisionAction.REJECT]
+            ),
             Decision.created_at >= start_date,
         )
     )
@@ -266,13 +282,15 @@ async def get_reviewer_performance(
             )
             actions = {a.value: c for a, c in actions_result.all()}
 
-            performance.append({
-                "user_id": user_id,
-                "username": username,
-                "full_name": full_name,
-                "total_decisions": count,
-                "by_action": actions,
-            })
+            performance.append(
+                {
+                    "user_id": user_id,
+                    "username": username,
+                    "full_name": full_name,
+                    "total_decisions": count,
+                    "by_action": actions,
+                }
+            )
 
     return {
         "period": {"start": start_date.isoformat(), "end": now.isoformat()},
@@ -341,28 +359,32 @@ async def export_decisions_csv(
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow([
-        "Decision ID",
-        "Check Item ID",
-        "Account",
-        "Amount",
-        "Action",
-        "Reviewer",
-        "Decision Date",
-        "Notes",
-    ])
+    writer.writerow(
+        [
+            "Decision ID",
+            "Check Item ID",
+            "Account",
+            "Amount",
+            "Action",
+            "Reviewer",
+            "Decision Date",
+            "Notes",
+        ]
+    )
 
     for row in rows:
-        writer.writerow([
-            row.id,
-            row.check_item_id,
-            row.account_number_masked,
-            str(row.amount),
-            row.action.value,
-            row.username,
-            row.created_at.isoformat(),
-            row.notes or "",
-        ])
+        writer.writerow(
+            [
+                row.id,
+                row.check_item_id,
+                row.account_number_masked,
+                str(row.amount),
+                row.action.value,
+                row.username,
+                row.created_at.isoformat(),
+                row.notes or "",
+            ]
+        )
 
     return Response(
         content=output.getvalue(),

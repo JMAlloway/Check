@@ -104,7 +104,7 @@ jobs:
       - name: Build backend image
         uses: docker/build-push-action@v5
         with:
-          context: ./backend
+          context: .
           file: ./docker/Dockerfile.backend
           push: false
           tags: check-review-backend:test
@@ -114,7 +114,7 @@ jobs:
       - name: Build frontend image
         uses: docker/build-push-action@v5
         with:
-          context: ./frontend
+          context: .
           file: ./docker/Dockerfile.frontend
           push: false
           tags: check-review-frontend:test

@@ -42,8 +42,8 @@ services:
   # Backend API
   backend:
     build:
-      context: ../backend
-      dockerfile: ../docker/Dockerfile.backend
+      context: ..
+      dockerfile: docker/Dockerfile.backend
     container_name: check_review_backend
     environment:
       PYTHONUNBUFFERED: "1"
@@ -76,8 +76,8 @@ services:
   # Frontend
   frontend:
     build:
-      context: ../frontend
-      dockerfile: ../docker/Dockerfile.frontend
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
     container_name: check_review_frontend
     ports:
       - "3000:3000"

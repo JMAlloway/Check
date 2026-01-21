@@ -242,7 +242,6 @@ export default function QueuePage() {
   const { queueId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [page, setPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
 
   // Track which buckets are expanded (all expanded by default except processed)
@@ -264,13 +263,13 @@ export default function QueuePage() {
     enabled: !!queueId,
   });
 
-  // Fetch items - get more items to fill buckets
+  // Fetch all items - no pagination since we have collapsible sections
   const { data: itemsData, isLoading, refetch } = useQuery<PaginatedResponse<CheckItemListItem>>({
-    queryKey: ['checkItems', page, queueId, statusFilter, riskFilter, slaBreached, dateFrom, dateTo],
+    queryKey: ['checkItems', queueId, statusFilter, riskFilter, slaBreached, dateFrom, dateTo],
     queryFn: () =>
       checkApi.getItems({
-        page,
-        page_size: 50, // Get more items to fill buckets
+        page: 1,
+        page_size: 500, // Load all items - collapsible sections handle display
         queue_id: queueId,
         status: statusFilter.length > 0 ? statusFilter : undefined,
         risk_level: riskFilter.length > 0 ? riskFilter : undefined,
@@ -308,7 +307,6 @@ export default function QueuePage() {
       values.forEach((v) => params.append(key, v));
     }
     setSearchParams(params);
-    setPage(1);
   };
 
   // Calculate total items across buckets
@@ -416,7 +414,6 @@ export default function QueuePage() {
                         params.delete('sla_breached');
                       }
                       setSearchParams(params);
-                      setPage(1);
                     }}
                     className="rounded border-gray-300 text-primary-600"
                   />
@@ -472,31 +469,6 @@ export default function QueuePage() {
               onToggle={() => toggleBucket(bucket.type)}
             />
           ))}
-
-          {/* Pagination */}
-          {itemsData.total_pages > 1 && (
-            <div className="bg-white rounded-lg shadow px-6 py-3 flex items-center justify-between">
-              <div className="text-sm text-gray-500">
-                Page {page} of {itemsData.total_pages} ({itemsData.total} total items)
-              </div>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => setPage(page - 1)}
-                  disabled={!itemsData.has_previous}
-                  className="px-3 py-1 border rounded text-sm disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => setPage(page + 1)}
-                  disabled={!itemsData.has_next}
-                  className="px-3 py-1 border rounded text-sm disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
         </>
       )}
     </div>

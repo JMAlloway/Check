@@ -191,6 +191,11 @@ class TestNginxConfigSecurityHeaders:
 
     Note: These are config validation tests, not runtime tests.
     They verify the nginx.conf file has the expected directives.
+
+    Security header strategy:
+    - Backend handles ALL security headers for /api/* routes via SecurityHeadersMiddleware
+    - Nginx handles security headers for frontend static files only
+    - This avoids duplication and ensures consistent policy
     """
 
     @pytest.fixture
@@ -210,13 +215,16 @@ class TestNginxConfigSecurityHeaders:
         assert "/api/v1/images/secure/" in nginx_config
         assert "access_log off" in nginx_config
 
-    def test_secure_image_location_has_referrer_policy(self, nginx_config):
-        """Nginx should set Referrer-Policy: no-referrer for secure images."""
-        # Find the secure image location block and verify referrer policy
-        assert 'Referrer-Policy "no-referrer"' in nginx_config
+    def test_backend_handles_api_security_headers(self, nginx_config):
+        """Backend handles security headers for API routes - nginx should not duplicate."""
+        # Verify the nginx config documents that backend handles API headers
+        assert "Backend handles ALL security headers" in nginx_config or "SecurityHeadersMiddleware" in nginx_config
 
-    def test_global_security_headers_present(self, nginx_config):
-        """Nginx should have global security headers configured."""
+    def test_frontend_security_headers_present(self, nginx_config):
+        """Nginx should have security headers for frontend static files."""
+        # These are in the location / block for frontend SPA
         assert "X-Frame-Options" in nginx_config
         assert "X-Content-Type-Options" in nginx_config
-        assert "X-XSS-Protection" in nginx_config
+        assert "Referrer-Policy" in nginx_config
+        assert "Permissions-Policy" in nginx_config
+        assert "Content-Security-Policy" in nginx_config

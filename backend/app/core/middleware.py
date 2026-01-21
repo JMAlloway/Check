@@ -96,18 +96,24 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     - Referrer-Policy: strict-origin-when-cross-origin - Limits referrer information
     - Content-Security-Policy: default-src 'self' - Restricts resource loading
     - Permissions-Policy: Restricts browser features
+    - Strict-Transport-Security: HSTS (only in secure environments with HTTPS)
     - Cache-Control: For API responses, prevent caching of sensitive data
 
     Note: These are applied to ALL responses. Image endpoints have additional headers.
     """
 
+    # Environments where HSTS should be enabled (requires HTTPS)
+    HSTS_ENVIRONMENTS = {"production", "pilot", "staging", "uat"}
+
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Response]
     ) -> Response:
         """Process request and add security headers."""
+        from app.core.config import settings
+
         response = await call_next(request)
 
-        # Standard security headers for all API responses
+        # Standard security headers for all responses
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         # X-XSS-Protection disabled - can cause vulnerabilities, CSP is preferred
@@ -115,10 +121,26 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
         # Permissions-Policy to disable unnecessary browser features
+        # Critical for banking: disable camera, microphone, payment APIs, geolocation
         response.headers["Permissions-Policy"] = (
             "accelerometer=(), camera=(), geolocation=(), gyroscope=(), "
-            "magnetometer=(), microphone=(), payment=(), usb=()"
+            "magnetometer=(), microphone=(), payment=(), usb=(), "
+            "interest-cohort=()"  # Disable FLoC tracking
         )
+
+        # HSTS (HTTP Strict Transport Security)
+        # Only enabled in secure environments where HTTPS is enforced
+        # This tells browsers to ONLY connect via HTTPS for the configured duration
+        if settings.ENVIRONMENT.lower() in self.HSTS_ENVIRONMENTS:
+            # max-age: How long browsers should remember to only use HTTPS
+            # includeSubDomains: Apply to all subdomains
+            # preload: Allow inclusion in browser HSTS preload lists (optional)
+            hsts_max_age = getattr(settings, "HSTS_MAX_AGE_SECONDS", 31536000)  # Default 1 year
+            hsts_value = f"max-age={hsts_max_age}; includeSubDomains"
+            # Only add preload if explicitly enabled (requires commitment)
+            if getattr(settings, "HSTS_PRELOAD", False):
+                hsts_value += "; preload"
+            response.headers["Strict-Transport-Security"] = hsts_value
 
         # Content-Security-Policy for API responses
         # Note: This is restrictive - frontend serves its own CSP

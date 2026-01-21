@@ -161,6 +161,11 @@ class Settings(BaseSettings):
             return v.strip()
         return v or ""
 
+    # HSTS (HTTP Strict Transport Security)
+    # Auto-enabled in production/pilot/staging/uat where HTTPS is enforced
+    HSTS_MAX_AGE_SECONDS: int = 31536000  # 1 year (recommended minimum for production)
+    HSTS_PRELOAD: bool = False  # Set True to enable HSTS preload (requires commitment)
+
     # Image Connector (Connector A) - JWT token signing
     # RSA private key for signing JWT tokens for image connector requests
     CONNECTOR_JWT_PRIVATE_KEY: str = ""  # Set in production

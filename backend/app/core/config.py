@@ -117,14 +117,18 @@ class Settings(BaseSettings):
         """Set computed defaults based on other settings."""
         # Auto-detect COOKIE_SECURE from environment if not explicitly set
         if self.COOKIE_SECURE is None:
-            # Secure cookies only in production (requires HTTPS)
-            object.__setattr__(self, "COOKIE_SECURE", self.ENVIRONMENT == "production")
+            # Secure cookies in production/pilot/staging/uat (requires HTTPS)
+            secure_cookie_envs = {"production", "pilot", "staging", "uat"}
+            object.__setattr__(
+                self, "COOKIE_SECURE", self.ENVIRONMENT.lower() in secure_cookie_envs
+            )
 
-        # Auto-disable docs and metrics in production unless explicitly enabled via env var
+        # Auto-disable docs and metrics in secure environments unless explicitly enabled
         # Check if env vars were explicitly set (not just using defaults)
         import os
 
-        if self.ENVIRONMENT == "production":
+        secure_environments = {"production", "pilot", "staging", "uat"}
+        if self.ENVIRONMENT.lower() in secure_environments:
             # Only disable if not explicitly set to true in env
             if os.getenv("EXPOSE_DOCS", "").lower() not in ("true", "1", "yes"):
                 object.__setattr__(self, "EXPOSE_DOCS", False)
@@ -171,10 +175,12 @@ class Settings(BaseSettings):
 
 def _validate_production_secrets(s: Settings) -> None:
     """
-    CRITICAL: Fail hard if production uses weak or placeholder secrets.
+    CRITICAL: Fail hard if production/pilot uses weak or placeholder secrets.
 
     This prevents accidental deployment with insecure defaults.
     Called during settings initialization.
+
+    Applies to: production, pilot (any environment where real data may be processed)
 
     Secrets validated:
     - SECRET_KEY: JWT signing key (min 32 chars)
@@ -187,7 +193,9 @@ def _validate_production_secrets(s: Settings) -> None:
     - No known default values
     - No common placeholder patterns
     """
-    if s.ENVIRONMENT != "production":
+    # Environments that require secure secrets (any non-development environment)
+    secure_environments = {"production", "pilot", "staging", "uat"}
+    if s.ENVIRONMENT.lower() not in secure_environments:
         return
 
     # Secrets to validate with their minimum required length
@@ -256,16 +264,18 @@ def _validate_production_secrets(s: Settings) -> None:
     all_issues = violations + length_violations + pattern_violations
     if all_issues:
         raise RuntimeError(
-            f"FATAL: Production deployment blocked - insecure secrets detected!\n\n"
+            f"FATAL: {s.ENVIRONMENT.upper()} deployment blocked - insecure secrets detected!\n\n"
+            f"Environment '{s.ENVIRONMENT}' requires secure secrets (not defaults).\n\n"
             f"Issues found:\n"
             f"  {chr(10).join('- ' + v for v in all_issues)}\n\n"
-            f"Requirements for production secrets:\n"
-            f"  - Minimum 32 characters\n"
+            f"Requirements for secrets in {s.ENVIRONMENT}:\n"
+            f"  - Minimum 32 characters (100+ for RSA keys)\n"
             f"  - No placeholder words (change, secret, password, etc.)\n"
-            f"  - Randomly generated\n\n"
+            f"  - Randomly generated with sufficient entropy\n\n"
             f"Generate secure values with:\n"
             f'  python -c "import secrets; print(secrets.token_urlsafe(32))"\n\n'
-            f"Set these as environment variables or in your production .env file."
+            f"Set these as environment variables or in your .env.{s.ENVIRONMENT} file.\n"
+            f"See .env.pilot.example for reference."
         )
 
 

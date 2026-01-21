@@ -182,7 +182,7 @@ class TestDemoCredentials:
 
     def test_required_roles_exist(self):
         """Verify required roles have credentials."""
-        required_roles = ["reviewer", "approver", "admin"]
+        required_roles = ["reviewer", "senior_reviewer", "administrator"]
         for role in required_roles:
             assert role in DEMO_CREDENTIALS
 

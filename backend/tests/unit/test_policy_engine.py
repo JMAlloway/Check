@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.models.check import AccountType, CheckItem, CheckStatus, RiskLevel
+from app.models.check import AccountType, CheckItem, CheckStatus, ItemType, RiskLevel
 from app.policy.engine import PolicyEngine
 
 
@@ -21,6 +21,7 @@ class MockCheckItem:
         avg_check_amount_30d: Decimal = Decimal("1000"),
         returned_item_count_90d: int = 0,
         risk_level: RiskLevel = RiskLevel.LOW,
+        item_type: ItemType = ItemType.TRANSIT,
     ):
         self.id = "test-item-id"
         self.amount = amount
@@ -38,6 +39,40 @@ class MockCheckItem:
         self.risk_level = risk_level
         self.payee_name = "Test Payee"
         self.memo = None
+        self.item_type = item_type
+        # Additional fields required by policy engine
+        self.average_balance_30d = Decimal("15000")
+        self.check_count_7d = 2
+        self.check_count_14d = 4
+        self.total_check_amount_7d = Decimal("2000")
+        self.total_check_amount_14d = Decimal("4000")
+        self.overdraft_count_30d = 0
+        self.overdraft_count_90d = 0
+        self.nsf_count_90d = 0
+        self.relationship_tenure_years = Decimal("5")
+        self.is_payroll_account = False
+        self.has_direct_deposit = True
+        self.deposit_regularity_score = 85
+        self.check_number = 1234
+        self.last_check_number = 1233
+        self.check_sequence_gap = 1
+        # Check number sequence
+        self.check_number_gap = 0
+        self.is_duplicate_check_number = False
+        self.is_out_of_sequence = False
+        # Check age/staleness
+        self.check_age_days = 5
+        self.is_stale_dated = False
+        self.is_post_dated = False
+        # Image quality signals
+        self.has_micr_anomaly = False
+        self.micr_confidence_score = 95
+        self.has_alteration_flag = False
+        self.signature_match_score = 90
+        # Prior review history
+        self.prior_review_count = 0
+        self.prior_approval_count = 0
+        self.prior_rejection_count = 0
 
 
 class TestPolicyConditionEvaluation:

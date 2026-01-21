@@ -11,6 +11,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.api.v1 import api_router
 from app.core.config import settings
+from app.core.metrics import MetricsMiddleware, get_metrics
 from app.core.rate_limit import limiter
 from app.db.session import Base, engine
 
@@ -154,6 +155,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Prometheus metrics middleware
+app.add_middleware(MetricsMiddleware)
+
 
 # Global exception handler
 @app.exception_handler(Exception)
@@ -167,6 +171,13 @@ async def global_exception_handler(request: Request, exc: Exception):
             "details": str(exc) if settings.DEBUG else None,
         },
     )
+
+
+# Prometheus metrics endpoint
+@app.get("/metrics", tags=["Metrics"])
+async def metrics():
+    """Prometheus metrics endpoint for scraping."""
+    return get_metrics()
 
 
 # Health check endpoint

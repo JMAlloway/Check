@@ -627,6 +627,25 @@ export const policyApi = {
     });
     return response.data;
   },
+
+  updatePolicy: async (policyId: string, data: {
+    name?: string;
+    description?: string;
+    status?: string;
+    applies_to_account_types?: string[];
+    applies_to_branches?: string[];
+    applies_to_markets?: string[];
+  }) => {
+    const response = await api.put(`/policies/${policyId}`, data);
+    return response.data;
+  },
+
+  deletePolicy: async (policyId: string, force?: boolean) => {
+    const response = await api.delete(`/policies/${policyId}`, {
+      params: force ? { force: true } : undefined,
+    });
+    return response.data;
+  },
 };
 
 // Audit Log API (extended)

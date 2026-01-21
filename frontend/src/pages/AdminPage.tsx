@@ -783,6 +783,8 @@ interface Policy {
 function PoliciesAdmin() {
   const [selectedPolicy, setSelectedPolicy] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingPolicy, setEditingPolicy] = useState<Policy | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<Policy | null>(null);
 
   const { data: policies, isLoading } = useQuery({
     queryKey: ['policies'],
@@ -812,6 +814,35 @@ function PoliciesAdmin() {
     onError: (error: any) => {
       console.error('Failed to create policy:', error);
       alert(`Failed to create policy: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
+  const updatePolicyMutation = useMutation({
+    mutationFn: ({ policyId, data }: { policyId: string; data: { name?: string; description?: string; status?: string } }) =>
+      policyApi.updatePolicy(policyId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['policies'] });
+      setEditingPolicy(null);
+    },
+    onError: (error: any) => {
+      console.error('Failed to update policy:', error);
+      alert(`Failed to update policy: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
+  const deletePolicyMutation = useMutation({
+    mutationFn: ({ policyId, force }: { policyId: string; force?: boolean }) =>
+      policyApi.deletePolicy(policyId, force),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['policies'] });
+      setDeleteConfirm(null);
+      if (selectedPolicy === deleteConfirm?.id) {
+        setSelectedPolicy(null);
+      }
+    },
+    onError: (error: any) => {
+      console.error('Failed to delete policy:', error);
+      alert(`Failed to delete policy: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -885,6 +916,22 @@ function PoliciesAdmin() {
                         Activate
                       </button>
                     )}
+                    <button
+                      onClick={() => setEditingPolicy(policy)}
+                      className="p-1.5 text-gray-400 hover:text-primary-600 rounded"
+                      title="Edit policy"
+                    >
+                      <PencilIcon className="h-5 w-5" />
+                    </button>
+                    {!policy.is_default && (
+                      <button
+                        onClick={() => setDeleteConfirm(policy)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 rounded"
+                        title="Delete policy"
+                      >
+                        <TrashIcon className="h-5 w-5" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -910,6 +957,57 @@ function PoliciesAdmin() {
           onSubmit={(data) => createPolicyMutation.mutate(data)}
           isLoading={createPolicyMutation.isPending}
         />
+      )}
+
+      {/* Edit Policy Modal */}
+      {editingPolicy && (
+        <PolicyEditModal
+          policy={editingPolicy}
+          onClose={() => setEditingPolicy(null)}
+          onSubmit={(data) => updatePolicyMutation.mutate({ policyId: editingPolicy.id, data })}
+          isLoading={updatePolicyMutation.isPending}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center gap-3 text-red-600 mb-4">
+              <ExclamationTriangleIcon className="h-6 w-6" />
+              <h3 className="text-lg font-semibold">Delete Policy</h3>
+            </div>
+            <p className="text-gray-600 mb-2">
+              Are you sure you want to delete the policy <strong>{deleteConfirm.name}</strong>?
+            </p>
+            {deleteConfirm.status === 'active' && (
+              <p className="text-amber-600 text-sm bg-amber-50 p-2 rounded mb-4">
+                Warning: This policy is currently active. Deleting it may affect check processing.
+              </p>
+            )}
+            <p className="text-sm text-gray-500 mb-6">
+              This action cannot be undone. All versions and rules will be permanently removed.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deletePolicyMutation.mutate({
+                  policyId: deleteConfirm.id,
+                  force: deleteConfirm.status === 'active'
+                })}
+                disabled={deletePolicyMutation.isPending}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                {deletePolicyMutation.isPending ? 'Deleting...' : 'Delete Policy'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -979,6 +1077,98 @@ const POLICY_OPERATORS = {
 // Helper to get field definition
 function getFieldDef(fieldName: string) {
   return POLICY_FIELDS.find(f => f.field === fieldName);
+}
+
+// Edit Policy Modal - simpler version for updating policy metadata
+function PolicyEditModal({
+  policy,
+  onClose,
+  onSubmit,
+  isLoading,
+}: {
+  policy: { id: string; name: string; description?: string; status: string };
+  onClose: () => void;
+  onSubmit: (data: { name?: string; description?: string; status?: string }) => void;
+  isLoading: boolean;
+}) {
+  const [formData, setFormData] = useState({
+    name: policy.name,
+    description: policy.description || '',
+    status: policy.status,
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit({
+      name: formData.name !== policy.name ? formData.name : undefined,
+      description: formData.description !== (policy.description || '') ? formData.description : undefined,
+      status: formData.status !== policy.status ? formData.status : undefined,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">Edit Policy</h3>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Policy Name</label>
+            <input
+              type="text"
+              required
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="draft">Draft</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading || !formData.name}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            >
+              {isLoading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 function PolicyFormModal({

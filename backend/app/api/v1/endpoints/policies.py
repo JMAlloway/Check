@@ -400,3 +400,204 @@ async def activate_policy(
         "message": f"Policy activated (version {target_version.version_number})",
         "version_id": target_version.id,
     }
+
+
+@router.put("/{policy_id}", response_model=PolicyResponse)
+async def update_policy(
+    request: Request,
+    policy_id: str,
+    policy_data: PolicyUpdate,
+    db: DBSession,
+    current_user: Annotated[object, Depends(require_permission("policy", "update"))],
+):
+    """Update a policy's metadata (name, description, applies_to fields)."""
+    # CRITICAL: Filter by tenant_id for multi-tenant security
+    result = await db.execute(
+        select(Policy)
+        .options(selectinload(Policy.versions).selectinload(PolicyVersion.rules))
+        .where(Policy.id == policy_id, Policy.tenant_id == current_user.tenant_id)
+    )
+    policy = result.scalar_one_or_none()
+
+    if not policy:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Policy not found",
+        )
+
+    # Track changes for audit
+    changes = []
+
+    if policy_data.name is not None and policy_data.name != policy.name:
+        changes.append(f"name: {policy.name} -> {policy_data.name}")
+        policy.name = policy_data.name
+
+    if policy_data.description is not None and policy_data.description != policy.description:
+        changes.append("description updated")
+        policy.description = policy_data.description
+
+    if policy_data.status is not None and policy_data.status != policy.status:
+        changes.append(f"status: {policy.status.value} -> {policy_data.status.value}")
+        policy.status = policy_data.status
+
+    if policy_data.applies_to_account_types is not None:
+        policy.applies_to_account_types = json.dumps(policy_data.applies_to_account_types)
+        changes.append("applies_to_account_types updated")
+
+    if policy_data.applies_to_branches is not None:
+        policy.applies_to_branches = json.dumps(policy_data.applies_to_branches)
+        changes.append("applies_to_branches updated")
+
+    if policy_data.applies_to_markets is not None:
+        policy.applies_to_markets = json.dumps(policy_data.applies_to_markets)
+        changes.append("applies_to_markets updated")
+
+    policy.updated_at = datetime.now(timezone.utc)
+
+    if changes:
+        audit_service = AuditService(db)
+        await audit_service.log(
+            action=AuditAction.POLICY_UPDATED,
+            resource_type="policy",
+            resource_id=policy_id,
+            user_id=current_user.id,
+            username=current_user.username,
+            ip_address=request.client.host if request.client else None,
+            description=f"Updated policy {policy.name}: {', '.join(changes)}",
+        )
+
+    await db.commit()
+
+    # Build response
+    versions = []
+    current_version = None
+
+    for v in policy.versions:
+        rules = [
+            PolicyRuleResponse(
+                id=r.id,
+                policy_version_id=r.policy_version_id,
+                name=r.name,
+                description=r.description,
+                rule_type=r.rule_type,
+                priority=r.priority,
+                is_enabled=r.is_enabled,
+                conditions=[RuleCondition(**c) for c in json.loads(r.conditions)],
+                actions=[RuleAction(**a) for a in json.loads(r.actions)],
+                amount_threshold=r.amount_threshold,
+                risk_level_threshold=r.risk_level_threshold,
+                created_at=r.created_at,
+                updated_at=r.updated_at,
+            )
+            for r in v.rules
+        ]
+
+        version_response = PolicyVersionResponse(
+            id=v.id,
+            policy_id=v.policy_id,
+            version_number=v.version_number,
+            effective_date=v.effective_date,
+            expiry_date=v.expiry_date,
+            is_current=v.is_current,
+            approved_by_id=v.approved_by_id,
+            approved_at=v.approved_at,
+            change_notes=v.change_notes,
+            rules=rules,
+            created_at=v.created_at,
+            updated_at=v.updated_at,
+        )
+
+        versions.append(version_response)
+        if v.is_current:
+            current_version = version_response
+
+    return PolicyResponse(
+        id=policy.id,
+        name=policy.name,
+        description=policy.description,
+        status=policy.status,
+        is_default=policy.is_default,
+        applies_to_account_types=(
+            json.loads(policy.applies_to_account_types) if policy.applies_to_account_types else None
+        ),
+        applies_to_branches=(
+            json.loads(policy.applies_to_branches) if policy.applies_to_branches else None
+        ),
+        applies_to_markets=(
+            json.loads(policy.applies_to_markets) if policy.applies_to_markets else None
+        ),
+        versions=versions,
+        current_version=current_version,
+        created_at=policy.created_at,
+        updated_at=policy.updated_at,
+    )
+
+
+@router.delete("/{policy_id}")
+async def delete_policy(
+    request: Request,
+    policy_id: str,
+    db: DBSession,
+    current_user: Annotated[object, Depends(require_permission("policy", "delete"))],
+    force: bool = Query(False, description="Force delete even if policy is active"),
+):
+    """Delete a policy and all its versions.
+
+    By default, active policies cannot be deleted. Use force=true to override.
+    Default policies can never be deleted.
+    """
+    # CRITICAL: Filter by tenant_id for multi-tenant security
+    result = await db.execute(
+        select(Policy)
+        .options(selectinload(Policy.versions))
+        .where(Policy.id == policy_id, Policy.tenant_id == current_user.tenant_id)
+    )
+    policy = result.scalar_one_or_none()
+
+    if not policy:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Policy not found",
+        )
+
+    # Prevent deletion of default policy
+    if policy.is_default:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete the default policy",
+        )
+
+    # Prevent deletion of active policy unless forced
+    if policy.status == PolicyStatus.ACTIVE and not force:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete an active policy. Deactivate it first or use force=true",
+        )
+
+    policy_name = policy.name
+    version_count = len(policy.versions)
+
+    # Delete all versions and rules (cascading should handle rules)
+    for version in policy.versions:
+        await db.delete(version)
+
+    # Delete the policy
+    await db.delete(policy)
+
+    audit_service = AuditService(db)
+    await audit_service.log(
+        action=AuditAction.POLICY_DELETED,
+        resource_type="policy",
+        resource_id=policy_id,
+        user_id=current_user.id,
+        username=current_user.username,
+        ip_address=request.client.host if request.client else None,
+        description=f"Deleted policy '{policy_name}' with {version_count} version(s)",
+    )
+
+    await db.commit()
+
+    return {
+        "message": f"Policy '{policy_name}' deleted successfully",
+        "deleted_versions": version_count,
+    }

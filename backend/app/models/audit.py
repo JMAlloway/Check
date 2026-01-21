@@ -86,6 +86,7 @@ class AuditAction(str, Enum):
     POLICY_CREATED = "policy_created"
     POLICY_UPDATED = "policy_updated"
     POLICY_ACTIVATED = "policy_activated"
+    POLICY_DELETED = "policy_deleted"
     QUEUE_CREATED = "queue_created"
     QUEUE_UPDATED = "queue_updated"
     ENTITLEMENT_CREATED = "entitlement_created"

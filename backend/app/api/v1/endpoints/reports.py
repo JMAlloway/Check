@@ -322,6 +322,7 @@ async def export_decisions_csv(
         report_type="decisions_csv",
         user_id=current_user.id,
         username=current_user.username,
+        tenant_id=tenant_id,
         parameters={
             "date_from": date_from.isoformat() if date_from else None,
             "date_to": date_to.isoformat() if date_to else None,
@@ -430,6 +431,7 @@ async def export_daily_activity_pdf(
         report_type="daily_activity_pdf",
         user_id=current_user.id,
         username=current_user.username,
+        tenant_id=tenant_id,
         parameters={
             "date_from": date_from.isoformat(),
             "date_to": date_to.isoformat(),
@@ -483,6 +485,7 @@ async def export_daily_summary_pdf(
         report_type="daily_summary_pdf",
         user_id=current_user.id,
         username=current_user.username,
+        tenant_id=tenant_id,
         parameters={
             "date_from": date_from.isoformat(),
             "date_to": date_to.isoformat(),
@@ -528,6 +531,7 @@ async def export_executive_overview_pdf(
         report_type="executive_overview_pdf",
         user_id=current_user.id,
         username=current_user.username,
+        tenant_id=tenant_id,
         parameters={},
         exported=True,
         ip_address=request.client.host if request.client else None,

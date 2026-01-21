@@ -805,6 +805,19 @@ function PoliciesAdmin() {
     },
   });
 
+  // Helper to format API error messages
+  const formatErrorMessage = (error: any): string => {
+    const detail = error.response?.data?.detail;
+    if (detail) {
+      if (Array.isArray(detail)) {
+        return detail.map((d: any) => `${d.loc?.join('.') || 'field'}: ${d.msg}`).join('; ');
+      } else if (typeof detail === 'string') {
+        return detail;
+      }
+    }
+    return error.message;
+  };
+
   const createPolicyMutation = useMutation({
     mutationFn: policyApi.createPolicy,
     onSuccess: () => {
@@ -813,7 +826,7 @@ function PoliciesAdmin() {
     },
     onError: (error: any) => {
       console.error('Failed to create policy:', error);
-      alert(`Failed to create policy: ${error.response?.data?.detail || error.message}`);
+      alert(`Failed to create policy: ${formatErrorMessage(error)}`);
     },
   });
 
@@ -826,7 +839,7 @@ function PoliciesAdmin() {
     },
     onError: (error: any) => {
       console.error('Failed to update policy:', error);
-      alert(`Failed to update policy: ${error.response?.data?.detail || error.message}`);
+      alert(`Failed to update policy: ${formatErrorMessage(error)}`);
     },
   });
 
@@ -842,7 +855,7 @@ function PoliciesAdmin() {
     },
     onError: (error: any) => {
       console.error('Failed to delete policy:', error);
-      alert(`Failed to delete policy: ${error.response?.data?.detail || error.message}`);
+      alert(`Failed to delete policy: ${formatErrorMessage(error)}`);
     },
   });
 
@@ -1274,16 +1287,16 @@ function PolicyFormModal({
           rule_type: rule.rule_type,
           priority: rule.priority,
           is_enabled: rule.is_enabled,
-          conditions: JSON.stringify(rule.conditions.map(c => ({
+          conditions: rule.conditions.map(c => ({
             field: c.field,
             operator: c.operator,
             value: c.value,
             value_type: getFieldConfig(c.field)?.type === 'boolean' ? 'boolean' :
                         getFieldConfig(c.field)?.type === 'select' ? 'array' : 'number',
-          }))),
-          actions: JSON.stringify([{ action: rule.rule_type === 'dual_control' ? 'require_dual_control' :
-                                            rule.rule_type === 'escalation' ? 'escalate' : 'route_to_queue',
-                                     params: {} }]),
+          })),
+          actions: [{ action: rule.rule_type === 'dual_control' ? 'require_dual_control' :
+                              rule.rule_type === 'escalation' ? 'escalate' : 'route_to_queue',
+                       params: {} }],
         })),
       };
     }

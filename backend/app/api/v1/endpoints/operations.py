@@ -278,21 +278,20 @@ async def get_system_health(
     """
     Get overall system health status.
 
-    Checks connectivity to all critical services:
+    Checks connectivity to critical services:
     - PostgreSQL database
     - Redis cache
-    - Prometheus metrics
-    - Alertmanager
+
+    Note: Prometheus and Alertmanager are optional enterprise monitoring tools.
+    They are not checked here as they're not required for core functionality.
     """
-    # Run all health checks concurrently
+    # Run health checks for essential services only
     services = await asyncio.gather(
         check_database_health(db),
         check_redis_health(),
-        check_prometheus_health(),
-        check_alertmanager_health(),
     )
 
-    # Determine overall status
+    # Determine overall status based on essential services
     statuses = [s.status for s in services]
     if all(s == "healthy" for s in statuses):
         overall = "healthy"

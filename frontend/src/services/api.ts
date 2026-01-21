@@ -40,6 +40,23 @@ export const api = axios.create({
     'Content-Type': 'application/json',
   },
   withCredentials: true, // CRITICAL: Send cookies with requests
+  // FastAPI expects repeated params for arrays: ?risk_level=high&risk_level=medium
+  // Default axios uses brackets: ?risk_level[]=high&risk_level[]=medium
+  paramsSerializer: {
+    serialize: (params) => {
+      const searchParams = new URLSearchParams();
+      for (const key of Object.keys(params)) {
+        const value = params[key];
+        if (value === undefined || value === null) continue;
+        if (Array.isArray(value)) {
+          value.forEach((v) => searchParams.append(key, v));
+        } else {
+          searchParams.append(key, value);
+        }
+      }
+      return searchParams.toString();
+    },
+  },
 });
 
 // Track if we're currently refreshing to prevent multiple refresh attempts

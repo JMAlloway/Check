@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ALGORITHM: str = "HS256"
 
+    # Image signing - dedicated key for image URL tokens (separate from auth JWTs)
+    # This allows independent rotation and limits blast radius of key compromise
+    IMAGE_SIGNING_KEY: str = "change-this-image-signing-key-in-production"
+    IMAGE_SIGNING_ALGORITHM: str = "HS256"
+
     # Cookie Security (for refresh tokens)
     COOKIE_SECURE: bool | None = (
         None  # Auto-detected from ENVIRONMENT (True in prod, False otherwise)
@@ -204,6 +209,7 @@ def _validate_production_secrets(s: Settings) -> None:
         "CSRF_SECRET_KEY": 32,
         "NETWORK_PEPPER": 32,
         "CONNECTOR_JWT_PRIVATE_KEY": 100,  # RSA private key minimum length
+        "IMAGE_SIGNING_KEY": 32,  # Dedicated key for image URL signing
     }
 
     # Known default/placeholder secrets that MUST be changed
@@ -212,6 +218,7 @@ def _validate_production_secrets(s: Settings) -> None:
         "CSRF_SECRET_KEY": "change-this-csrf-secret-in-production",
         "NETWORK_PEPPER": "change-this-network-pepper-in-production",
         "CONNECTOR_JWT_PRIVATE_KEY": "",  # Empty is insecure
+        "IMAGE_SIGNING_KEY": "change-this-image-signing-key-in-production",
     }
 
     # Common placeholder patterns that indicate non-production secrets

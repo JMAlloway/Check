@@ -286,6 +286,15 @@ class CheckService:
         for img in item.images:
             from app.core.security import generate_signed_url
 
+            # generate_signed_url returns (url, jti) tuple - we only need the URL here
+            # jti can be stored for revocation tracking if needed in the future
+            image_url, _ = generate_signed_url(
+                img.external_image_id or img.id, user_id, tenant_id=item.tenant_id
+            )
+            thumbnail_url, _ = generate_signed_url(
+                f"thumb_{img.external_image_id or img.id}", user_id, tenant_id=item.tenant_id
+            )
+
             images.append(
                 CheckImageResponse(
                     id=img.id,
@@ -294,10 +303,8 @@ class CheckService:
                     file_size=img.file_size,
                     width=img.width,
                     height=img.height,
-                    image_url=generate_signed_url(img.external_image_id or img.id, user_id),
-                    thumbnail_url=generate_signed_url(
-                        f"thumb_{img.external_image_id or img.id}", user_id
-                    ),
+                    image_url=image_url,
+                    thumbnail_url=thumbnail_url,
                 )
             )
 
@@ -556,8 +563,11 @@ class CheckService:
                 if img.image_type == "front":
                     from app.core.security import generate_signed_url
 
-                    thumbnail_url = generate_signed_url(
-                        f"thumb_{img.external_image_id or img.id}", user_id
+                    # generate_signed_url returns (url, jti) tuple
+                    thumbnail_url, _ = generate_signed_url(
+                        f"thumb_{img.external_image_id or img.id}",
+                        user_id,
+                        tenant_id=item.tenant_id,
                     )
                     break
 
@@ -613,25 +623,31 @@ class CheckService:
         )
         history_records = result.scalars().all()
 
-        return [
-            CheckHistoryResponse(
-                id=h.external_item_id or h.id,
-                account_id=h.account_id,
-                check_number=h.check_number,
-                amount=h.amount,
-                check_date=h.check_date,
-                payee_name=h.payee_name,
-                status=h.status,
-                return_reason=h.return_reason,
-                front_image_url=(
-                    generate_signed_url(h.front_image_ref, user_id) if h.front_image_ref else None
-                ),
-                back_image_url=(
-                    generate_signed_url(h.back_image_ref, user_id) if h.back_image_ref else None
-                ),
+        # Build history responses - generate_signed_url returns (url, jti) tuple
+        history_responses = []
+        for h in history_records:
+            front_url = None
+            back_url = None
+            if h.front_image_ref:
+                front_url, _ = generate_signed_url(h.front_image_ref, user_id)
+            if h.back_image_ref:
+                back_url, _ = generate_signed_url(h.back_image_ref, user_id)
+
+            history_responses.append(
+                CheckHistoryResponse(
+                    id=h.external_item_id or h.id,
+                    account_id=h.account_id,
+                    check_number=h.check_number,
+                    amount=h.amount,
+                    check_date=h.check_date,
+                    payee_name=h.payee_name,
+                    status=h.status,
+                    return_reason=h.return_reason,
+                    front_image_url=front_url,
+                    back_image_url=back_url,
+                )
             )
-            for h in history_records
-        ]
+        return history_responses
 
     async def get_adjacent_items(
         self,

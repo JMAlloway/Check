@@ -11,7 +11,7 @@ import {
   CheckCircleIcon,
   ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
-import { checkApi, queueApi, resolveImageUrl } from '../services/api';
+import { checkApi, queueApi } from '../services/api';
 import { CheckItemListItem, CheckStatus, RiskLevel, PaginatedResponse } from '../types';
 import { StatusBadge, RiskBadge, SLABadge } from '../components/common/StatusBadge';
 import clsx from 'clsx';
@@ -165,9 +165,6 @@ function QueueBucket({
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                Image
-              </th>
               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Account / Check
               </th>
@@ -191,22 +188,6 @@ function QueueBucket({
           <tbody className="bg-white divide-y divide-gray-200">
             {bucket.items.map((item) => (
               <tr key={item.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 whitespace-nowrap">
-                  {item.thumbnail_url ? (
-                    <img
-                      src={resolveImageUrl(item.thumbnail_url)}
-                      alt="Check thumbnail"
-                      className="h-10 w-16 object-cover rounded border border-gray-200"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <div className="h-10 w-16 bg-gray-100 rounded border border-gray-200 flex items-center justify-center">
-                      <span className="text-xs text-gray-400">No img</span>
-                    </div>
-                  )}
-                </td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">
                     {item.account_number_masked}

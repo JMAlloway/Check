@@ -131,6 +131,8 @@ async def get_check_item(
         ip_address=request.client.host if request.client else None,
     )
 
+    await db.commit()  # Commit the audit log
+
     return item
 
 

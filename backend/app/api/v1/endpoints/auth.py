@@ -109,6 +109,7 @@ async def login(
             ip_address=ip_address,
             user_agent=user_agent,
         )
+        await db.commit()  # Commit audit log before raising
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=error,
@@ -136,6 +137,7 @@ async def login(
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
+            await db.commit()  # Commit audit log before raising
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid MFA code",
@@ -159,6 +161,9 @@ async def login(
         user_agent=user_agent,
         description="User logged in successfully",
     )
+
+    # Commit the audit log
+    await db.commit()
 
     # Gather permissions from roles
     permissions = []
@@ -300,6 +305,8 @@ async def logout(
         ip_address=request.client.host if request.client else None,
         description="User logged out",
     )
+
+    await db.commit()  # Commit the audit log
 
     return MessageResponse(message="Logged out successfully", success=True)
 

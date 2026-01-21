@@ -36,6 +36,20 @@ async def lifespan(app: FastAPI):
     print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     print(f"Environment: {settings.ENVIRONMENT}")
 
+    # Log security-relevant endpoint exposure settings
+    if settings.EXPOSE_DOCS:
+        print(f"API Docs: ENABLED at {settings.API_V1_PREFIX}/docs")
+    else:
+        print("API Docs: DISABLED (set EXPOSE_DOCS=true to enable)")
+
+    if settings.EXPOSE_METRICS:
+        if settings.METRICS_ALLOWED_IPS:
+            print(f"Metrics: ENABLED with IP allowlist: {settings.METRICS_ALLOWED_IPS}")
+        else:
+            print("Metrics: ENABLED (no IP restriction - consider setting METRICS_ALLOWED_IPS)")
+    else:
+        print("Metrics: DISABLED (set EXPOSE_METRICS=true to enable)")
+
     # CRITICAL SAFETY CHECK: Demo mode must NEVER run in production
     if settings.DEMO_MODE and settings.ENVIRONMENT == "production":
         raise RuntimeError(
@@ -141,13 +155,19 @@ async def lifespan(app: FastAPI):
     print("Shutting down...")
 
 
+# Conditionally expose API docs based on settings
+# In production, docs are disabled by default for security
+_docs_url = f"{settings.API_V1_PREFIX}/docs" if settings.EXPOSE_DOCS else None
+_redoc_url = f"{settings.API_V1_PREFIX}/redoc" if settings.EXPOSE_DOCS else None
+_openapi_url = f"{settings.API_V1_PREFIX}/openapi.json" if settings.EXPOSE_DOCS else None
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="Bank-grade Check Review Console for community bank operations",
-    openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
-    docs_url=f"{settings.API_V1_PREFIX}/docs",
-    redoc_url=f"{settings.API_V1_PREFIX}/redoc",
+    openapi_url=_openapi_url,
+    docs_url=_docs_url,
+    redoc_url=_redoc_url,
     lifespan=lifespan,
 )
 
@@ -188,10 +208,68 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# Prometheus metrics endpoint
-@app.get("/metrics", tags=["Metrics"])
-async def metrics():
-    """Prometheus metrics endpoint for scraping."""
+# Prometheus metrics endpoint with optional IP allowlisting
+@app.get("/metrics", tags=["Metrics"], include_in_schema=settings.EXPOSE_METRICS)
+async def metrics(request: Request):
+    """
+    Prometheus metrics endpoint for scraping.
+
+    Security:
+    - Disabled entirely when EXPOSE_METRICS=false (returns 404)
+    - When enabled, optionally filtered by METRICS_ALLOWED_IPS
+    - Banks should either disable this or set IP allowlist to internal/VPN ranges
+    """
+    # Check if metrics endpoint is enabled
+    if not settings.EXPOSE_METRICS:
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Not Found"},
+        )
+
+    # Check IP allowlist if configured
+    if settings.METRICS_ALLOWED_IPS:
+        import ipaddress
+
+        client_ip = request.client.host if request.client else None
+        if not client_ip:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Unable to determine client IP"},
+            )
+
+        # Parse allowed IPs/networks
+        allowed_networks = []
+        for ip_or_network in settings.METRICS_ALLOWED_IPS.split(","):
+            ip_or_network = ip_or_network.strip()
+            if not ip_or_network:
+                continue
+            try:
+                # Try parsing as network (e.g., 10.0.0.0/8)
+                allowed_networks.append(ipaddress.ip_network(ip_or_network, strict=False))
+            except ValueError:
+                try:
+                    # Try parsing as single IP
+                    allowed_networks.append(
+                        ipaddress.ip_network(f"{ip_or_network}/32", strict=False)
+                    )
+                except ValueError:
+                    continue  # Skip invalid entries
+
+        # Check if client IP is in any allowed network
+        try:
+            client_addr = ipaddress.ip_address(client_ip)
+            allowed = any(client_addr in network for network in allowed_networks)
+            if not allowed:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "IP not in allowlist"},
+                )
+        except ValueError:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Invalid client IP format"},
+            )
+
     return get_metrics()
 
 
@@ -269,8 +347,11 @@ app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 @app.get("/", tags=["Root"])
 async def root():
     """Root endpoint."""
-    return {
+    response = {
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
-        "docs": f"{settings.API_V1_PREFIX}/docs",
     }
+    # Only show docs URL if docs are enabled
+    if settings.EXPOSE_DOCS:
+        response["docs"] = f"{settings.API_V1_PREFIX}/docs"
+    return response

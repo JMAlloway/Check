@@ -119,10 +119,38 @@ class Settings(BaseSettings):
         if self.COOKIE_SECURE is None:
             # Secure cookies only in production (requires HTTPS)
             object.__setattr__(self, "COOKIE_SECURE", self.ENVIRONMENT == "production")
+
+        # Auto-disable docs and metrics in production unless explicitly enabled via env var
+        # Check if env vars were explicitly set (not just using defaults)
+        import os
+
+        if self.ENVIRONMENT == "production":
+            # Only disable if not explicitly set to true in env
+            if os.getenv("EXPOSE_DOCS", "").lower() not in ("true", "1", "yes"):
+                object.__setattr__(self, "EXPOSE_DOCS", False)
+            if os.getenv("EXPOSE_METRICS", "").lower() not in ("true", "1", "yes"):
+                object.__setattr__(self, "EXPOSE_METRICS", False)
+
         return self
 
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 100
+
+    # Endpoint Exposure Control (Security)
+    # These should be False in production/pilot unless behind VPN/internal ingress
+    EXPOSE_DOCS: bool = True  # OpenAPI docs at /api/v1/docs - auto-disabled in production
+    EXPOSE_METRICS: bool = True  # Prometheus metrics at /metrics - auto-disabled in production
+    # IP allowlist for metrics endpoint (comma-separated, empty = allow all when exposed)
+    # Example: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1"
+    METRICS_ALLOWED_IPS: str = ""
+
+    @field_validator("METRICS_ALLOWED_IPS", mode="before")
+    @classmethod
+    def parse_metrics_allowed_ips(cls, v: Any) -> str:
+        """Parse METRICS_ALLOWED_IPS, stripping whitespace."""
+        if isinstance(v, str):
+            return v.strip()
+        return v or ""
 
     # Image Connector (Connector A) - JWT token signing
     # RSA private key for signing JWT tokens for image connector requests

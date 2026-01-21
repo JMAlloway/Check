@@ -405,6 +405,47 @@ export const imageApi = {
     });
     return response.data;
   },
+
+  /**
+   * Mint a one-time-use token for secure image access.
+   *
+   * Security Properties:
+   * - Token can only be used once
+   * - Token expires after 90 seconds
+   * - Token is tenant-scoped
+   * - No JWT in URL (opaque UUID)
+   *
+   * Use this for pilot/production instead of JWT bearer URLs.
+   */
+  mintToken: async (imageId: string, isThumbnail = false): Promise<{
+    token_id: string;
+    image_url: string;
+    expires_at: string;
+  }> => {
+    const response = await api.post('/images/mint-token', {
+      image_id: imageId,
+      is_thumbnail: isThumbnail,
+    });
+    return response.data;
+  },
+
+  /**
+   * Mint multiple one-time tokens at once (max 10).
+   * Useful for loading all images on a check detail view.
+   */
+  mintTokensBatch: async (imageIds: string[], isThumbnail = false): Promise<{
+    tokens: Array<{
+      token_id: string;
+      image_url: string;
+      expires_at: string;
+    }>;
+  }> => {
+    const response = await api.post('/images/mint-tokens-batch', {
+      image_ids: imageIds,
+      is_thumbnail: isThumbnail,
+    });
+    return response.data;
+  },
 };
 
 // Audit API

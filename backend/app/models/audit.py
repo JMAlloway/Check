@@ -77,6 +77,12 @@ class AuditAction(str, Enum):
     IMAGE_DOWNLOADED = "image_downloaded"
     IMAGE_ACCESS_DENIED = "image_access_denied"
 
+    # One-time image tokens (for secure image access)
+    IMAGE_TOKEN_CREATED = "image_token_created"
+    IMAGE_TOKEN_USED = "image_token_used"
+    IMAGE_TOKEN_EXPIRED = "image_token_expired"
+    IMAGE_TOKEN_REUSE_ATTEMPTED = "image_token_reuse_attempted"
+
     # Admin
     USER_CREATED = "user_created"
     USER_UPDATED = "user_updated"

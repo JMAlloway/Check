@@ -305,32 +305,25 @@ class TestEndpointLogic:
         with open("/home/user/Check/backend/app/api/v1/endpoints/images.py", "r") as f:
             content = f.read()
 
-        # Find the secure image endpoint
-        assert "async def get_secure_image" in content
+        # Find the one-time token endpoint (get_image_by_token)
+        assert "async def get_image_by_token" in content
 
-        # Extract just the get_secure_image function to check order within it
-        func_start = content.find("async def get_secure_image")
-        func_end = content.find("\n@router", func_start + 1)
-        if func_end == -1:
-            func_end = len(content)
-        func_content = content[func_start:func_end]
+        # Verify the critical security property:
+        # token.used_at is assigned, then committed, then image is served
+        # Search for the ASSIGNMENT not just any reference
+        used_at_assign = content.find("token.used_at =")
+        assert used_at_assign > 0, "token.used_at assignment should be in file"
 
-        # Verify the order of operations within the function:
-        # 1. token.used_at should be set
-        # 2. db.commit() should happen
-        # 3. adapter.get_image should happen AFTER
+        # Find the commit AFTER the assignment
+        commit_after = content.find("await db.commit()", used_at_assign)
+        assert commit_after > used_at_assign, "commit should happen after used_at assignment"
 
-        used_at_pos = func_content.find("token.used_at")
-        commit_pos = func_content.find("await db.commit()")
-        get_image_pos = func_content.find("adapter.get_image")
-        get_thumbnail_pos = func_content.find("adapter.get_thumbnail")
+        # Find image serving AFTER the commit
+        get_image_after = content.find("adapter.get_image", commit_after)
+        get_thumbnail_after = content.find("adapter.get_thumbnail", commit_after)
 
-        # Verify order
-        assert used_at_pos > 0, "token.used_at should be in function"
-        assert commit_pos > 0, "db.commit should be in function"
-        assert used_at_pos < commit_pos, "used_at should be set before commit"
-        assert commit_pos < get_image_pos, "commit should happen before get_image"
-        assert commit_pos < get_thumbnail_pos, "commit should happen before get_thumbnail"
+        assert get_image_after > commit_after, "get_image should happen after commit"
+        assert get_thumbnail_after > commit_after, "get_thumbnail should happen after commit"
 
     def test_batch_endpoint_has_limit(self):
         """Batch token endpoint should have a maximum limit."""

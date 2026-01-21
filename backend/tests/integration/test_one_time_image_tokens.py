@@ -298,21 +298,24 @@ class TestSecureImageEndpoint:
         # by checking the source code order (used_at set, then commit, then serve)
         import inspect
 
-        from app.api.v1.endpoints.images import get_secure_image
+        from app.api.v1.endpoints.images import get_image_by_token
 
-        source = inspect.getsource(get_secure_image)
+        source = inspect.getsource(get_image_by_token)
 
-        # Verify used_at is set before adapter.get_image/get_thumbnail
-        used_at_index = source.find("token.used_at")
-        commit_index = source.find("await db.commit()")
-        get_image_index = source.find("adapter.get_image")
-        get_thumbnail_index = source.find("adapter.get_thumbnail")
+        # Search for ASSIGNMENT of used_at, not just any reference
+        used_at_assign = source.find("token.used_at =")
+        assert used_at_assign > 0, "token.used_at assignment should be in function"
 
-        # used_at should be set before commit
-        assert used_at_index < commit_index, "used_at should be set before commit"
-        # commit should happen before serving the image
-        assert commit_index < get_image_index, "commit should happen before get_image"
-        assert commit_index < get_thumbnail_index, "commit should happen before get_thumbnail"
+        # Find commit AFTER the assignment
+        commit_after = source.find("await db.commit()", used_at_assign)
+        assert commit_after > used_at_assign, "commit should happen after used_at assignment"
+
+        # Find image serving AFTER the commit
+        get_image_after = source.find("adapter.get_image", commit_after)
+        get_thumbnail_after = source.find("adapter.get_thumbnail", commit_after)
+
+        assert get_image_after > commit_after, "get_image should happen after commit"
+        assert get_thumbnail_after > commit_after, "get_thumbnail should happen after commit"
 
 
 class TestTenantIsolation:

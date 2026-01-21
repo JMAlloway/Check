@@ -800,8 +800,18 @@ function PoliciesAdmin() {
   const queryClient = useQueryClient();
   const activateMutation = useMutation({
     mutationFn: (policyId: string) => policyApi.activatePolicy(policyId),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['policies'] });
+      alert(`Policy activated: ${data.message || 'Success'}`);
+    },
+    onError: (error: any) => {
+      console.error('Failed to activate policy:', error);
+      const detail = error.response?.data?.detail;
+      let message = error.message;
+      if (detail) {
+        message = typeof detail === 'string' ? detail : JSON.stringify(detail);
+      }
+      alert(`Failed to activate policy: ${message}`);
     },
   });
 

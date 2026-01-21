@@ -396,6 +396,9 @@ async def activate_policy(
         description=f"Activated policy {policy.name} version {target_version.version_number}",
     )
 
+    # Commit the changes
+    await db.commit()
+
     return {
         "message": f"Policy activated (version {target_version.version_number})",
         "version_id": target_version.id,

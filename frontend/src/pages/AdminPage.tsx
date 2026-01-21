@@ -1279,7 +1279,7 @@ function PolicyFormModal({
 
     if (rules.length > 0) {
       policyData.initial_version = {
-        effective_date: new Date().toISOString().split('T')[0],
+        effective_date: new Date().toISOString(),
         change_notes: 'Initial version',
         rules: rules.map((rule) => ({
           name: rule.name,

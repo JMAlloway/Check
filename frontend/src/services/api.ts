@@ -251,6 +251,7 @@ export const decisionApi = {
     reason_code_ids?: string[];
     notes?: string;
     ai_assisted?: boolean;
+    ai_flags_reviewed?: string[];
   }) => {
     const response = await api.post('/decisions', data);
     return response.data;

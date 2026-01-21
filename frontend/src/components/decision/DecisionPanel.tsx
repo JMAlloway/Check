@@ -228,6 +228,7 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
       reason_code_ids: selectedReasonCodes,
       notes: notes.trim() || undefined,
       ai_assisted: item.ai_flags.length > 0,
+      ai_flags_reviewed: item.ai_flags.map(f => f.code),
     });
   }, [selectedAction, item.id, item.ai_flags, decisionType, selectedReasonCodes, notes, createDecision]);
 

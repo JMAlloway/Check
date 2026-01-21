@@ -298,9 +298,9 @@ async def create_decision(
                     detail="Cannot approve your own recommendation (dual control)",
                 )
 
-    # GUARDRAIL: Validate AI acknowledgment if AI analysis was performed
-    # AI output is ADVISORY ONLY - but if it was shown, human must acknowledge
-    if item.ai_analyzed_at and item.ai_recommendation:
+    # GUARDRAIL: Validate AI acknowledgment if AI flags were raised
+    # AI output is ADVISORY ONLY - but if flags were shown, human must acknowledge
+    if item.has_ai_flags:
         if not decision_data.ai_assisted:
             await audit_service.log_decision_failure(
                 check_item_id=item.id,
@@ -308,13 +308,13 @@ async def create_decision(
                 username=current_user.username,
                 failure_type="validation",
                 attempted_action=decision_data.action.value,
-                reason="AI analysis exists but not acknowledged. Set ai_assisted=True.",
+                reason="AI flags exist but not acknowledged. Set ai_assisted=True.",
                 ip_address=ip_address,
             )
             await db.commit()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="This item has AI analysis that must be acknowledged. Set ai_assisted=True to confirm you reviewed the AI advisory.",
+                detail="This item has AI flags that must be acknowledged. Set ai_assisted=True to confirm you reviewed the detection flags.",
             )
 
         # If AI has flags, they should be reviewed

@@ -27,7 +27,7 @@ async def list_check_items(
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("check_item", "view"))],
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=500),
     status: list[CheckStatus] | None = Query(None),
     risk_level: list[RiskLevel] | None = Query(None),
     amount_min: Decimal | None = None,
@@ -77,7 +77,7 @@ async def get_my_queue(
     db: DBSession,
     current_user: RequireCheckView,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=500),
 ):
     """Get check items assigned to current user."""
     check_service = CheckService(db)

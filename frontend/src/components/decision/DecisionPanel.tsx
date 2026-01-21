@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { LockClosedIcon, ExclamationCircleIcon, KeyIcon } from '@heroicons/react/24/outline';
 import { CheckItem, ReasonCode, DecisionAction } from '../../types';
@@ -47,7 +46,6 @@ const SUBMIT_DEBOUNCE_MS = 1000;
 const LOCKED_STATUSES = ['approved', 'rejected', 'returned', 'closed'];
 
 export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelProps) {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { hasPermission } = useAuthStore();
 
@@ -230,7 +228,6 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
       reason_code_ids: selectedReasonCodes,
       notes: notes.trim() || undefined,
       ai_assisted: item.ai_flags.length > 0,
-      ai_flags_reviewed: item.ai_flags.length > 0 ? item.ai_flags.map(f => f.code) : undefined,
     });
   }, [selectedAction, item.id, item.ai_flags, decisionType, selectedReasonCodes, notes, createDecision]);
 

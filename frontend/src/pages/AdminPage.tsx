@@ -915,6 +915,72 @@ function PoliciesAdmin() {
   );
 }
 
+// All available policy rule fields - shared between create and view components
+const POLICY_FIELDS = [
+  // Amount thresholds
+  { field: 'amount', label: 'Check Amount ($)', type: 'number', category: 'Amount' },
+  { field: 'amount_vs_avg_ratio', label: 'Amount vs 30-Day Average (ratio)', type: 'number', category: 'Amount' },
+  { field: 'amount_vs_balance_ratio', label: 'Amount vs Balance (ratio)', type: 'number', category: 'Amount' },
+  // Account tenure & balance
+  { field: 'account_tenure_days', label: 'Account Age (days)', type: 'number', category: 'Account' },
+  { field: 'relationship_tenure_years', label: 'Relationship Tenure (years)', type: 'number', category: 'Account' },
+  { field: 'current_balance', label: 'Current Balance ($)', type: 'number', category: 'Account' },
+  { field: 'average_balance_30d', label: 'Average Balance 30 Days ($)', type: 'number', category: 'Account' },
+  // Risk level
+  { field: 'risk_level', label: 'Risk Level', type: 'select', options: ['low', 'medium', 'high', 'critical'], category: 'Risk' },
+  // Overdraft history
+  { field: 'overdraft_count_30d', label: 'Overdrafts (30 days)', type: 'number', category: 'Overdraft' },
+  { field: 'overdraft_count_90d', label: 'Overdrafts (90 days)', type: 'number', category: 'Overdraft' },
+  { field: 'nsf_count_90d', label: 'NSF Count (90 days)', type: 'number', category: 'Overdraft' },
+  // Returns & exceptions
+  { field: 'returned_item_count_90d', label: 'Returned Items (90 days)', type: 'number', category: 'Returns' },
+  { field: 'exception_count_90d', label: 'Exceptions (90 days)', type: 'number', category: 'Returns' },
+  { field: 'prior_rejection_count', label: 'Prior Rejections', type: 'number', category: 'Returns' },
+  // Velocity
+  { field: 'check_count_7d', label: 'Checks (7 days)', type: 'number', category: 'Velocity' },
+  { field: 'check_count_14d', label: 'Checks (14 days)', type: 'number', category: 'Velocity' },
+  { field: 'check_frequency_30d', label: 'Check Frequency (30 days)', type: 'number', category: 'Velocity' },
+  // Check patterns
+  { field: 'is_duplicate_check_number', label: 'Duplicate Check Number', type: 'boolean', category: 'Check Pattern' },
+  { field: 'is_out_of_sequence', label: 'Out of Sequence', type: 'boolean', category: 'Check Pattern' },
+  { field: 'check_number_gap', label: 'Check Number Gap', type: 'number', category: 'Check Pattern' },
+  // Check age
+  { field: 'check_age_days', label: 'Check Age (days)', type: 'number', category: 'Check Age' },
+  { field: 'is_stale_dated', label: 'Stale Dated (>180 days)', type: 'boolean', category: 'Check Age' },
+  { field: 'is_post_dated', label: 'Post Dated', type: 'boolean', category: 'Check Age' },
+  // Image quality
+  { field: 'has_micr_anomaly', label: 'MICR Anomaly', type: 'boolean', category: 'Image Quality' },
+  { field: 'micr_confidence_score', label: 'MICR Confidence (0-100)', type: 'number', category: 'Image Quality' },
+  { field: 'has_alteration_flag', label: 'Alteration Detected', type: 'boolean', category: 'Image Quality' },
+  { field: 'signature_match_score', label: 'Signature Match (0-100)', type: 'number', category: 'Image Quality' },
+  // Customer context
+  { field: 'is_payroll_account', label: 'Payroll Account', type: 'boolean', category: 'Customer' },
+  { field: 'has_direct_deposit', label: 'Has Direct Deposit', type: 'boolean', category: 'Customer' },
+  { field: 'deposit_regularity_score', label: 'Deposit Regularity (0-100)', type: 'number', category: 'Customer' },
+];
+
+const POLICY_OPERATORS = {
+  number: [
+    { value: 'greater_or_equal', label: '>=' },
+    { value: 'less_than', label: '<' },
+    { value: 'equals', label: '=' },
+    { value: 'greater_than', label: '>' },
+    { value: 'less_or_equal', label: '<=' },
+  ],
+  boolean: [
+    { value: 'equals', label: 'is' },
+  ],
+  select: [
+    { value: 'equals', label: 'is' },
+    { value: 'in', label: 'is one of' },
+  ],
+};
+
+// Helper to get field definition
+function getFieldDef(fieldName: string) {
+  return POLICY_FIELDS.find(f => f.field === fieldName);
+}
+
 function PolicyFormModal({
   onClose,
   onSubmit,
@@ -931,14 +997,19 @@ function PolicyFormModal({
     applies_to_branches: [] as string[],
   });
 
+  interface RuleCondition {
+    field: string;
+    operator: string;
+    value: any;
+  }
+
   const [rules, setRules] = useState<Array<{
     name: string;
     description: string;
     rule_type: string;
     priority: number;
     is_enabled: boolean;
-    amount_threshold?: number;
-    risk_level_threshold?: string;
+    conditions: RuleCondition[];
   }>>([]);
 
   const [showAddRule, setShowAddRule] = useState(false);
@@ -948,9 +1019,30 @@ function PolicyFormModal({
     rule_type: 'routing',
     priority: 1,
     is_enabled: true,
-    amount_threshold: undefined as number | undefined,
-    risk_level_threshold: '',
+    conditions: [] as RuleCondition[],
   });
+
+  const [newCondition, setNewCondition] = useState<RuleCondition>({
+    field: 'amount',
+    operator: 'greater_or_equal',
+    value: '',
+  });
+
+  const handleAddCondition = () => {
+    if (newCondition.value === '' && newCondition.value !== false) return;
+    setNewRule({
+      ...newRule,
+      conditions: [...newRule.conditions, { ...newCondition }],
+    });
+    setNewCondition({ field: 'amount', operator: 'greater_or_equal', value: '' });
+  };
+
+  const handleRemoveCondition = (index: number) => {
+    setNewRule({
+      ...newRule,
+      conditions: newRule.conditions.filter((_, i) => i !== index),
+    });
+  };
 
   const handleAddRule = () => {
     setRules([...rules, { ...newRule }]);
@@ -960,14 +1052,17 @@ function PolicyFormModal({
       rule_type: 'routing',
       priority: rules.length + 2,
       is_enabled: true,
-      amount_threshold: undefined,
-      risk_level_threshold: '',
+      conditions: [],
     });
     setShowAddRule(false);
   };
 
   const handleRemoveRule = (index: number) => {
     setRules(rules.filter((_, i) => i !== index));
+  };
+
+  const getFieldConfig = (fieldName: string) => {
+    return POLICY_FIELDS.find(f => f.field === fieldName);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -984,11 +1079,21 @@ function PolicyFormModal({
         effective_date: new Date().toISOString().split('T')[0],
         change_notes: 'Initial version',
         rules: rules.map((rule) => ({
-          ...rule,
-          conditions: [],
-          actions: [{ type: 'route_to_queue', params: {} }],
-          amount_threshold: rule.amount_threshold || undefined,
-          risk_level_threshold: rule.risk_level_threshold || undefined,
+          name: rule.name,
+          description: rule.description,
+          rule_type: rule.rule_type,
+          priority: rule.priority,
+          is_enabled: rule.is_enabled,
+          conditions: JSON.stringify(rule.conditions.map(c => ({
+            field: c.field,
+            operator: c.operator,
+            value: c.value,
+            value_type: getFieldConfig(c.field)?.type === 'boolean' ? 'boolean' :
+                        getFieldConfig(c.field)?.type === 'select' ? 'array' : 'number',
+          }))),
+          actions: JSON.stringify([{ action: rule.rule_type === 'dual_control' ? 'require_dual_control' :
+                                            rule.rule_type === 'escalation' ? 'escalate' : 'route_to_queue',
+                                     params: {} }]),
         })),
       };
     }
@@ -1051,15 +1156,28 @@ function PolicyFormModal({
               <div className="space-y-2">
                 {rules.map((rule, idx) => (
                   <div key={idx} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-                    <div>
+                    <div className="flex-1">
                       <span className="font-medium text-gray-900">{rule.name}</span>
-                      <div className="flex gap-2 mt-1">
+                      <div className="flex flex-wrap gap-2 mt-1">
                         <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">{rule.rule_type}</span>
                         <span className="text-xs text-gray-500">Priority: {rule.priority}</span>
-                        {rule.amount_threshold && (
-                          <span className="text-xs text-gray-500">${rule.amount_threshold.toLocaleString()}+</span>
-                        )}
                       </div>
+                      {rule.conditions && rule.conditions.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {rule.conditions.map((cond: RuleCondition, condIdx: number) => {
+                            const fieldDef = getFieldDef(cond.field);
+                            return (
+                              <div key={condIdx} className="text-xs text-gray-600 bg-white px-2 py-1 rounded border">
+                                <span className="font-medium">{fieldDef?.label || cond.field}</span>
+                                {' '}<span className="text-gray-400">{cond.operator.replace(/_/g, ' ')}</span>{' '}
+                                <span className="font-mono text-primary-600">
+                                  {fieldDef?.type === 'number' && cond.field.includes('amount') ? `$${cond.value}` : String(cond.value)}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                     <button
                       type="button"
@@ -1104,42 +1222,121 @@ function PolicyFormModal({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Priority</label>
-                      <input
-                        type="number"
-                        value={newRule.priority}
-                        onChange={(e) => setNewRule({ ...newRule, priority: parseInt(e.target.value) || 1 })}
-                        min={1}
-                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Amount Threshold ($)</label>
-                      <input
-                        type="number"
-                        value={newRule.amount_threshold || ''}
-                        onChange={(e) => setNewRule({ ...newRule, amount_threshold: e.target.value ? parseInt(e.target.value) : undefined })}
-                        placeholder="e.g., 10000"
-                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Priority</label>
+                    <input
+                      type="number"
+                      value={newRule.priority}
+                      onChange={(e) => setNewRule({ ...newRule, priority: parseInt(e.target.value) || 1 })}
+                      min={1}
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                    />
                   </div>
 
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Risk Level Threshold</label>
-                    <select
-                      value={newRule.risk_level_threshold}
-                      onChange={(e) => setNewRule({ ...newRule, risk_level_threshold: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                    >
-                      <option value="">Any risk level</option>
-                      <option value="low">Low and above</option>
-                      <option value="medium">Medium and above</option>
-                      <option value="high">High and above</option>
-                      <option value="critical">Critical only</option>
-                    </select>
+                  {/* Conditions */}
+                  <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Conditions (when to apply this rule)</label>
+
+                    {/* Existing conditions */}
+                    {newRule.conditions.length > 0 && (
+                      <div className="space-y-2 mb-3">
+                        {newRule.conditions.map((cond, idx) => {
+                          const fieldConfig = getFieldConfig(cond.field);
+                          return (
+                            <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded border text-sm">
+                              <span className="font-medium">{fieldConfig?.label}</span>
+                              <span className="text-gray-500">{cond.operator === 'greater_or_equal' ? '>=' : cond.operator === 'less_than' ? '<' : cond.operator === 'equals' ? '=' : cond.operator}</span>
+                              <span className="text-primary-600">{fieldConfig?.type === 'boolean' ? (cond.value ? 'Yes' : 'No') : cond.value}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveCondition(idx)}
+                                className="ml-auto text-red-500 hover:text-red-700"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Add condition form */}
+                    <div className="grid grid-cols-12 gap-2">
+                      <select
+                        value={newCondition.field}
+                        onChange={(e) => {
+                          const fieldConfig = getFieldConfig(e.target.value);
+                          setNewCondition({
+                            field: e.target.value,
+                            operator: fieldConfig?.type === 'boolean' ? 'equals' : 'greater_or_equal',
+                            value: fieldConfig?.type === 'boolean' ? true : '',
+                          });
+                        }}
+                        className="col-span-5 px-2 py-1.5 border border-gray-300 rounded text-xs"
+                      >
+                        {Object.entries(
+                          POLICY_FIELDS.reduce((acc, f) => {
+                            if (!acc[f.category]) acc[f.category] = [];
+                            acc[f.category].push(f);
+                            return acc;
+                          }, {} as Record<string, typeof POLICY_FIELDS>)
+                        ).map(([category, fields]) => (
+                          <optgroup key={category} label={category}>
+                            {fields.map(f => (
+                              <option key={f.field} value={f.field}>{f.label}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+
+                      <select
+                        value={newCondition.operator}
+                        onChange={(e) => setNewCondition({ ...newCondition, operator: e.target.value })}
+                        className="col-span-2 px-2 py-1.5 border border-gray-300 rounded text-xs"
+                      >
+                        {(POLICY_OPERATORS[getFieldConfig(newCondition.field)?.type as keyof typeof POLICY_OPERATORS] || POLICY_OPERATORS.number).map(op => (
+                          <option key={op.value} value={op.value}>{op.label}</option>
+                        ))}
+                      </select>
+
+                      {getFieldConfig(newCondition.field)?.type === 'boolean' ? (
+                        <select
+                          value={newCondition.value ? 'true' : 'false'}
+                          onChange={(e) => setNewCondition({ ...newCondition, value: e.target.value === 'true' })}
+                          className="col-span-3 px-2 py-1.5 border border-gray-300 rounded text-xs"
+                        >
+                          <option value="true">Yes</option>
+                          <option value="false">No</option>
+                        </select>
+                      ) : getFieldConfig(newCondition.field)?.type === 'select' ? (
+                        <select
+                          value={newCondition.value}
+                          onChange={(e) => setNewCondition({ ...newCondition, value: e.target.value })}
+                          className="col-span-3 px-2 py-1.5 border border-gray-300 rounded text-xs"
+                        >
+                          <option value="">Select...</option>
+                          {getFieldConfig(newCondition.field)?.options?.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="number"
+                          value={newCondition.value}
+                          onChange={(e) => setNewCondition({ ...newCondition, value: e.target.value ? parseFloat(e.target.value) : '' })}
+                          placeholder="Value"
+                          className="col-span-3 px-2 py-1.5 border border-gray-300 rounded text-xs"
+                        />
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleAddCondition}
+                        className="col-span-2 px-2 py-1.5 bg-primary-100 text-primary-700 rounded text-xs hover:bg-primary-200"
+                      >
+                        + Add
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex justify-end gap-2 pt-2">
@@ -1153,7 +1350,7 @@ function PolicyFormModal({
                     <button
                       type="button"
                       onClick={handleAddRule}
-                      disabled={!newRule.name}
+                      disabled={!newRule.name || newRule.conditions.length === 0}
                       className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
                     >
                       Add Rule
@@ -1217,11 +1414,42 @@ function PolicyDetails({ policy }: { policy: any }) {
               {rule.description && (
                 <p className="mt-1 text-sm text-gray-500">{rule.description}</p>
               )}
-              {rule.amount_threshold && (
-                <p className="mt-1 text-xs text-gray-500">
-                  Amount threshold: ${rule.amount_threshold.toLocaleString()}
-                </p>
-              )}
+              {/* Display conditions from the rule */}
+              {rule.conditions && (() => {
+                try {
+                  const conditions = typeof rule.conditions === 'string'
+                    ? JSON.parse(rule.conditions)
+                    : rule.conditions;
+                  if (Array.isArray(conditions) && conditions.length > 0) {
+                    return (
+                      <div className="mt-2 space-y-1">
+                        <span className="text-xs font-medium text-gray-600">Conditions:</span>
+                        {conditions.map((cond: any, condIdx: number) => {
+                          const fieldDef = getFieldDef(cond.field);
+                          const displayValue = fieldDef?.type === 'number' &&
+                            (cond.field === 'amount' || cond.field.includes('balance') || cond.field.includes('amount'))
+                            ? `$${Number(cond.value).toLocaleString()}`
+                            : String(cond.value);
+                          return (
+                            <div key={condIdx} className="text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                              <span className="font-medium">{fieldDef?.label || cond.field}</span>
+                              {' '}<span className="text-gray-400">{cond.operator?.replace(/_/g, ' ')}</span>{' '}
+                              <span className="font-mono text-primary-600">{displayValue}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  }
+                } catch {
+                  // If conditions can't be parsed, fall back to amount_threshold
+                }
+                return rule.amount_threshold ? (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Amount threshold: ${rule.amount_threshold.toLocaleString()}
+                  </p>
+                ) : null;
+              })()}
             </div>
           ))}
         </div>

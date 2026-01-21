@@ -97,6 +97,14 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     external_item_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     source_system: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g., "q2", "fiserv"
 
+    # Fiserv Director compatibility fields
+    batch_id: Mapped[str | None] = mapped_column(String(50))  # Fiserv Batch Number
+    captured_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )  # Fiserv Date/Time Stored
+    source_status: Mapped[int | None] = mapped_column(Integer)  # Fiserv Document Status
+    item_type_code: Mapped[int | None] = mapped_column(Integer)  # Fiserv Document Type Number
+
     # Item type - critical for processing workflow
     item_type: Mapped[ItemType] = mapped_column(
         SQLEnum(ItemType, values_callable=lambda x: [e.value for e in x]),

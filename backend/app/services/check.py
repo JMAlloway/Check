@@ -99,6 +99,12 @@ class CheckService:
                 tenant_id=tenant_id,
                 external_item_id=item.external_item_id,
                 source_system=item.source_system,
+                # Fiserv Director compatibility fields
+                batch_id=item.batch_id,
+                captured_at=item.captured_at,
+                source_status=item.source_status,
+                item_type_code=item.item_type_code,
+                # Account and check details
                 account_id=item.account_id,
                 account_number_masked=item.account_number_masked,
                 account_type=AccountType(item.account_type),
@@ -354,6 +360,11 @@ class CheckService:
             ai_flags=ai_flags,
             created_at=item.created_at,
             updated_at=item.updated_at,
+            # Fiserv Director compatibility fields
+            batch_id=item.batch_id,
+            captured_at=item.captured_at,
+            source_status=item.source_status,
+            item_type_code=item.item_type_code,
         )
 
     def _generate_ai_flags(self, item: CheckItem) -> list[AIFlagResponse]:

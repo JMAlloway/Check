@@ -133,6 +133,11 @@ class MockAdapter(
                 flags.append("MICR_ANOMALY")
 
             item_id = f"CHK{1000000 + i:07d}"
+            # Fiserv Director compatibility - captured 1-4 hours after presented
+            captured_at = presented_date + timedelta(
+                hours=random.randint(1, 4),
+                minutes=random.randint(0, 59),
+            )
             items.append(
                 {
                     "external_item_id": item_id,
@@ -157,6 +162,11 @@ class MockAdapter(
                     "front_image_id": f"IMG_{item_id}_FRONT",
                     "back_image_id": f"IMG_{item_id}_BACK",
                     "upstream_flags": flags if flags else None,
+                    # Fiserv Director compatibility fields
+                    "batch_id": f"BATCH{random.randint(100000, 999999)}",
+                    "captured_at": captured_at,
+                    "source_status": 0,  # 0 = ready for processing
+                    "item_type_code": 29 if account["account_type"] == "consumer" else 31,  # DDA Debits / Commercial
                 }
             )
 
@@ -369,6 +379,11 @@ class MockAdapter(
                     front_image_id=item["front_image_id"],
                     back_image_id=item["back_image_id"],
                     upstream_flags=item["upstream_flags"],
+                    # Fiserv Director compatibility fields
+                    batch_id=item.get("batch_id"),
+                    captured_at=item.get("captured_at"),
+                    source_status=item.get("source_status"),
+                    item_type_code=item.get("item_type_code"),
                 )
                 for item in page_items
             ],
@@ -400,6 +415,11 @@ class MockAdapter(
                     front_image_id=item["front_image_id"],
                     back_image_id=item["back_image_id"],
                     upstream_flags=item["upstream_flags"],
+                    # Fiserv Director compatibility fields
+                    batch_id=item.get("batch_id"),
+                    captured_at=item.get("captured_at"),
+                    source_status=item.get("source_status"),
+                    item_type_code=item.get("item_type_code"),
                 )
         return None
 

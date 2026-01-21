@@ -110,6 +110,11 @@ class CheckItemResponse(CheckItemBase, TimestampSchema):
     images: list[CheckImageResponse] = []
     account_context: AccountContextResponse | None = None
     ai_flags: list[AIFlagResponse] = []
+    # Fiserv Director compatibility fields
+    batch_id: str | None = None
+    captured_at: datetime | None = None
+    source_status: int | None = None
+    item_type_code: int | None = None
 
 
 class CheckItemListResponse(BaseSchema):

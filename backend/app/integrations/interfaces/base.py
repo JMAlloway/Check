@@ -35,6 +35,11 @@ class PresentedItem:
     front_image_id: str | None
     back_image_id: str | None
     upstream_flags: list[str] | None
+    # Fiserv Director compatibility fields
+    batch_id: str | None = None  # Fiserv Batch Number - for audit trail
+    captured_at: datetime | None = None  # Fiserv Date/Time Stored - when image was captured
+    source_status: int | None = None  # Fiserv Document Status - processing state from source
+    item_type_code: int | None = None  # Fiserv Document Type Number - precise item classification
 
 
 @dataclass

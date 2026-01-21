@@ -393,3 +393,151 @@ async def export_decisions_csv(
             "Content-Disposition": f"attachment; filename=decisions_{datetime.now().strftime('%Y%m%d')}.csv"
         },
     )
+
+
+# ============================================================================
+# PDF Report Endpoints
+# ============================================================================
+
+
+@router.get("/export/pdf/daily-activity")
+async def export_daily_activity_pdf(
+    request: Request,
+    db: DBSession,
+    current_user: Annotated[object, Depends(require_permission("report", "export"))],
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+):
+    """Export Daily Activity Log as PDF."""
+    from app.services.pdf_reports import PDFReportService
+
+    tenant_id = current_user.tenant_id
+
+    # Default to today if no dates provided
+    if date_from is None:
+        date_from = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    if date_to is None:
+        date_to = datetime.now(timezone.utc)
+
+    # Audit log the export
+    audit_service = AuditService(db)
+    await audit_service.log_report_access(
+        report_type="daily_activity_pdf",
+        user_id=current_user.id,
+        username=current_user.username,
+        parameters={
+            "date_from": date_from.isoformat(),
+            "date_to": date_to.isoformat(),
+        },
+        exported=True,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.commit()
+
+    # Generate PDF
+    pdf_service = PDFReportService(db)
+    tenant_name = getattr(current_user, "tenant_name", None) or "Financial Institution"
+    pdf_content = await pdf_service.generate_daily_activity_log(
+        tenant_id=tenant_id,
+        date_from=date_from,
+        date_to=date_to,
+        tenant_name=tenant_name,
+    )
+
+    filename = f"daily_activity_{date_from.strftime('%Y%m%d')}.pdf"
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/export/pdf/daily-summary")
+async def export_daily_summary_pdf(
+    request: Request,
+    db: DBSession,
+    current_user: Annotated[object, Depends(require_permission("report", "export"))],
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+):
+    """Export Daily Summary Report as PDF."""
+    from app.services.pdf_reports import PDFReportService
+
+    tenant_id = current_user.tenant_id
+
+    # Default to today if no dates provided
+    if date_from is None:
+        date_from = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    if date_to is None:
+        date_to = datetime.now(timezone.utc)
+
+    # Audit log the export
+    audit_service = AuditService(db)
+    await audit_service.log_report_access(
+        report_type="daily_summary_pdf",
+        user_id=current_user.id,
+        username=current_user.username,
+        parameters={
+            "date_from": date_from.isoformat(),
+            "date_to": date_to.isoformat(),
+        },
+        exported=True,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.commit()
+
+    # Generate PDF
+    pdf_service = PDFReportService(db)
+    tenant_name = getattr(current_user, "tenant_name", None) or "Financial Institution"
+    pdf_content = await pdf_service.generate_daily_summary(
+        tenant_id=tenant_id,
+        date_from=date_from,
+        date_to=date_to,
+        tenant_name=tenant_name,
+    )
+
+    filename = f"daily_summary_{date_from.strftime('%Y%m%d')}.pdf"
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/export/pdf/executive-overview")
+async def export_executive_overview_pdf(
+    request: Request,
+    db: DBSession,
+    current_user: Annotated[object, Depends(require_permission("report", "export"))],
+):
+    """Export Executive Overview Report with QoQ/MoM/YoY KPIs as PDF."""
+    from app.services.pdf_reports import PDFReportService
+
+    tenant_id = current_user.tenant_id
+
+    # Audit log the export
+    audit_service = AuditService(db)
+    await audit_service.log_report_access(
+        report_type="executive_overview_pdf",
+        user_id=current_user.id,
+        username=current_user.username,
+        parameters={},
+        exported=True,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.commit()
+
+    # Generate PDF
+    pdf_service = PDFReportService(db)
+    tenant_name = getattr(current_user, "tenant_name", None) or "Financial Institution"
+    pdf_content = await pdf_service.generate_executive_overview(
+        tenant_id=tenant_id,
+        tenant_name=tenant_name,
+    )
+
+    filename = f"executive_overview_{datetime.now().strftime('%Y%m%d')}.pdf"
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )

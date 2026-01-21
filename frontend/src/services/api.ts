@@ -330,6 +330,71 @@ export const reportsApi = {
     const response = await api.get('/reports/reviewer-performance', { params: { days } });
     return response.data;
   },
+
+  // PDF Export methods
+  exportDailyActivityPdf: async (dateFrom?: string, dateTo?: string) => {
+    const params: Record<string, string> = {};
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+
+    const response = await api.get('/reports/export/pdf/daily-activity', {
+      params,
+      responseType: 'blob',
+    });
+
+    // Trigger download
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const filename = `daily_activity_${dateFrom || new Date().toISOString().split('T')[0]}.pdf`;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
+  exportDailySummaryPdf: async (dateFrom?: string, dateTo?: string) => {
+    const params: Record<string, string> = {};
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+
+    const response = await api.get('/reports/export/pdf/daily-summary', {
+      params,
+      responseType: 'blob',
+    });
+
+    // Trigger download
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const filename = `daily_summary_${dateFrom || new Date().toISOString().split('T')[0]}.pdf`;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
+  exportExecutiveOverviewPdf: async () => {
+    const response = await api.get('/reports/export/pdf/executive-overview', {
+      responseType: 'blob',
+    });
+
+    // Trigger download
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const filename = `executive_overview_${new Date().toISOString().split('T')[0]}.pdf`;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
 };
 
 // Image API

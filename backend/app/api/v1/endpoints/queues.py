@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import DBSession, require_permission
 from app.audit.service import AuditService
+from app.core.rate_limit import user_limiter, RateLimits
 from app.models.audit import AuditAction
 from app.models.check import CheckItem, CheckStatus
 from app.models.queue import Queue, QueueAssignment
@@ -25,7 +26,9 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[QueueResponse])
+@user_limiter.limit(RateLimits.SEARCH)  # User-based: 60/min, 500/hour
 async def list_queues(
+    request: Request,
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("queue", "view"))],
     include_inactive: bool = Query(False),
@@ -227,7 +230,9 @@ async def update_queue(
 
 
 @router.get("/{queue_id}/stats", response_model=QueueStatsResponse)
+@user_limiter.limit(RateLimits.SEARCH)  # User-based: 60/min, 500/hour (aggregation query)
 async def get_queue_stats(
+    request: Request,
     queue_id: str,
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("queue", "view"))],

@@ -10,6 +10,7 @@ from sqlalchemy import select
 from app.api.deps import DBSession, require_permission
 from app.audit.service import AuditService
 from app.core.config import settings
+from app.core.rate_limit import limiter, user_limiter, RateLimits
 from app.core.security import verify_signed_url
 from app.integrations.adapters.factory import get_adapter
 from app.models.audit import AuditAction
@@ -76,6 +77,7 @@ SECURE_IMAGE_HEADERS = {
 
 
 @router.get("/secure/{token}")
+@limiter.limit(RateLimits.IMAGE_VIEW)  # IP-based: 120/min, 1000/hour
 async def get_secure_image(
     request: Request,
     token: str,
@@ -174,6 +176,7 @@ async def get_secure_image(
 
 
 @router.get("/{image_id}")
+@user_limiter.limit(RateLimits.IMAGE_VIEW)  # User-based: 120/min, 1000/hour
 async def get_image_direct(
     request: Request,
     image_id: str,
@@ -225,6 +228,7 @@ async def get_image_direct(
 
 
 @router.post("/{image_id}/zoom")
+@user_limiter.limit(RateLimits.STANDARD)  # User-based: standard rate limit
 async def log_image_zoom(
     request: Request,
     image_id: str,
@@ -272,6 +276,7 @@ async def log_image_zoom(
 
 
 @router.post("/mint-token", response_model=TokenMintResponse)
+@user_limiter.limit(RateLimits.IMAGE_MINT_TOKEN)  # User-based: 60/min, 500/hour
 async def mint_image_token(
     request: Request,
     data: TokenMintRequest,
@@ -364,6 +369,7 @@ async def mint_image_token(
 
 
 @router.post("/mint-tokens-batch", response_model=BatchTokenMintResponse)
+@user_limiter.limit(RateLimits.IMAGE_MINT_BATCH)  # User-based: 10/min, 50/hour (strict - up to 10 images per call)
 async def mint_image_tokens_batch(
     request: Request,
     data: BatchTokenMintRequest,
@@ -441,6 +447,7 @@ async def mint_image_tokens_batch(
 
 
 @router.get("/token/{token_id}")
+@limiter.limit(RateLimits.IMAGE_VIEW)  # IP-based: 120/min, 1000/hour (unauthenticated)
 async def get_image_by_token(
     request: Request,
     token_id: str,

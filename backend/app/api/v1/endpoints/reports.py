@@ -8,6 +8,7 @@ from sqlalchemy import and_, func, select
 
 from app.api.deps import DBSession, require_permission
 from app.audit.service import AuditService
+from app.core.rate_limit import user_limiter, RateLimits
 from app.models.audit import AuditAction, AuditLog
 from app.models.check import CheckItem, CheckStatus, RiskLevel
 from app.models.decision import Decision, DecisionAction
@@ -16,7 +17,9 @@ router = APIRouter()
 
 
 @router.get("/dashboard")
+@user_limiter.limit(RateLimits.SEARCH)  # User-based: 60/min, 500/hour
 async def get_dashboard_stats(
+    request: Request,
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("report", "view"))],
 ):
@@ -299,6 +302,7 @@ async def get_reviewer_performance(
 
 
 @router.get("/export/decisions")
+@user_limiter.limit(RateLimits.EXPORT_CSV)  # User-based: 5/min, 20/hour (expensive)
 async def export_decisions_csv(
     request: Request,
     db: DBSession,
@@ -401,6 +405,7 @@ async def export_decisions_csv(
 
 
 @router.get("/export/pdf/daily-activity")
+@user_limiter.limit(RateLimits.REPORT_PDF)  # User-based: 5/min, 30/hour (very expensive)
 async def export_daily_activity_pdf(
     request: Request,
     db: DBSession,
@@ -453,6 +458,7 @@ async def export_daily_activity_pdf(
 
 
 @router.get("/export/pdf/daily-summary")
+@user_limiter.limit(RateLimits.REPORT_PDF)  # User-based: 5/min, 30/hour (very expensive)
 async def export_daily_summary_pdf(
     request: Request,
     db: DBSession,
@@ -505,6 +511,7 @@ async def export_daily_summary_pdf(
 
 
 @router.get("/export/pdf/executive-overview")
+@user_limiter.limit(RateLimits.REPORT_PDF)  # User-based: 5/min, 30/hour (very expensive)
 async def export_executive_overview_pdf(
     request: Request,
     db: DBSession,

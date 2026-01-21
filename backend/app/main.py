@@ -18,7 +18,7 @@ from app.core.middleware import (
     TokenRedactionMiddleware,
     install_token_redaction_logging,
 )
-from app.core.rate_limit import limiter
+from app.core.rate_limit import limiter, user_limiter, tenant_limiter
 from app.db.session import Base, engine
 
 # Import all models so they're registered with Base.metadata
@@ -171,8 +171,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Rate limiting
+# Rate limiting - register all limiters
+# IP-based limiter (for unauthenticated endpoints)
 app.state.limiter = limiter
+# User-based limiter (for authenticated endpoints)
+app.state.user_limiter = user_limiter
+# Tenant-based limiter (for per-tenant quotas)
+app.state.tenant_limiter = tenant_limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS middleware

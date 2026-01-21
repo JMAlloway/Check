@@ -6,12 +6,13 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import joinedload
 
 from app.api.deps import DBSession, require_permission
 from app.audit.service import AuditService
+from app.core.rate_limit import user_limiter, RateLimits
 from app.models.audit import AuditAction, AuditLog
 from app.models.check import CheckItem, CheckStatus, RiskLevel
 from app.models.decision import Decision, DecisionAction
@@ -29,7 +30,9 @@ ARCHIVED_STATUSES = [
 
 
 @router.get("/items")
+@user_limiter.limit(RateLimits.SEARCH)  # User-based: 60/min, 500/hour
 async def search_archived_items(
+    request: Request,
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("archive", "view"))],
     page: int = Query(1, ge=1),
@@ -158,7 +161,9 @@ async def search_archived_items(
 
 
 @router.get("/items/{item_id}")
+@user_limiter.limit(RateLimits.STANDARD)  # User-based: standard rate limit
 async def get_archived_item_detail(
+    request: Request,
     item_id: str,
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("archive", "view"))],
@@ -249,7 +254,9 @@ async def get_archived_item_detail(
 
 
 @router.get("/export/csv")
+@user_limiter.limit(RateLimits.EXPORT_CSV)  # User-based: 5/min, 20/hour (expensive)
 async def export_archived_items_csv(
+    request: Request,
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("archive", "export"))],
     status: list[CheckStatus] | None = Query(None),
@@ -384,7 +391,9 @@ async def export_archived_items_csv(
 
 
 @router.get("/stats")
+@user_limiter.limit(RateLimits.SEARCH)  # User-based: 60/min, 500/hour
 async def get_archive_statistics(
+    request: Request,
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("archive", "view"))],
 ):

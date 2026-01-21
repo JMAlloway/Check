@@ -374,7 +374,7 @@ async def get_network_trends(
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("fraud", "view"))],
     range: str = Query("6m", pattern=r"^(1m|3m|6m|12m|24m)$"),
-    granularity: str = Query("month", pattern=r"^(week|month)$"),
+    granularity: str = Query("month", pattern=r"^(week|month|quarter)$"),
 ):
     """
     Get aggregated network fraud trends.

@@ -244,7 +244,7 @@ class NetworkTrendsRequest(BaseModel):
     """Request parameters for network trends."""
 
     range: str = Field(default="6m", pattern=r"^(1m|3m|6m|12m|24m)$")
-    granularity: str = Field(default="month", pattern=r"^(week|month)$")
+    granularity: str = Field(default="month", pattern=r"^(week|month|quarter)$")
 
 
 # ============================================================================

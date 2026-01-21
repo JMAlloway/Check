@@ -834,8 +834,27 @@ class FraudService:
         total_events = 0
         total_amount = 0
 
+        def get_period_key(month_str: str, gran: str) -> str:
+            """Convert month string to appropriate period based on granularity."""
+            if not month_str or month_str == "unknown":
+                return "unknown"
+            if gran == "month":
+                return month_str
+            elif gran == "quarter":
+                # Convert "2024-03" to "2024-Q1"
+                try:
+                    year, month = month_str.split("-")
+                    quarter = (int(month) - 1) // 3 + 1
+                    return f"{year}-Q{quarter}"
+                except (ValueError, IndexError):
+                    return month_str
+            elif gran == "week":
+                # For weekly, we'd need actual dates; fallback to month
+                return month_str
+            return month_str
+
         for row in network_data:
-            period = row.occurred_month or "unknown"
+            period = get_period_key(row.occurred_month or "unknown", granularity)
             all_tenants.add(row.tenant_id)
             total_events += row.count
             total_amount += row.estimated_amount or 0

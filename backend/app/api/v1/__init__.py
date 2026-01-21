@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
+    archive,
     audit,
     auth,
     checks,
@@ -32,6 +33,7 @@ api_router.include_router(queues.router, prefix="/queues", tags=["Queues"])
 api_router.include_router(policies.router, prefix="/policies", tags=["Policies"])
 api_router.include_router(audit.router, prefix="/audit", tags=["Audit"])
 api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
+api_router.include_router(archive.router, prefix="/archive", tags=["Archive"])
 api_router.include_router(fraud.router, prefix="/fraud", tags=["Fraud Intelligence"])
 api_router.include_router(
     connector.router, prefix="/connector", tags=["Connector B - Batch Commit"]

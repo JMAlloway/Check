@@ -889,3 +889,61 @@ export const operationsApi = {
     return response.data;
   },
 };
+
+// Archive API - Historical items and exports
+export const archiveApi = {
+  searchItems: async (params: {
+    page?: number;
+    page_size?: number;
+    status?: string[];
+    risk_level?: string[];
+    decision_action?: string[];
+    amount_min?: number;
+    amount_max?: number;
+    date_from?: string;
+    date_to?: string;
+    account_number?: string;
+    reviewer_id?: string;
+    search_query?: string;
+  }) => {
+    const response = await api.get('/archive/items', { params });
+    return response.data;
+  },
+
+  getItemDetail: async (itemId: string) => {
+    const response = await api.get(`/archive/items/${itemId}`);
+    return response.data;
+  },
+
+  getStats: async () => {
+    const response = await api.get('/archive/stats');
+    return response.data;
+  },
+
+  exportCsv: async (params: {
+    status?: string[];
+    risk_level?: string[];
+    date_from?: string;
+    date_to?: string;
+    max_records?: number;
+  }) => {
+    const response = await api.get('/archive/export/csv', {
+      params,
+      responseType: 'blob',
+    });
+
+    // Trigger download
+    const blob = new Blob([response.data], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const dateStr = params.date_from && params.date_to
+      ? `${params.date_from.split('T')[0]}_to_${params.date_to.split('T')[0]}`
+      : new Date().toISOString().split('T')[0];
+    link.setAttribute('download', `archive_export_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
+};

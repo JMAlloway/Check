@@ -107,6 +107,7 @@ class AuditService:
             username=username,
             ip_address=ip_address,
             session_id=session_id,
+            tenant_id=tenant_id,
             description=f"User viewed check item",
         )
 
@@ -183,6 +184,7 @@ class AuditService:
         action: str,
         reason_codes: list[str],
         notes: str | None,
+        tenant_id: str,  # Multi-tenant required
         ip_address: str | None = None,
         session_id: str | None = None,
         before_status: str | None = None,
@@ -197,6 +199,7 @@ class AuditService:
             username=username,
             ip_address=ip_address,
             session_id=session_id,
+            tenant_id=tenant_id,
             description=f"User made {decision_type} decision: {action}",
             before_value={"status": before_status} if before_status else None,
             after_value={"status": after_status} if after_status else None,
@@ -315,6 +318,7 @@ class AuditService:
         username: str,
         resource: str,
         action: str,
+        tenant_id: str | None = None,  # Multi-tenant support (may be None for failed auth)
         ip_address: str | None = None,
         user_agent: str | None = None,
         reason: str | None = None,
@@ -342,6 +346,7 @@ class AuditService:
             username=username,
             ip_address=ip_address,
             user_agent=user_agent,
+            tenant_id=tenant_id,
             description=f"Authorization denied: {failure_type} for {action} on {resource}",
             metadata={
                 "failure_type": failure_type,
@@ -358,6 +363,7 @@ class AuditService:
         failure_type: str,
         attempted_action: str,
         reason: str,
+        tenant_id: str,  # Multi-tenant required
         ip_address: str | None = None,
     ) -> AuditLog:
         """
@@ -380,6 +386,7 @@ class AuditService:
             user_id=user_id,
             username=username,
             ip_address=ip_address,
+            tenant_id=tenant_id,
             description=f"Decision attempt failed: {reason}",
             metadata={
                 "failure_type": failure_type,
@@ -398,6 +405,7 @@ class AuditService:
         original_action: str,
         new_action: str,
         justification: str,
+        tenant_id: str,  # Multi-tenant required
         ip_address: str | None = None,
         supervisor_id: str | None = None,
     ) -> AuditLog:
@@ -423,6 +431,7 @@ class AuditService:
             user_id=user_id,
             username=username,
             ip_address=ip_address,
+            tenant_id=tenant_id,
             description=f"Decision {override_type}: {original_action} → {new_action}",
             before_value={"action": original_action},
             after_value={"action": new_action},
@@ -443,6 +452,7 @@ class AuditService:
         model_id: str,
         model_version: str,
         result_summary: dict,
+        tenant_id: str | None = None,  # Multi-tenant support
         processing_time_ms: int | None = None,
         success: bool = True,
         error: str | None = None,
@@ -469,6 +479,7 @@ class AuditService:
             resource_id=check_item_id,
             user_id=user_id,
             username=username,
+            tenant_id=tenant_id,
             description=description,
             metadata={
                 "inference_type": inference_type,
@@ -489,6 +500,7 @@ class AuditService:
         recommendation_type: str,
         ai_recommendation: str,
         user_action: str,
+        tenant_id: str,  # Multi-tenant required
         override_reason: str | None = None,
         ip_address: str | None = None,
     ) -> AuditLog:
@@ -514,6 +526,7 @@ class AuditService:
             user_id=user_id,
             username=username,
             ip_address=ip_address,
+            tenant_id=tenant_id,
             description=f"User {audit_action.value.replace('ai_recommendation_', '')}: AI recommended {ai_recommendation}, user chose {user_action}",
             metadata={
                 "recommendation_type": recommendation_type,
@@ -530,6 +543,7 @@ class AuditService:
         event_type: str,
         user_id: str,
         username: str,
+        tenant_id: str,  # Multi-tenant required
         original_reviewer_id: str | None = None,
         reason: str | None = None,
         ip_address: str | None = None,
@@ -558,6 +572,7 @@ class AuditService:
             user_id=user_id,
             username=username,
             ip_address=ip_address,
+            tenant_id=tenant_id,
             description=f"Dual control {event_type} for decision",
             metadata={
                 "check_item_id": check_item_id,
@@ -571,6 +586,7 @@ class AuditService:
         report_type: str,
         user_id: str,
         username: str,
+        tenant_id: str,  # Multi-tenant required
         parameters: dict | None = None,
         exported: bool = False,
         ip_address: str | None = None,
@@ -590,6 +606,7 @@ class AuditService:
             user_id=user_id,
             username=username,
             ip_address=ip_address,
+            tenant_id=tenant_id,
             description=description,
             metadata={
                 "report_type": report_type,

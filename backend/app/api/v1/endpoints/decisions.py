@@ -226,6 +226,7 @@ async def create_decision(
                 failure_type="entitlement",
                 attempted_action=decision_data.action.value,
                 reason=entitlement_result.denial_reason or "Review entitlement denied",
+                tenant_id=current_user.tenant_id,
                 ip_address=ip_address,
             )
             await db.commit()  # Commit audit log before raising
@@ -248,6 +249,7 @@ async def create_decision(
                 failure_type="entitlement",
                 attempted_action=decision_data.action.value,
                 reason=entitlement_result.denial_reason or "Approval entitlement denied",
+                tenant_id=current_user.tenant_id,
                 ip_address=ip_address,
             )
             await db.commit()
@@ -265,6 +267,7 @@ async def create_decision(
                 failure_type="validation",
                 attempted_action=decision_data.action.value,
                 reason=f"Invalid status for approval: {item.status.value}",
+                tenant_id=current_user.tenant_id,
                 ip_address=ip_address,
             )
             await db.commit()
@@ -290,6 +293,7 @@ async def create_decision(
                     failure_type="validation",
                     attempted_action=decision_data.action.value,
                     reason="Self-approval attempted (dual control violation)",
+                    tenant_id=current_user.tenant_id,
                     ip_address=ip_address,
                 )
                 await db.commit()
@@ -309,6 +313,7 @@ async def create_decision(
                 failure_type="validation",
                 attempted_action=decision_data.action.value,
                 reason="AI flags exist but not acknowledged. Set ai_assisted=True.",
+                tenant_id=current_user.tenant_id,
                 ip_address=ip_address,
             )
             await db.commit()
@@ -326,6 +331,7 @@ async def create_decision(
                 failure_type="validation",
                 attempted_action=decision_data.action.value,
                 reason="AI flags exist but not reviewed",
+                tenant_id=current_user.tenant_id,
                 ip_address=ip_address,
             )
             await db.commit()
@@ -474,6 +480,7 @@ async def create_decision(
         action=decision_data.action.value,
         reason_codes=reason_code_ids,
         notes=decision_data.notes,
+        tenant_id=current_user.tenant_id,
         ip_address=ip_address,
         before_status=old_status.value,
         after_status=new_status.value,
@@ -487,6 +494,7 @@ async def create_decision(
             event_type="required",
             user_id=current_user.id,
             username=current_user.username,
+            tenant_id=current_user.tenant_id,
             reason=dual_control_reason,
             ip_address=ip_address,
         )
@@ -500,6 +508,7 @@ async def create_decision(
             recommendation_type="risk_assessment",
             ai_recommendation=item.ai_recommendation,
             user_action=decision_data.action.value,
+            tenant_id=current_user.tenant_id,
             override_reason=(
                 decision_data.notes
                 if decision_data.action.value != item.ai_recommendation
@@ -607,6 +616,7 @@ async def approve_dual_control(
             failure_type="validation",
             attempted_action="dual_control_approve",
             reason="Decision does not require dual control",
+            tenant_id=current_user.tenant_id,
             ip_address=ip_address,
         )
         await db.commit()
@@ -623,6 +633,7 @@ async def approve_dual_control(
             failure_type="validation",
             attempted_action="dual_control_approve",
             reason="Decision already has dual control approval",
+            tenant_id=current_user.tenant_id,
             ip_address=ip_address,
         )
         await db.commit()
@@ -639,6 +650,7 @@ async def approve_dual_control(
             failure_type="validation",
             attempted_action="dual_control_approve",
             reason="Self-approval attempted (dual control violation)",
+            tenant_id=current_user.tenant_id,
             ip_address=ip_address,
         )
         await db.commit()
@@ -658,6 +670,7 @@ async def approve_dual_control(
             failure_type="validation",
             attempted_action="dual_control_approve",
             reason=f"Invalid status: {item.status.value}",
+            tenant_id=current_user.tenant_id,
             ip_address=ip_address,
         )
         await db.commit()
@@ -677,6 +690,7 @@ async def approve_dual_control(
             failure_type="entitlement",
             attempted_action="dual_control_approve",
             reason=entitlement_result.denial_reason or "Approval entitlement denied",
+            tenant_id=current_user.tenant_id,
             ip_address=ip_address,
         )
         await db.commit()
@@ -712,6 +726,7 @@ async def approve_dual_control(
         event_type="approved" if approval.approve else "rejected",
         user_id=current_user.id,
         username=current_user.username,
+        tenant_id=current_user.tenant_id,
         original_reviewer_id=decision.user_id,
         reason=approval.notes,
         ip_address=ip_address,

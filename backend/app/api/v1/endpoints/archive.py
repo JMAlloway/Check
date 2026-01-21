@@ -24,7 +24,7 @@ ARCHIVED_STATUSES = [
     CheckStatus.APPROVED,
     CheckStatus.RETURNED,
     CheckStatus.REJECTED,
-    CheckStatus.EXCEPTION,
+    CheckStatus.CLOSED,
 ]
 
 

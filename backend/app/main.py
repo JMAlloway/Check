@@ -11,7 +11,13 @@ from slowapi.errors import RateLimitExceeded
 
 from app.api.v1 import api_router
 from app.core.config import settings
+from app.core.logging_config import configure_logging
 from app.core.metrics import MetricsMiddleware, get_metrics
+from app.core.middleware import (
+    SecurityHeadersMiddleware,
+    TokenRedactionMiddleware,
+    install_token_redaction_logging,
+)
 from app.core.rate_limit import limiter
 from app.db.session import Base, engine
 
@@ -23,7 +29,10 @@ from app.schemas.common import HealthResponse
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan management."""
-    # Startup
+    # Startup - configure logging FIRST before any other startup logs
+    configure_logging()
+    install_token_redaction_logging()
+
     print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     print(f"Environment: {settings.ENVIRONMENT}")
 
@@ -157,6 +166,12 @@ app.add_middleware(
 
 # Prometheus metrics middleware
 app.add_middleware(MetricsMiddleware)
+
+# Security middleware - add after CORS so security headers are applied
+# TokenRedactionMiddleware: Adds strict Referrer-Policy for secure image endpoints
+app.add_middleware(TokenRedactionMiddleware)
+# SecurityHeadersMiddleware: Adds standard security headers (X-Frame-Options, CSP, etc.)
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 # Global exception handler

@@ -322,7 +322,7 @@ def _validate_production_secrets(s: Settings) -> None:
             f"Generate secure values with:\n"
             f'  python -c "import secrets; print(secrets.token_urlsafe(32))"\n\n'
             f"Set these as environment variables or in your .env.{s.ENVIRONMENT} file.\n"
-            f"See .env.pilot.example for reference."
+            f"See docker/.env.pilot.example for reference."
         )
 
 

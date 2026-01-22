@@ -1,38 +1,38 @@
-"""Script to create admin user."""
+#!/usr/bin/env python3
+"""
+DEPRECATED: This script has been moved to scripts/create_admin.py
 
-import asyncio
-import uuid
+The new script includes:
+- Environment guards (blocks production/pilot/staging/uat)
+- Interactive prompts for credentials
+- Random password generation option
+- No hardcoded default credentials
 
-from app.core.security import get_password_hash
-from app.db.session import AsyncSessionLocal
-from app.models.user import User
+Usage:
+    python -m scripts.create_admin
+"""
 
+import sys
+import warnings
 
-async def create_user():
-    async with AsyncSessionLocal() as db:
-        # Check if user already exists
-        from sqlalchemy import select
+warnings.warn(
+    "create_admin.py is deprecated. Use 'python -m scripts.create_admin' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-        result = await db.execute(select(User).where(User.username == "admin"))
-        existing = result.scalar_one_or_none()
-        if existing:
-            print("User admin already exists!")
-            return
+print("=" * 60, file=sys.stderr)
+print("DEPRECATED: This script has moved!", file=sys.stderr)
+print("=" * 60, file=sys.stderr)
+print(file=sys.stderr)
+print("Please use the new script instead:", file=sys.stderr)
+print(file=sys.stderr)
+print("    python -m scripts.create_admin", file=sys.stderr)
+print(file=sys.stderr)
+print("The new script includes security improvements:", file=sys.stderr)
+print("  - Blocks execution in production/pilot/staging/uat", file=sys.stderr)
+print("  - Interactive prompts (no hardcoded credentials)", file=sys.stderr)
+print("  - Random password generation option", file=sys.stderr)
+print("=" * 60, file=sys.stderr)
 
-        user = User(
-            id=str(uuid.uuid4()),
-            tenant_id="default",
-            email="admin@example.com",
-            username="admin",
-            hashed_password=get_password_hash("admin123"),
-            full_name="Admin User",
-            is_active=True,
-            is_superuser=True,
-        )
-        db.add(user)
-        await db.commit()
-        print("Created user: admin / admin123")
-
-
-if __name__ == "__main__":
-    asyncio.run(create_user())
+sys.exit(1)

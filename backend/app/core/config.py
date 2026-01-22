@@ -140,7 +140,42 @@ class Settings(BaseSettings):
             if os.getenv("EXPOSE_METRICS", "").lower() not in ("true", "1", "yes"):
                 object.__setattr__(self, "EXPOSE_METRICS", False)
 
+            # Validate CORS origins in secure environments
+            self._validate_cors_origins_secure()
+
         return self
+
+    def _validate_cors_origins_secure(self) -> None:
+        """
+        Validate CORS origins for secure environments.
+
+        In production/pilot/staging/uat:
+        - No wildcard "*" origins allowed
+        - All origins must use HTTPS
+        """
+        issues = []
+
+        for origin in self.CORS_ORIGINS:
+            # Check for wildcard
+            if origin == "*":
+                issues.append("Wildcard '*' origin not allowed in secure environments")
+                continue
+
+            # Check for HTTPS (allow localhost for local testing even in pilot)
+            if origin.startswith("http://"):
+                # Allow localhost/127.0.0.1 for local development proxies
+                if "localhost" in origin or "127.0.0.1" in origin:
+                    continue
+                issues.append(f"Non-HTTPS origin '{origin}' not allowed in secure environments")
+
+        if issues:
+            raise RuntimeError(
+                f"CORS configuration invalid for {self.ENVIRONMENT} environment:\n"
+                f"  {chr(10).join('- ' + issue for issue in issues)}\n\n"
+                f"Current CORS_ORIGINS: {self.CORS_ORIGINS}\n\n"
+                f"Fix: Update CORS_ORIGINS to use only HTTPS URLs, e.g.:\n"
+                f'  CORS_ORIGINS=\'["https://app.yourbank.com"]\''
+            )
 
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 100

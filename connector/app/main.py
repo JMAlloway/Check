@@ -40,6 +40,13 @@ async def lifespan(app: FastAPI):
     logger.info(f"Mode: {settings.MODE.value}")
     logger.info(f"Connector ID: {settings.CONNECTOR_ID}")
 
+    # Check if we fell back from BANK mode
+    if getattr(settings, "_bank_mode_fallback", False):
+        logger.warning(
+            "Running in DEMO mode due to BANK mode fallback. "
+            "Set CONNECTOR_MODE=DEMO explicitly to suppress warnings."
+        )
+
     if settings.MODE == ConnectorMode.DEMO:
         logger.info(f"Demo repo root: {settings.DEMO_REPO_ROOT}")
         logger.info(f"Item index path: {settings.ITEM_INDEX_PATH}")

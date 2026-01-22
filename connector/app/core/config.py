@@ -3,14 +3,17 @@ Bank-Side Connector Configuration
 
 Supports two modes:
 - DEMO: Uses local filesystem to simulate UNC shares
-- BANK: Uses real UNC paths with service account access
+- BANK: Uses real UNC paths with service account access (NOT YET IMPLEMENTED)
 """
+import logging
 import os
 from enum import Enum
 from pathlib import Path
 from typing import List, Optional
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger("connector.config")
 
 
 class ConnectorMode(str, Enum):
@@ -95,6 +98,45 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [r.strip() for r in v.split(",") if r.strip()]
         return v
+
+    @model_validator(mode="after")
+    def validate_bank_mode_not_implemented(self) -> "Settings":
+        """
+        BANK mode is not yet implemented - fall back to DEMO with warning.
+
+        Bank adapters (BankItemResolver, BankStorageProvider) are stubs that
+        raise NotImplementedError. Until real implementations exist, we force
+        DEMO mode to prevent runtime crashes.
+        """
+        if self.MODE == ConnectorMode.BANK:
+            # Log prominent warning - this will appear at startup
+            warning_msg = """
+================================================================================
+WARNING: CONNECTOR_MODE=BANK requested but BANK mode is NOT YET IMPLEMENTED!
+================================================================================
+
+Bank adapters are currently stubs that would crash on first use.
+Falling back to DEMO mode to allow the connector to function.
+
+To resolve this:
+  1. For pilot/demo deployments: Set CONNECTOR_MODE=DEMO explicitly
+  2. For production: Implement real adapters in connector/app/adapters/bank/
+
+The connector will now run in DEMO mode using local demo fixtures.
+================================================================================
+"""
+            # Use print to ensure visibility even if logging isn't configured yet
+            print(warning_msg)
+            logger.warning(
+                "BANK mode not implemented - forcing DEMO mode. "
+                "Set CONNECTOR_MODE=DEMO to suppress this warning."
+            )
+
+            # Force DEMO mode
+            object.__setattr__(self, "MODE", ConnectorMode.DEMO)
+            object.__setattr__(self, "_bank_mode_fallback", True)
+
+        return self
 
     def get_demo_path(self, unc_path: str) -> Path:
         """

@@ -277,12 +277,7 @@ Provide users with:
 
 ### Step 5.1: Pre-Flight Checklist
 
-```bash
-# Run all checks
-./scripts/pilot-preflight.sh
-```
-
-Or manually verify:
+Verify each item before go-live:
 
 | Check | Command | Expected |
 |-------|---------|----------|

@@ -211,11 +211,15 @@ docker exec check_pilot_backend curl -s http://localhost:8000/health
 ### Run Smoke Tests
 
 ```bash
-# From the repository root
-./scripts/smoke-test.sh
+# Test API health
+curl -sk https://localhost/api/v1/health | jq .
 
-# Or with custom URL
-./scripts/smoke-test.sh https://pilot.yourbank.com
+# Test authentication endpoint responds
+curl -sk -X POST https://localhost/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test","password":"test"}' | jq .
+
+# Should return 401 (invalid credentials) - confirms endpoint works
 ```
 
 ### Verify Security Headers

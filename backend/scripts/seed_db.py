@@ -1,4 +1,8 @@
-"""Seed the database with test data."""
+"""Seed the database with test data.
+
+WARNING: This script creates test users with known passwords.
+It is blocked from running in production/pilot/staging/uat environments.
+"""
 
 import asyncio
 import sys
@@ -7,6 +11,27 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from app.core.config import settings
+
+# Environment guard - block in secure environments
+BLOCKED_ENVIRONMENTS = {"production", "pilot", "staging", "uat"}
+
+if settings.ENVIRONMENT.lower() in BLOCKED_ENVIRONMENTS:
+    print("=" * 60, file=sys.stderr)
+    print("ERROR: seed_db.py cannot run in secure environments!", file=sys.stderr)
+    print("=" * 60, file=sys.stderr)
+    print(file=sys.stderr)
+    print(f"Current environment: {settings.ENVIRONMENT}", file=sys.stderr)
+    print(f"Blocked environments: {', '.join(sorted(BLOCKED_ENVIRONMENTS))}", file=sys.stderr)
+    print(file=sys.stderr)
+    print("This script creates test users with known passwords (e.g., admin123)", file=sys.stderr)
+    print("and should NEVER run in production or pilot environments.", file=sys.stderr)
+    print(file=sys.stderr)
+    print("For production user creation, use:", file=sys.stderr)
+    print("  python -m scripts.create_admin", file=sys.stderr)
+    print("=" * 60, file=sys.stderr)
+    sys.exit(1)
+
 import hashlib
 import hmac
 from datetime import datetime, timedelta, timezone
@@ -14,7 +39,6 @@ from uuid import uuid4
 
 from sqlalchemy import select, text
 
-from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.session import AsyncSessionLocal, Base, engine
 from app.models.audit import AuditLog, ItemView

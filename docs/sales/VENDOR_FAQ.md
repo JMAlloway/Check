@@ -6,6 +6,10 @@
 
 ---
 
+> **TEMPLATE NOTE**: Items marked with `[CUSTOMIZE]` must be filled in with your company's actual information before sharing with prospects.
+
+---
+
 ## Company & Product
 
 ### What does Check Review Console do?
@@ -26,7 +30,7 @@ Community banks and credit unions in the United States.
 
 ### How long have you been in business?
 
-[Insert company founding date and relevant history]
+`[CUSTOMIZE]` Founded in 2024. Example: "We've been serving community banks for 2 years with a focus on check exception workflows."
 
 ---
 
@@ -51,7 +55,7 @@ Community banks and credit unions in the United States.
 
 ### Where is data stored?
 
-Production data is stored in [Cloud Provider] data centers located in the United States ([Region]).
+Production data is stored in `[CUSTOMIZE: e.g., AWS/Azure/GCP]` data centers located in the United States (`[CUSTOMIZE: e.g., us-east-1]`).
 
 ### Do you store check images?
 
@@ -82,7 +86,7 @@ Yes. Upon contract termination, all bank data is exported (if requested) and per
 
 ### Do you have a SOC 2 report?
 
-[Yes/In progress]. Our SOC 2 Type [I/II] report covers [scope]. Available under NDA upon request.
+`[CUSTOMIZE]` Yes / In progress. Our SOC 2 Type II report covers security, availability, and confidentiality. Available under NDA upon request.
 
 ### Do you perform penetration testing?
 
@@ -91,7 +95,7 @@ Yes, annually by an independent third party. Summary results available under NDA
 ### How do you handle vulnerabilities?
 
 - Automated dependency scanning (daily)
-- Security patches applied within [X] days of disclosure
+- Security patches applied within 30 days of disclosure (14 days for critical)
 - Critical vulnerabilities patched within 24 hours
 - Responsible disclosure program available
 
@@ -139,7 +143,7 @@ Check review pauses until service is restored. No data is lost. Decisions alread
 
 ### Do you use AI or machine learning?
 
-[If applicable]: We may display AI-generated risk indicators or recommendations. All AI output is **advisory only** — final decisions are always made by human reviewers.
+Optional AI features may display risk indicators or recommendations. All AI output is **advisory only** — final decisions are always made by human reviewers. AI features can be disabled if not desired.
 
 ### Do you train models on our data?
 
@@ -208,11 +212,11 @@ Yes. Coverage amounts available upon request.
 
 ### What is your limitation of liability?
 
-[Standard clause summary — consult legal for specifics]
+`[CUSTOMIZE]` Typically capped at 12 months of fees paid. Consult your legal team for specific terms.
 
 ### What law governs the contract?
 
-[State] law, with disputes resolved in [venue].
+`[CUSTOMIZE]` Delaware law, with disputes resolved in Delaware courts. (Adjust to your company's jurisdiction.)
 
 ### Can we negotiate terms?
 
@@ -224,7 +228,7 @@ Yes, within reason. Material changes may affect pricing or availability.
 
 ### What are your support hours?
 
-- Standard support: [Hours, Timezone]
+- Standard support: `[CUSTOMIZE]` Monday-Friday 8am-6pm Eastern
 - Emergency support: 24/7 for P1 issues
 - Response time targets in SLA
 
@@ -285,8 +289,8 @@ Yes. Training options include:
 | Is our data isolated from other banks? | Yes (architecturally) |
 | Where is data stored? | US only |
 | How long is data retained? | 7 years |
-| Do you have SOC 2? | [Yes/In progress] |
-| What's your uptime SLA? | [X]% |
+| Do you have SOC 2? | `[CUSTOMIZE]` Yes |
+| What's your uptime SLA? | `[CUSTOMIZE]` 99.9% |
 | Can we audit you? | Yes (per contract) |
 
 ---
@@ -295,10 +299,10 @@ Yes. Training options include:
 
 | Purpose | Contact |
 |---------|---------|
-| Sales inquiries | [email] |
-| Security questions | security@[company].com |
-| Legal/contracts | legal@[company].com |
-| Support | support@[company].com |
+| Sales inquiries | sales@checkreview.com `[CUSTOMIZE]` |
+| Security questions | security@checkreview.com `[CUSTOMIZE]` |
+| Legal/contracts | legal@checkreview.com `[CUSTOMIZE]` |
+| Support | support@checkreview.com `[CUSTOMIZE]` |
 
 ---
 

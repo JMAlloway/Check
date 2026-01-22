@@ -153,7 +153,7 @@ PII_FIELDS = {
 
 ```json
 {
-  "@timestamp": "2024-01-15T12:00:00Z",
+  "@timestamp": "2026-01-15T12:00:00Z",
   "event_type": "decision.made",
   "user_id": "uuid",
   "action": "decision_made",
@@ -249,5 +249,5 @@ For compliance-related inquiries:
 
 ---
 
-*Last Updated: 2024-01-15*
+*Last Updated: 2026-01-15*
 *Document Version: 1.0*

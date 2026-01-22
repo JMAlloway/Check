@@ -84,7 +84,7 @@ services:
       CSRF_SECRET_KEY: ${CSRF_SECRET_KEY:?CSRF_SECRET_KEY required}
       NETWORK_PEPPER: ${NETWORK_PEPPER:?NETWORK_PEPPER required}
       DEBUG: "false"
-      ENVIRONMENT: production
+      ENVIRONMENT: pilot
       DEMO_MODE: ${DEMO_MODE:-false}
       CORS_ORIGINS: ${CORS_ORIGINS:-["https://localhost"]}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}

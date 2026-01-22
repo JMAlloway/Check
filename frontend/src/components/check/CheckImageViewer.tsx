@@ -43,9 +43,11 @@ export default function CheckImageViewer({
   const [imageError, setImageError] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const imageWrapperRef = useRef<HTMLDivElement>(null);
 
   const currentImage = images.find((img) => img.image_type === activeImage);
 
@@ -156,12 +158,35 @@ export default function CheckImageViewer({
     }
   }, [zoom, currentImage]);
 
+  // Track container dimensions for magnifier calculations
+  useEffect(() => {
+    const updateContainerDimensions = () => {
+      if (containerRef.current) {
+        setContainerDimensions({
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight,
+        });
+      }
+    };
+
+    updateContainerDimensions();
+    window.addEventListener('resize', updateContainerDimensions);
+    return () => window.removeEventListener('resize', updateContainerDimensions);
+  }, []);
+
   const handleImageLoad = useCallback(() => {
     setImageLoaded(true);
     if (imageRef.current) {
       setImageDimensions({
         width: imageRef.current.naturalWidth,
         height: imageRef.current.naturalHeight,
+      });
+    }
+    // Update container dimensions when image loads
+    if (containerRef.current) {
+      setContainerDimensions({
+        width: containerRef.current.clientWidth,
+        height: containerRef.current.clientHeight,
       });
     }
   }, []);
@@ -376,6 +401,7 @@ export default function CheckImageViewer({
 
             {/* Image and ROI wrapper - transforms applied here */}
             <div
+              ref={imageWrapperRef}
               className="relative"
               style={{
                 transform: `translate(${position.x}px, ${position.y}px) scale(${zoom / 100})`,
@@ -426,27 +452,58 @@ export default function CheckImageViewer({
             </div>
 
             {/* Magnifier */}
-            {showMagnifier && imageLoaded && (
-              <div
-                className="magnifier"
-                style={{
-                  position: 'absolute',
-                  left: magnifierPos.x - 75,
-                  top: magnifierPos.y - 75,
-                  width: 150,
-                  height: 150,
-                  borderRadius: '50%',
-                  border: '2px solid white',
-                  backgroundImage: `url(${resolveImageUrl(currentImage.image_url)})`,
-                  backgroundPosition: `${-magnifierPos.x * 2 + 75}px ${-magnifierPos.y * 2 + 75}px`,
-                  backgroundSize: `${imageDimensions.width * zoom / 100 * 2}px ${imageDimensions.height * zoom / 100 * 2}px`,
-                  backgroundRepeat: 'no-repeat',
-                  filter: imageFilters,
-                  pointerEvents: 'none',
-                  zIndex: 20,
-                }}
-              />
-            )}
+            {showMagnifier && imageLoaded && (() => {
+              // Calculate the displayed image size at current zoom
+              const displayedWidth = imageDimensions.width * zoom / 100;
+              const displayedHeight = imageDimensions.height * zoom / 100;
+
+              // The image wrapper is centered in the container, then translated by position
+              // Image wrapper center before pan: (containerWidth/2, containerHeight/2)
+              // Image wrapper center after pan: (containerWidth/2 + position.x, containerHeight/2 + position.y)
+              // Image top-left in container coords:
+              const imageLeft = (containerDimensions.width - displayedWidth) / 2 + position.x;
+              const imageTop = (containerDimensions.height - displayedHeight) / 2 + position.y;
+
+              // Cursor position relative to the displayed image
+              const cursorOnImageX = magnifierPos.x - imageLeft;
+              const cursorOnImageY = magnifierPos.y - imageTop;
+
+              // Convert to original image coordinates (before zoom)
+              const originalImageX = cursorOnImageX / (zoom / 100);
+              const originalImageY = cursorOnImageY / (zoom / 100);
+
+              // For the magnifier, we show the image at 2x the current zoom
+              const magnifierZoom = 2;
+              const bgWidth = imageDimensions.width * magnifierZoom;
+              const bgHeight = imageDimensions.height * magnifierZoom;
+
+              // Position the background so that originalImageX/Y appears at center of magnifier (75, 75)
+              const bgPosX = 75 - originalImageX * magnifierZoom;
+              const bgPosY = 75 - originalImageY * magnifierZoom;
+
+              return (
+                <div
+                  className="magnifier"
+                  style={{
+                    position: 'absolute',
+                    left: magnifierPos.x - 75,
+                    top: magnifierPos.y - 75,
+                    width: 150,
+                    height: 150,
+                    borderRadius: '50%',
+                    border: '3px solid white',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                    backgroundImage: `url(${resolveImageUrl(currentImage.image_url)})`,
+                    backgroundPosition: `${bgPosX}px ${bgPosY}px`,
+                    backgroundSize: `${bgWidth}px ${bgHeight}px`,
+                    backgroundRepeat: 'no-repeat',
+                    filter: imageFilters,
+                    pointerEvents: 'none',
+                    zIndex: 20,
+                  }}
+                />
+              );
+            })()}
           </>
         ) : (
           <div className="flex items-center justify-center h-full text-gray-500">

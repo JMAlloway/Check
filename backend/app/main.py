@@ -1,5 +1,6 @@
 """Main FastAPI application."""
 
+import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -12,6 +13,8 @@ from slowapi.errors import RateLimitExceeded
 from app.api.v1 import api_router
 from app.core.config import settings
 from app.core.logging_config import configure_logging
+
+logger = logging.getLogger("app.startup")
 from app.core.metrics import MetricsMiddleware, get_metrics
 from app.core.middleware import (
     SecurityHeadersMiddleware,
@@ -33,22 +36,25 @@ async def lifespan(app: FastAPI):
     configure_logging()
     install_token_redaction_logging()
 
-    print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    print(f"Environment: {settings.ENVIRONMENT}")
+    logger.info(
+        "Starting application",
+        extra={"app_name": settings.APP_NAME, "version": settings.APP_VERSION}
+    )
+    logger.info("Environment: %s", settings.ENVIRONMENT)
 
     # Log security-relevant endpoint exposure settings
     if settings.EXPOSE_DOCS:
-        print(f"API Docs: ENABLED at {settings.API_V1_PREFIX}/docs")
+        logger.info("API Docs: ENABLED at %s/docs", settings.API_V1_PREFIX)
     else:
-        print("API Docs: DISABLED (set EXPOSE_DOCS=true to enable)")
+        logger.info("API Docs: DISABLED (set EXPOSE_DOCS=true to enable)")
 
     if settings.EXPOSE_METRICS:
         if settings.METRICS_ALLOWED_IPS:
-            print(f"Metrics: ENABLED with IP allowlist: {settings.METRICS_ALLOWED_IPS}")
+            logger.info("Metrics: ENABLED with IP allowlist: %s", settings.METRICS_ALLOWED_IPS)
         else:
-            print("Metrics: ENABLED (no IP restriction - consider setting METRICS_ALLOWED_IPS)")
+            logger.warning("Metrics: ENABLED (no IP restriction - consider setting METRICS_ALLOWED_IPS)")
     else:
-        print("Metrics: DISABLED (set EXPOSE_METRICS=true to enable)")
+        logger.info("Metrics: DISABLED (set EXPOSE_METRICS=true to enable)")
 
     # CRITICAL SAFETY CHECK: Demo mode must NEVER run in production
     if settings.DEMO_MODE and settings.ENVIRONMENT == "production":
@@ -59,16 +65,12 @@ async def lifespan(app: FastAPI):
         )
 
     if settings.DEMO_MODE:
-        print("=" * 60)
-        print("⚠️  DEMO MODE ENABLED - Using synthetic data only")
-        print("⚠️  No real PII or production data will be used")
-        print("=" * 60)
+        logger.warning("DEMO MODE ENABLED - Using synthetic data only, no real PII")
 
     # IMPORTANT: Only auto-create tables in development/local environments
     # In production, use Alembic migrations: alembic upgrade head
     if settings.ENVIRONMENT in ("local", "development", "dev"):
-        print("WARNING: Auto-creating database tables (development mode)")
-        print("In production, use 'alembic upgrade head' instead")
+        logger.warning("Auto-creating database tables (development mode) - use 'alembic upgrade head' in production")
         async with engine.begin() as conn:
             # Create PostgreSQL enum types before creating tables
             # These are required by the fraud models which use create_type=False
@@ -118,7 +120,7 @@ async def lifespan(app: FastAPI):
                 if not result.fetchone():
                     create_sql = text(f"CREATE TYPE {enum_name} AS ENUM ({values_str})")
                     await conn.execute(create_sql)
-                    print(f"Created enum type: {enum_name}")
+                    logger.debug("Created enum type: %s", enum_name)
 
             await conn.run_sync(Base.metadata.create_all)
 
@@ -127,32 +129,32 @@ async def lifespan(app: FastAPI):
             alter_sql = text("ALTER TABLE audit_logs ALTER COLUMN resource_id TYPE VARCHAR(255)")
             try:
                 await conn.execute(alter_sql)
-                print("Updated audit_logs.resource_id column size")
+                logger.debug("Updated audit_logs.resource_id column size")
             except Exception:
                 pass  # Column already correct size or table doesn't exist yet
 
-        print("Database tables created/verified")
+        logger.info("Database tables created/verified")
 
         # Auto-seed demo data if DEMO_MODE is enabled
         if settings.DEMO_MODE:
-            print("Checking for demo data...")
+            logger.info("Checking for demo data...")
             from app.demo.seed import seed_demo_data
 
             try:
                 stats = await seed_demo_data(reset=False, count=settings.DEMO_DATA_COUNT)
                 if stats["users"] > 0:
-                    print(f"Seeded demo data: {stats}")
+                    logger.info("Seeded demo data", extra={"stats": stats})
                 else:
-                    print("Demo data already exists, skipping seed")
+                    logger.info("Demo data already exists, skipping seed")
             except Exception as e:
-                print(f"Warning: Failed to seed demo data: {e}")
+                logger.warning("Failed to seed demo data: %s", e)
                 # Don't fail startup - demo data seeding is not critical
     else:
-        print("Production mode: Skipping auto-create. Use Alembic migrations.")
+        logger.info("Production mode: Skipping auto-create. Use Alembic migrations.")
 
     yield
     # Shutdown
-    print("Shutting down...")
+    logger.info("Shutting down...")
 
 
 # Conditionally expose API docs based on settings

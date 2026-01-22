@@ -10,10 +10,13 @@ Usage:
 
 import argparse
 import asyncio
+import logging
 import random
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+
+logger = logging.getLogger("app.demo.seed")
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -90,7 +93,7 @@ class DemoSeeder:
 
         if reset:
             await self._clear_demo_data()
-            print("Cleared existing demo data")
+            logger.info("Cleared existing demo data")
 
         # Seed in order of dependencies
         # CRITICAL: Commit users early so login always works even if later steps fail
@@ -98,14 +101,16 @@ class DemoSeeder:
         stats["queues"] = await self._seed_queues()
         await self._seed_tenant_fraud_config()  # Enable fraud features for demo
         await self.db.commit()  # Commit users and queues first
-        print(f"Committed {stats['users']} users and {stats['queues']} queues")
+        logger.info("Committed %d users and %d queues", stats["users"], stats["queues"])
 
         # Seed admin configuration items
         stats["policies"] = await self._seed_policies()
         stats["image_connectors"] = await self._seed_image_connectors()
         await self.db.commit()
-        print(
-            f"Committed {stats['policies']} policies and {stats['image_connectors']} image connectors"
+        logger.info(
+            "Committed %d policies and %d image connectors",
+            stats["policies"],
+            stats["image_connectors"],
         )
 
         stats["reason_codes"] = await self._seed_reason_codes()
@@ -122,7 +127,7 @@ class DemoSeeder:
             stats["network_trends"] = await self._seed_network_trend_data()
             await self.db.commit()
         except Exception as e:
-            print(f"Warning: Failed to seed fraud data: {e}")
+            logger.warning("Failed to seed fraud data: %s", e)
             await self.db.rollback()
 
         return stats

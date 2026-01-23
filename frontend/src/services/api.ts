@@ -1,13 +1,15 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore, getCsrfToken } from '../stores/authStore';
 
+// Use relative path '/api/v1' when VITE_API_URL is not set - this allows Vite's proxy
+// to handle requests, enabling Cloudflare Tunnel and other reverse proxy setups
 const API_BASE_URL = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api/v1`
-  : 'http://localhost:8000/api/v1';
+  : '/api/v1';
 
 // Extract API origin for resolving relative image URLs
-// API_BASE_URL is like "http://localhost:8000/api/v1", we need just "http://localhost:8000"
-const API_ORIGIN = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// When using relative API paths, use empty string so image URLs stay relative
+const API_ORIGIN = import.meta.env.VITE_API_URL || '';
 
 /**
  * Resolve an image URL from the backend.

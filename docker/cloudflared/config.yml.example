@@ -1,0 +1,53 @@
+# Cloudflare Tunnel Configuration Template
+# Copy this file to config.yml and update with your tunnel details
+#
+# Prerequisites:
+#   1. Install cloudflared: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
+#   2. Login to Cloudflare: cloudflared tunnel login
+#   3. Create a tunnel: cloudflared tunnel create check-demo
+#   4. Note the tunnel UUID from the output
+#   5. Copy the credentials file to this directory (or reference its location)
+#   6. Configure DNS: cloudflared tunnel route dns check-demo demo.yourdomain.com
+
+# Your tunnel UUID (from 'cloudflared tunnel create' output)
+tunnel: YOUR_TUNNEL_UUID_HERE
+
+# Path to credentials file (generated during tunnel creation)
+# The file is typically at ~/.cloudflared/<tunnel-uuid>.json
+credentials-file: /etc/cloudflared/credentials.json
+
+# Ingress rules - how to route traffic
+ingress:
+  # Route API requests to the backend
+  - hostname: demo.yourdomain.com
+    path: /api/*
+    service: http://backend:8000
+
+  # Route health check to backend
+  - hostname: demo.yourdomain.com
+    path: /health
+    service: http://backend:8000
+
+  # Route documentation endpoints to backend
+  - hostname: demo.yourdomain.com
+    path: /docs
+    service: http://backend:8000
+  - hostname: demo.yourdomain.com
+    path: /redoc
+    service: http://backend:8000
+  - hostname: demo.yourdomain.com
+    path: /openapi.json
+    service: http://backend:8000
+
+  # Route everything else to the frontend
+  - hostname: demo.yourdomain.com
+    service: http://frontend:3000
+
+  # Catch-all rule (required)
+  - service: http_status:404
+
+# Optional: Enable access logs
+# loglevel: info
+
+# Optional: Metrics server for monitoring
+# metrics: localhost:2000

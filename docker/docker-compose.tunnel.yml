@@ -1,0 +1,66 @@
+# Cloudflare Tunnel overlay for remote demo access
+# Usage:
+#   Quick tunnel (temporary URL, no account needed):
+#     docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up
+#
+#   Named tunnel (persistent URL, requires Cloudflare account):
+#     1. Install cloudflared locally: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
+#     2. Login: cloudflared tunnel login
+#     3. Create tunnel: cloudflared tunnel create check-demo
+#     4. Copy the tunnel credentials JSON to ./cloudflared/credentials.json
+#     5. Set TUNNEL_TOKEN in .env or use: cloudflared tunnel token check-demo
+#     6. docker compose -f docker-compose.yml -f docker-compose.tunnel.yml --profile named-tunnel up
+
+services:
+  # Override frontend to use relative API URL (for tunnel routing)
+  frontend:
+    environment:
+      - VITE_API_URL=
+
+  # Quick tunnel - generates a temporary *.trycloudflare.com URL
+  # No Cloudflare account required
+  cloudflared-quick:
+    image: cloudflare/cloudflared:latest
+    container_name: check_review_tunnel
+    command: tunnel --no-autoupdate --url http://frontend:3000
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - check_review_network
+    profiles:
+      - quick-tunnel
+
+  # Named tunnel - persistent URL with your own domain
+  # Requires TUNNEL_TOKEN environment variable
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: check_review_tunnel_named
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN:-}
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - check_review_network
+    profiles:
+      - named-tunnel
+    restart: unless-stopped
+
+  # Alternative: Named tunnel with local config file
+  # Mount your cloudflared config and credentials
+  cloudflared-config:
+    image: cloudflare/cloudflared:latest
+    container_name: check_review_tunnel_config
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared:/etc/cloudflared:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - check_review_network
+    profiles:
+      - config-tunnel
+    restart: unless-stopped

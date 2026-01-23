@@ -1,0 +1,5 @@
+# Ignore actual config and credentials (only keep examples)
+config.yml
+credentials.json
+*.json
+!.gitignore

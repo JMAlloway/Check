@@ -1,0 +1,57 @@
+/* Custom CSS overrides for Check Review Console Landing Page */
+/* Most styling is handled by Tailwind CSS via CDN */
+
+/* Smooth scrolling for the entire page */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom focus styles for accessibility */
+:focus-visible {
+  outline: 2px solid #0d9488;
+  outline-offset: 2px;
+}
+
+/* Form input transitions */
+input, select, textarea {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Button hover effects */
+button, a[role="button"] {
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+button:active, a[role="button"]:active {
+  transform: scale(0.98);
+}
+
+/* Loading state for form submission */
+.form-loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.form-loading button[type="submit"] {
+  cursor: wait;
+}
+
+/* Navbar shadow on scroll (applied via JS if needed) */
+.navbar-scrolled {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+/* Screenshot placeholder hover effect */
+.screenshot-placeholder:hover {
+  transform: scale(1.02);
+  transition: transform 0.3s ease;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  /* Reduce padding on mobile */
+  section {
+    padding-top: 3rem;
+    padding-bottom: 3rem;
+  }
+}

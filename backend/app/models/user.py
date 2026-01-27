@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Table, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -85,15 +85,31 @@ class Role(Base, UUIDMixin, TimestampMixin):
 
 
 class User(Base, UUIDMixin, TimestampMixin):
-    """User model."""
+    """User model.
+
+    Multi-tenant user model with tenant-scoped uniqueness constraints.
+    Users in different tenants can have the same email/username.
+    """
 
     __tablename__ = "users"
+    __table_args__ = (
+        # Composite unique constraints for multi-tenant isolation
+        UniqueConstraint("tenant_id", "email", name="uq_users_tenant_email"),
+        UniqueConstraint("tenant_id", "username", name="uq_users_tenant_username"),
+        # Composite indexes for query performance
+        Index("ix_users_tenant_email", "tenant_id", "email"),
+        Index("ix_users_tenant_username", "tenant_id", "username"),
+    )
 
     # Multi-tenant support
     tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
 
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    # NOTE: email and username are unique per tenant, not globally.
+    # The composite unique constraint (tenant_id, email) and (tenant_id, username)
+    # are defined via Alembic migration 012_tenant_unique_user_constraints.
+    # This allows different tenants to have users with the same email/username.
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    username: Mapped[str] = mapped_column(String(50), nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(100), nullable=False)
 

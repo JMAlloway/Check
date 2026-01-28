@@ -5,6 +5,19 @@ This module defines the "story arcs" for demo data - realistic scenarios
 that demonstrate the system's capabilities without using real PII.
 
 ALL DATA IN THIS FILE IS SYNTHETIC AND FOR DEMONSTRATION PURPOSES ONLY.
+
+IMPORTANT: Detection flags in this file correspond to REAL capabilities:
+- Amount-based flags: Calculated from avg_check_amount_30d, max_check_amount_90d
+- Account tenure flags: Based on account_tenure_days
+- Velocity flags: Based on check_count_7d, check_count_14d
+- History flags: Based on returned_item_count_90d, overdraft_count_90d
+- Date flags: Stale-dated (>180 days) and post-dated checks
+
+NOT IMPLEMENTED (removed from demo):
+- Image analysis (endorsement detection, alteration detection)
+- Signature matching/verification
+- Check stock analysis
+- MICR image analysis
 """
 
 from dataclasses import dataclass
@@ -21,21 +34,15 @@ class DemoScenario(str, Enum):
     REGULAR_VENDOR_PAYMENT = "regular_vendor_payment"
     KNOWN_CUSTOMER_CHECK = "known_customer_check"
 
-    # Suspicious scenarios - need review/flags
-    ALTERED_AMOUNT = "altered_amount"
-    SUSPICIOUS_ENDORSEMENT = "suspicious_endorsement"
-    MISMATCHED_SIGNATURE = "mismatched_signature"
+    # Suspicious scenarios - need review/flags (REAL detection capabilities)
     STALE_DATED = "stale_dated"
     POST_DATED = "post_dated"
     DUPLICATE_CHECK = "duplicate_check"
     UNUSUAL_AMOUNT = "unusual_amount"
     NEW_ACCOUNT_HIGH_VALUE = "new_account_high_value"
     VELOCITY_SPIKE = "velocity_spike"
-
-    # Fraud indicators
-    COUNTERFEIT_CHECK = "counterfeit_check"
-    FORGED_SIGNATURE = "forged_signature"
-    ACCOUNT_TAKEOVER = "account_takeover"
+    HIGH_RISK_HISTORY = "high_risk_history"
+    AMOUNT_EXCEEDS_BALANCE = "amount_exceeds_balance"
 
 
 @dataclass
@@ -165,8 +172,10 @@ DEMO_ACCOUNTS = [
     ),
 ]
 
-# Scenario configurations
+# Scenario configurations - ONLY flags with REAL detection capabilities
+# All flags here can be calculated from account context data
 DEMO_SCENARIOS = {
+    # === NORMAL SCENARIOS (no flags) ===
     DemoScenario.ROUTINE_PAYROLL: DemoCheckScenario(
         scenario=DemoScenario.ROUTINE_PAYROLL,
         amount_range=(Decimal("2500.00"), Decimal("8500.00")),
@@ -194,36 +203,7 @@ DEMO_SCENARIOS = {
         flags=[],
         explanation="Personal check from established customer with consistent history.",
     ),
-    DemoScenario.ALTERED_AMOUNT: DemoCheckScenario(
-        scenario=DemoScenario.ALTERED_AMOUNT,
-        amount_range=(Decimal("5000.00"), Decimal("25000.00")),
-        risk_level="high",
-        ai_recommendation="needs_review",
-        ai_confidence=0.78,
-        flags=["AMOUNT_ALTERATION", "INK_INCONSISTENCY"],
-        explanation="Potential amount alteration detected. Written amount appears to have been modified. Recommend visual inspection of check image.",
-        requires_dual_control=True,
-    ),
-    DemoScenario.SUSPICIOUS_ENDORSEMENT: DemoCheckScenario(
-        scenario=DemoScenario.SUSPICIOUS_ENDORSEMENT,
-        amount_range=(Decimal("3000.00"), Decimal("20000.00")),
-        risk_level="high",
-        ai_recommendation="needs_review",
-        ai_confidence=0.72,
-        flags=["ENDORSEMENT_IRREGULAR", "THIRD_PARTY_DEPOSIT"],
-        explanation="Endorsement pattern is inconsistent with expected format. Third-party endorsement detected.",
-        requires_dual_control=True,
-    ),
-    DemoScenario.MISMATCHED_SIGNATURE: DemoCheckScenario(
-        scenario=DemoScenario.MISMATCHED_SIGNATURE,
-        amount_range=(Decimal("5000.00"), Decimal("50000.00")),
-        risk_level="critical",
-        ai_recommendation="needs_review",
-        ai_confidence=0.65,
-        flags=["SIGNATURE_MISMATCH", "POSSIBLE_FORGERY"],
-        explanation="Signature does not match historical signature patterns for this account. Manual verification required.",
-        requires_dual_control=True,
-    ),
+    # === DATE-BASED FLAGS (REAL - calculated from check_date) ===
     DemoScenario.STALE_DATED: DemoCheckScenario(
         scenario=DemoScenario.STALE_DATED,
         amount_range=(Decimal("500.00"), Decimal("5000.00")),
@@ -242,73 +222,69 @@ DEMO_SCENARIOS = {
         flags=["POST_DATED"],
         explanation="Check is post-dated. Confirm customer intent before processing.",
     ),
+    # === DUPLICATE DETECTION (REAL - database lookup) ===
     DemoScenario.DUPLICATE_CHECK: DemoCheckScenario(
         scenario=DemoScenario.DUPLICATE_CHECK,
         amount_range=(Decimal("500.00"), Decimal("5000.00")),
         risk_level="high",
         ai_recommendation="likely_fraud",
         ai_confidence=0.94,
-        flags=["DUPLICATE_ITEM", "POSSIBLE_DOUBLE_DEPOSIT"],
-        explanation="This check appears to match a previously deposited item. Potential duplicate deposit.",
+        flags=["DUPLICATE_CHECK_NUMBER"],
+        explanation="Check number has been used previously on this account. Potential duplicate deposit.",
         requires_dual_control=True,
     ),
+    # === AMOUNT-BASED FLAGS (REAL - calculated from avg_check_amount_30d) ===
     DemoScenario.UNUSUAL_AMOUNT: DemoCheckScenario(
         scenario=DemoScenario.UNUSUAL_AMOUNT,
         amount_range=(Decimal("50000.00"), Decimal("150000.00")),
         risk_level="high",
         ai_recommendation="needs_review",
         ai_confidence=0.70,
-        flags=["AMOUNT_EXCEEDS_PATTERN", "LARGE_VALUE"],
-        explanation="Check amount significantly exceeds historical patterns for this account. 4.5x standard deviation from average.",
+        flags=["AMOUNT_5X_AVG", "EXCEEDS_MAX_90D"],
+        explanation="Amount is 5.2x the 30-day average. Exceeds maximum check amount in past 90 days.",
         requires_dual_control=True,
     ),
+    # === ACCOUNT TENURE FLAGS (REAL - calculated from account_tenure_days) ===
     DemoScenario.NEW_ACCOUNT_HIGH_VALUE: DemoCheckScenario(
         scenario=DemoScenario.NEW_ACCOUNT_HIGH_VALUE,
         amount_range=(Decimal("15000.00"), Decimal("75000.00")),
         risk_level="high",
         ai_recommendation="needs_review",
         ai_confidence=0.68,
-        flags=["NEW_ACCOUNT", "HIGH_VALUE", "LIMITED_HISTORY"],
-        explanation="High-value check on account with less than 90 days history. Insufficient data for pattern analysis.",
+        flags=["NEW_ACCOUNT_30D", "AMOUNT_3X_AVG"],
+        explanation="Account is less than 30 days old. Check amount is 3.4x the account average.",
         requires_dual_control=True,
     ),
+    # === VELOCITY FLAGS (REAL - calculated from check_count_7d/14d) ===
     DemoScenario.VELOCITY_SPIKE: DemoCheckScenario(
         scenario=DemoScenario.VELOCITY_SPIKE,
         amount_range=(Decimal("2000.00"), Decimal("8000.00")),
         risk_level="medium",
         ai_recommendation="needs_review",
         ai_confidence=0.75,
-        flags=["VELOCITY_ANOMALY", "MULTIPLE_ITEMS"],
-        explanation="Unusual increase in check activity. 5 items in 48 hours vs. average of 2 per week.",
+        flags=["VELOCITY_7D_HIGH", "TOTAL_AMOUNT_14D_HIGH"],
+        explanation="7 checks in past 7 days vs. typical 2/week. Total amount this period exceeds normal pattern.",
     ),
-    DemoScenario.COUNTERFEIT_CHECK: DemoCheckScenario(
-        scenario=DemoScenario.COUNTERFEIT_CHECK,
-        amount_range=(Decimal("10000.00"), Decimal("50000.00")),
-        risk_level="critical",
-        ai_recommendation="likely_fraud",
-        ai_confidence=0.89,
-        flags=["COUNTERFEIT_INDICATORS", "STOCK_MISMATCH", "MICR_ANOMALY"],
-        explanation="Multiple counterfeit indicators detected: check stock does not match known patterns, MICR line anomalies.",
+    # === HISTORY-BASED FLAGS (REAL - calculated from returned_item_count, overdraft_count) ===
+    DemoScenario.HIGH_RISK_HISTORY: DemoCheckScenario(
+        scenario=DemoScenario.HIGH_RISK_HISTORY,
+        amount_range=(Decimal("3000.00"), Decimal("12000.00")),
+        risk_level="high",
+        ai_recommendation="needs_review",
+        ai_confidence=0.72,
+        flags=["RETURNED_ITEMS_90D", "OVERDRAFT_HISTORY"],
+        explanation="Account has 3 returned items and 2 overdrafts in past 90 days.",
         requires_dual_control=True,
     ),
-    DemoScenario.FORGED_SIGNATURE: DemoCheckScenario(
-        scenario=DemoScenario.FORGED_SIGNATURE,
-        amount_range=(Decimal("5000.00"), Decimal("35000.00")),
-        risk_level="critical",
-        ai_recommendation="likely_fraud",
-        ai_confidence=0.82,
-        flags=["SIGNATURE_FORGERY", "UNAUTHORIZED_SIGNER"],
-        explanation="Signature analysis indicates likely forgery. Significant deviation from authenticated signature samples.",
-        requires_dual_control=True,
-    ),
-    DemoScenario.ACCOUNT_TAKEOVER: DemoCheckScenario(
-        scenario=DemoScenario.ACCOUNT_TAKEOVER,
-        amount_range=(Decimal("25000.00"), Decimal("100000.00")),
-        risk_level="critical",
-        ai_recommendation="likely_fraud",
-        ai_confidence=0.86,
-        flags=["ACCOUNT_TAKEOVER", "ADDRESS_CHANGE", "PAYEE_ANOMALY", "BEHAVIOR_ANOMALY"],
-        explanation="Multiple indicators of potential account takeover: recent address change, unusual payee, behavior pattern deviation.",
+    # === BALANCE-BASED FLAGS (REAL - calculated from current_balance) ===
+    DemoScenario.AMOUNT_EXCEEDS_BALANCE: DemoCheckScenario(
+        scenario=DemoScenario.AMOUNT_EXCEEDS_BALANCE,
+        amount_range=(Decimal("8000.00"), Decimal("25000.00")),
+        risk_level="high",
+        ai_recommendation="needs_review",
+        ai_confidence=0.80,
+        flags=["EXCEEDS_CURRENT_BALANCE", "AMOUNT_3X_AVG"],
+        explanation="Check amount exceeds current account balance. Amount is 3.1x the 30-day average.",
         requires_dual_control=True,
     ),
 }

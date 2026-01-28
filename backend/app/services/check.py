@@ -4,6 +4,10 @@ import json
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
 from app.core.config import settings
 from app.integrations.adapters.factory import get_adapter
 from app.models.check import AccountType, CheckImage, CheckItem, CheckStatus, RiskLevel
@@ -17,9 +21,6 @@ from app.schemas.check import (
     CheckItemResponse,
     CheckSearchRequest,
 )
-from sqlalchemy import and_, func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 
 class CheckService:
@@ -467,44 +468,10 @@ class CheckService:
 
         # Parse risk_flags (demo/AI-generated flags stored as JSON)
         if item.risk_flags:
-            # Flag definitions for demo scenarios
+            # Flag definitions - ONLY flags with REAL detection capabilities
+            # All flags here can be calculated from account context data
             flag_definitions = {
-                "AMOUNT_ALTERATION": {
-                    "description": "Potential amount alteration detected",
-                    "category": "fraud",
-                    "severity": "alert",
-                    "explanation": "The check amount appears to have been modified",
-                },
-                "INK_INCONSISTENCY": {
-                    "description": "Ink inconsistency detected on check",
-                    "category": "fraud",
-                    "severity": "warning",
-                    "explanation": "Different ink colors or types detected on the check",
-                },
-                "ENDORSEMENT_IRREGULAR": {
-                    "description": "Irregular endorsement pattern",
-                    "category": "fraud",
-                    "severity": "warning",
-                    "explanation": "The endorsement does not match expected format",
-                },
-                "THIRD_PARTY_DEPOSIT": {
-                    "description": "Third-party endorsement detected",
-                    "category": "behavior",
-                    "severity": "warning",
-                    "explanation": "Check appears to be endorsed by a third party",
-                },
-                "SIGNATURE_MISMATCH": {
-                    "description": "Signature does not match records",
-                    "category": "fraud",
-                    "severity": "alert",
-                    "explanation": "The signature differs from authenticated samples",
-                },
-                "POSSIBLE_FORGERY": {
-                    "description": "Possible forgery indicators",
-                    "category": "fraud",
-                    "severity": "alert",
-                    "explanation": "Multiple indicators suggest the signature may be forged",
-                },
+                # === DATE-BASED FLAGS (calculated from check_date) ===
                 "STALE_DATED": {
                     "description": "Check is stale-dated",
                     "category": "compliance",
@@ -517,113 +484,76 @@ class CheckService:
                     "severity": "warning",
                     "explanation": "The check date is in the future",
                 },
-                "DUPLICATE_ITEM": {
-                    "description": "Possible duplicate check",
+                # === DUPLICATE DETECTION (database lookup) ===
+                "DUPLICATE_CHECK_NUMBER": {
+                    "description": "Duplicate check number detected",
                     "category": "fraud",
                     "severity": "alert",
-                    "explanation": "This check may have been deposited previously",
+                    "explanation": "This check number has been used previously on this account",
                 },
-                "POSSIBLE_DOUBLE_DEPOSIT": {
-                    "description": "Possible double deposit attempt",
-                    "category": "fraud",
+                # === AMOUNT-BASED FLAGS (calculated from avg_check_amount_30d) ===
+                "AMOUNT_5X_AVG": {
+                    "description": "Amount is 5x+ the 30-day average",
+                    "category": "amount",
                     "severity": "alert",
-                    "explanation": "Check matches a previously processed item",
+                    "explanation": "This check amount significantly exceeds the account's typical pattern",
                 },
-                "AMOUNT_EXCEEDS_PATTERN": {
-                    "description": "Amount exceeds historical pattern",
+                "AMOUNT_3X_AVG": {
+                    "description": "Amount is 3x+ the 30-day average",
                     "category": "amount",
                     "severity": "warning",
-                    "explanation": "This amount is significantly higher than typical for this account",
+                    "explanation": "This check is moderately higher than typical for this account",
                 },
-                "LARGE_VALUE": {
-                    "description": "Large value transaction",
-                    "category": "amount",
-                    "severity": "info",
-                    "explanation": "Transaction exceeds standard review threshold",
-                },
-                "NEW_ACCOUNT": {
-                    "description": "New account with limited history",
-                    "category": "behavior",
-                    "severity": "warning",
-                    "explanation": "Account has less than 90 days of history",
-                },
-                "HIGH_VALUE": {
-                    "description": "High value for account type",
+                "EXCEEDS_MAX_90D": {
+                    "description": "Amount exceeds 90-day maximum",
                     "category": "amount",
                     "severity": "warning",
-                    "explanation": "Amount is unusually high for this account's profile",
+                    "explanation": "This is the largest check from this account in the past 90 days",
                 },
-                "LIMITED_HISTORY": {
-                    "description": "Limited transaction history",
+                "EXCEEDS_CURRENT_BALANCE": {
+                    "description": "Amount exceeds current balance",
+                    "category": "amount",
+                    "severity": "alert",
+                    "explanation": "The check amount is greater than the current account balance",
+                },
+                # === ACCOUNT TENURE FLAGS (calculated from account_tenure_days) ===
+                "NEW_ACCOUNT_30D": {
+                    "description": "Account less than 30 days old",
+                    "category": "behavior",
+                    "severity": "warning",
+                    "explanation": "This is a new account with limited transaction history",
+                },
+                "NEW_ACCOUNT_90D": {
+                    "description": "Account less than 90 days old",
                     "category": "behavior",
                     "severity": "info",
-                    "explanation": "Insufficient data for pattern analysis",
+                    "explanation": "Account has less than 90 days of history for pattern analysis",
                 },
-                "VELOCITY_ANOMALY": {
-                    "description": "Unusual transaction velocity",
+                # === VELOCITY FLAGS (calculated from check_count_7d/14d) ===
+                "VELOCITY_7D_HIGH": {
+                    "description": "High check volume in past 7 days",
                     "category": "behavior",
                     "severity": "warning",
-                    "explanation": "Transaction frequency has increased significantly",
+                    "explanation": "Transaction frequency is elevated compared to normal patterns",
                 },
-                "MULTIPLE_ITEMS": {
-                    "description": "Multiple items in short period",
-                    "category": "behavior",
-                    "severity": "info",
-                    "explanation": "Several checks processed in a short time window",
-                },
-                "COUNTERFEIT_INDICATORS": {
-                    "description": "Counterfeit check indicators",
-                    "category": "fraud",
-                    "severity": "alert",
-                    "explanation": "Multiple signs suggest the check may be counterfeit",
-                },
-                "STOCK_MISMATCH": {
-                    "description": "Check stock does not match records",
-                    "category": "fraud",
-                    "severity": "alert",
-                    "explanation": "Paper stock differs from known patterns for this account",
-                },
-                "MICR_ANOMALY": {
-                    "description": "MICR line anomaly detected",
-                    "category": "fraud",
-                    "severity": "alert",
-                    "explanation": "The MICR encoding shows irregularities",
-                },
-                "SIGNATURE_FORGERY": {
-                    "description": "Likely signature forgery",
-                    "category": "fraud",
-                    "severity": "alert",
-                    "explanation": "Signature analysis indicates probable forgery",
-                },
-                "UNAUTHORIZED_SIGNER": {
-                    "description": "Unauthorized signer detected",
-                    "category": "fraud",
-                    "severity": "alert",
-                    "explanation": "Signer is not authorized on this account",
-                },
-                "ACCOUNT_TAKEOVER": {
-                    "description": "Potential account takeover",
-                    "category": "fraud",
-                    "severity": "alert",
-                    "explanation": "Multiple indicators suggest account compromise",
-                },
-                "ADDRESS_CHANGE": {
-                    "description": "Recent address change",
+                "TOTAL_AMOUNT_14D_HIGH": {
+                    "description": "High total amount in past 14 days",
                     "category": "behavior",
                     "severity": "warning",
-                    "explanation": "Account address was recently modified",
+                    "explanation": "Total check amount this period exceeds normal patterns",
                 },
-                "PAYEE_ANOMALY": {
-                    "description": "Unusual payee pattern",
+                # === HISTORY-BASED FLAGS (calculated from returned_item_count, overdraft_count) ===
+                "RETURNED_ITEMS_90D": {
+                    "description": "Recent returned items on account",
                     "category": "behavior",
                     "severity": "warning",
-                    "explanation": "Payee does not match typical patterns for this account",
+                    "explanation": "This account has had items returned in the past 90 days",
                 },
-                "BEHAVIOR_ANOMALY": {
-                    "description": "Behavioral pattern anomaly",
+                "OVERDRAFT_HISTORY": {
+                    "description": "Recent overdraft history",
                     "category": "behavior",
                     "severity": "warning",
-                    "explanation": "Transaction behavior deviates from established patterns",
+                    "explanation": "This account has experienced overdrafts recently",
                 },
             }
 
@@ -793,9 +723,10 @@ class CheckService:
             user_id: The requesting user's ID (for user-bound signed URLs)
             limit: Maximum number of history items
         """
+        from sqlalchemy import select
+
         from app.core.security import generate_signed_url
         from app.models.check import CheckHistory
-        from sqlalchemy import select
 
         # Query database directly for historical checks
         result = await self.db.execute(

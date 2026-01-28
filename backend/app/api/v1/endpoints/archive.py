@@ -6,6 +6,10 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.orm import joinedload
+
 from app.api.deps import DBSession, require_permission
 from app.audit.service import AuditService
 from app.core.rate_limit import RateLimits, user_limiter
@@ -13,9 +17,6 @@ from app.models.audit import AuditAction, AuditLog
 from app.models.check import CheckItem, CheckStatus, RiskLevel
 from app.models.decision import Decision, DecisionAction
 from app.schemas.common import PaginatedResponse
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import joinedload
 
 router = APIRouter()
 
@@ -78,7 +79,7 @@ async def search_archived_items(
         query = query.where(CheckItem.updated_at <= date_to)
 
     if account_number:
-        query = query.where(CheckItem.account_number.ilike(f"%{account_number}%"))
+        query = query.where(CheckItem.account_number_masked.ilike(f"%{account_number}%"))
 
     if search_query:
         # Search in payee name, memo, check number
@@ -132,7 +133,7 @@ async def search_archived_items(
             {
                 "id": item.id,
                 "external_item_id": item.external_item_id,
-                "account_number": item.account_number,
+                "account_number": item.account_number_masked,
                 "amount": float(item.amount) if item.amount else None,
                 "payee_name": item.payee_name,
                 "check_number": item.check_number,
@@ -214,7 +215,7 @@ async def get_archived_item_detail(
         "item": {
             "id": item.id,
             "external_item_id": item.external_item_id,
-            "account_number": item.account_number,
+            "account_number": item.account_number_masked,
             "routing_number": item.routing_number,
             "amount": float(item.amount) if item.amount else None,
             "payee_name": item.payee_name,
@@ -223,7 +224,7 @@ async def get_archived_item_detail(
             "memo": item.memo,
             "status": item.status.value,
             "risk_level": item.risk_level.value if item.risk_level else None,
-            "risk_score": item.risk_score,
+            "risk_score": float(item.ai_risk_score) if item.ai_risk_score else None,
             "ai_recommendation": item.ai_recommendation,
             "ai_confidence": item.ai_confidence,
             "account_type": item.account_type.value if item.account_type else None,
@@ -367,14 +368,14 @@ async def export_archived_items_csv(
             [
                 item.id,
                 item.external_item_id,
-                item.account_number,
+                item.account_number_masked,
                 float(item.amount) if item.amount else "",
                 item.payee_name or "",
                 item.check_number or "",
                 item.check_date.isoformat() if item.check_date else "",
                 item.status.value,
                 item.risk_level.value if item.risk_level else "",
-                item.risk_score or "",
+                float(item.ai_risk_score) if item.ai_risk_score else "",
                 decision.action.value if decision else "",
                 decision.created_at.isoformat() if decision and decision.created_at else "",
                 decision.user_id if decision else "",

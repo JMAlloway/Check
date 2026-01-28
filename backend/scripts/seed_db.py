@@ -37,6 +37,8 @@ import hmac
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+from sqlalchemy import select, text
+
 from app.core.security import get_password_hash
 from app.db.session import AsyncSessionLocal, Base, engine
 from app.models.audit import AuditLog, ItemView
@@ -58,7 +60,6 @@ from app.models.queue import Queue, QueueAssignment
 
 # Import ALL models to register them with Base.metadata
 from app.models.user import Permission, Role, User
-from sqlalchemy import select, text
 
 
 async def seed_database():
@@ -319,6 +320,23 @@ async def seed_database():
                 action="config",
                 description="Configure fraud settings",
             ),
+            # Archive permissions
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="archive:view",
+                resource="archive",
+                action="view",
+                description="View archived items",
+            ),
+            Permission(
+                tenant_id=None,
+                is_system=True,
+                name="archive:export",
+                resource="archive",
+                action="export",
+                description="Export archived items",
+            ),
         ]
 
         for perm in permissions:
@@ -372,6 +390,7 @@ async def seed_database():
                 "policy:view",
                 "report:view",
                 "fraud:view",
+                "archive:view",
             ]
         ]
         db.add(reviewer_role)
@@ -397,6 +416,7 @@ async def seed_database():
                 "policy:view",
                 "report:view",
                 "fraud:view",
+                "archive:view",
             ]
         ]
         db.add(senior_reviewer_role)
@@ -428,6 +448,8 @@ async def seed_database():
                 "report:view",
                 "fraud:view",
                 "audit:view",
+                "archive:view",
+                "archive:export",
             ]
         ]
         db.add(supervisor_role)
@@ -472,6 +494,8 @@ async def seed_database():
                 "fraud:config",
                 "audit:view",
                 "audit:export",
+                "archive:view",
+                "archive:export",
             ]
         ]
         db.add(administrator_role)
@@ -496,6 +520,8 @@ async def seed_database():
                 "fraud:view",
                 "audit:view",
                 "audit:export",
+                "archive:view",
+                "archive:export",
             ]
         ]
         db.add(auditor_role)

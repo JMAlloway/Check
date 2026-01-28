@@ -8,7 +8,6 @@ from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from app.demo import is_demo_mode, require_demo_mode, require_non_production
 from app.demo.providers import (
     DemoAIProvider,

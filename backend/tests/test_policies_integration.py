@@ -9,12 +9,12 @@ Tests cover:
 - Multi-tenant isolation
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
-from fastapi import status
+from datetime import datetime, timedelta, timezone
 
+import pytest
 from app.core.security import create_access_token
-from app.models.policy import Policy, PolicyStatus, PolicyVersion, PolicyRule
+from app.models.policy import Policy, PolicyRule, PolicyStatus, PolicyVersion
+from fastapi import status
 
 
 @pytest.fixture
@@ -59,7 +59,9 @@ class TestListPolicies:
         assert data == []
 
     @pytest.mark.asyncio
-    async def test_list_policies_with_data(self, client, db_session, test_tenant_id, policy_headers):
+    async def test_list_policies_with_data(
+        self, client, db_session, test_tenant_id, policy_headers
+    ):
         """Test listing policies with data."""
         # Create test policies
         for i in range(3):
@@ -83,7 +85,9 @@ class TestListPolicies:
         assert len(data) == 3
 
     @pytest.mark.asyncio
-    async def test_list_policies_filter_by_status(self, client, db_session, test_tenant_id, policy_headers):
+    async def test_list_policies_filter_by_status(
+        self, client, db_session, test_tenant_id, policy_headers
+    ):
         """Test filtering policies by status."""
         # Create policies with different statuses
         policy_draft = Policy(
@@ -155,9 +159,7 @@ class TestCreatePolicy:
                             "conditions": [
                                 {"field": "amount", "operator": "greater_than", "value": "10000"}
                             ],
-                            "actions": [
-                                {"action_type": "flag", "params": {"flag": "high_value"}}
-                            ],
+                            "actions": [{"action_type": "flag", "params": {"flag": "high_value"}}],
                             "amount_threshold": 10000,
                         }
                     ],
@@ -345,7 +347,9 @@ class TestActivatePolicy:
         assert "activated" in data["message"].lower()
 
     @pytest.mark.asyncio
-    async def test_activate_specific_version(self, client, db_session, test_tenant_id, policy_headers):
+    async def test_activate_specific_version(
+        self, client, db_session, test_tenant_id, policy_headers
+    ):
         """Test activating a specific policy version."""
         policy = Policy(
             id="policy-activate-version",
@@ -397,7 +401,9 @@ class TestDeletePolicy:
         assert response.status_code == status.HTTP_200_OK
 
     @pytest.mark.asyncio
-    async def test_delete_active_policy_blocked(self, client, db_session, test_tenant_id, policy_headers):
+    async def test_delete_active_policy_blocked(
+        self, client, db_session, test_tenant_id, policy_headers
+    ):
         """Test that active policies cannot be deleted without force."""
         policy = Policy(
             id="policy-delete-active",
@@ -416,7 +422,9 @@ class TestDeletePolicy:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     @pytest.mark.asyncio
-    async def test_delete_active_policy_forced(self, client, db_session, test_tenant_id, policy_headers):
+    async def test_delete_active_policy_forced(
+        self, client, db_session, test_tenant_id, policy_headers
+    ):
         """Test force deleting an active policy."""
         policy = Policy(
             id="policy-force-delete",
@@ -435,7 +443,9 @@ class TestDeletePolicy:
         assert response.status_code == status.HTTP_200_OK
 
     @pytest.mark.asyncio
-    async def test_delete_default_policy_blocked(self, client, db_session, test_tenant_id, policy_headers):
+    async def test_delete_default_policy_blocked(
+        self, client, db_session, test_tenant_id, policy_headers
+    ):
         """Test that default policies cannot be deleted."""
         policy = Policy(
             id="policy-default",

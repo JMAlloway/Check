@@ -13,7 +13,6 @@ access tokens. These tokens replace JWT-based bearer tokens in URLs, providing:
 """
 
 import sqlalchemy as sa
-
 from alembic import op
 
 # revision identifiers, used by Alembic.

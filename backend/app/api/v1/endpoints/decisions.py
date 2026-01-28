@@ -4,10 +4,6 @@ import json
 from datetime import datetime, timezone
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-
 from app.api.deps import (
     CurrentUser,
     DBSession,
@@ -34,6 +30,9 @@ from app.schemas.decision import (
 from app.schemas.policy import PolicyEvaluationResult
 from app.services.entitlement_service import EntitlementService
 from app.services.evidence_seal import get_previous_evidence_hash, seal_evidence_snapshot
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 

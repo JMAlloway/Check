@@ -10,11 +10,10 @@ CRITICAL FOR: Bank vendor risk assessments, security compliance
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.core.config import settings
 from app.core.security import generate_signed_url
 from app.main import app
+from fastapi.testclient import TestClient
 
 
 class TestSecureImageSecurityHeaders:
@@ -218,7 +217,10 @@ class TestNginxConfigSecurityHeaders:
     def test_backend_handles_api_security_headers(self, nginx_config):
         """Backend handles security headers for API routes - nginx should not duplicate."""
         # Verify the nginx config documents that backend handles API headers
-        assert "Backend handles ALL security headers" in nginx_config or "SecurityHeadersMiddleware" in nginx_config
+        assert (
+            "Backend handles ALL security headers" in nginx_config
+            or "SecurityHeadersMiddleware" in nginx_config
+        )
 
     def test_frontend_security_headers_present(self, nginx_config):
         """Nginx should have security headers for frontend static files."""

@@ -13,9 +13,8 @@ This migration file is kept for revision chain integrity.
 """
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
-
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "006_performance_fixes"

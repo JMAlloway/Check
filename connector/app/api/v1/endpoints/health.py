@@ -8,8 +8,8 @@ from fastapi import APIRouter, Depends
 
 from ....core.config import get_settings
 from ....core.security import get_path_validator
+from ....models import CacheStats, ComponentHealth, HealthResponse
 from ....services import get_image_service
-from ....models import HealthResponse, ComponentHealth, CacheStats
 from ...deps import get_correlation_id
 
 router = APIRouter()

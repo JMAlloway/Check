@@ -22,12 +22,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # Skip entire module - helper functions not yet implemented
 pytestmark = pytest.mark.skip(reason="get_resource_with_tenant_check helper not yet implemented")
 
+
 # These functions are stubbed for future implementation
 def get_resource_with_tenant_check(*args, **kwargs):
     pass
 
+
 def get_tenant_id(*args, **kwargs):
     pass
+
+
 from app.models.policy import Policy, PolicyStatus, PolicyVersion
 
 # =============================================================================
@@ -329,9 +333,8 @@ class TestTenantIsolationCompliance:
 
     def test_tenant_id_is_indexed(self):
         """tenant_id columns should be indexed for query performance."""
-        from sqlalchemy import inspect
-
         from app.models.policy import Policy
+        from sqlalchemy import inspect
 
         mapper = inspect(Policy)
         tenant_column = mapper.columns.get("tenant_id")

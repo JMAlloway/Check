@@ -6,10 +6,9 @@ import uuid
 
 import jwt
 import pytest
-
 from app.core.security import (
-    JWTValidator,
     JWTClaims,
+    JWTValidator,
     PathValidator,
     ReplayCache,
 )
@@ -86,9 +85,9 @@ class TestJWTValidator:
     def test_validate_invalid_signature(self, valid_token):
         """Test validation with wrong public key."""
         # Use a different key
-        from cryptography.hazmat.primitives.asymmetric import rsa
-        from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.backends import default_backend
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
 
         wrong_key = rsa.generate_private_key(
             public_exponent=65537,

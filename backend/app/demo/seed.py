@@ -19,9 +19,6 @@ from decimal import Decimal
 
 logger = logging.getLogger("app.demo.seed")
 
-from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.session import AsyncSessionLocal
@@ -60,6 +57,8 @@ from app.models.image_connector import ConnectorStatus, ImageConnector
 from app.models.policy import Policy, PolicyRule, PolicyStatus, PolicyVersion, RuleType
 from app.models.queue import Queue, QueueType
 from app.models.user import User
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class DemoSeeder:
@@ -1465,7 +1464,9 @@ mwIDAQAB
                     Decimal("0.0001")
                 ),
                 ai_explanation=scenario_config.explanation,
-                ai_risk_factors=json.dumps(scenario_config.flags) if scenario_config.flags else None,
+                ai_risk_factors=(
+                    json.dumps(scenario_config.flags) if scenario_config.flags else None
+                ),
                 account_tenure_days=account.tenure_days,
                 current_balance=account.avg_balance,
                 average_balance_30d=account.avg_balance,
@@ -1487,19 +1488,30 @@ mwIDAQAB
                 ),
                 is_payroll_account=random.random() < 0.3,  # 30% are payroll accounts
                 has_direct_deposit=random.random() < 0.6,  # 60% have direct deposit
-                deposit_regularity_score=random.randint(60, 100) if random.random() < 0.7 else random.randint(20, 60),
+                deposit_regularity_score=(
+                    random.randint(60, 100) if random.random() < 0.7 else random.randint(20, 60)
+                ),
                 check_number_gap=random.randint(0, 5) if random.random() < 0.1 else 0,
                 is_duplicate_check_number=scenario == DemoScenario.DUPLICATE_CHECK,
                 is_out_of_sequence=random.random() < 0.05,  # 5% out of sequence
-                check_age_days=(
-                    (presented_date - check_date).days if check_date else None
-                ),
+                check_age_days=((presented_date - check_date).days if check_date else None),
                 is_stale_dated=scenario == DemoScenario.STALE_DATED,
                 is_post_dated=scenario == DemoScenario.POST_DATED,
-                has_micr_anomaly=scenario in [DemoScenario.COUNTERFEIT_CHECK, DemoScenario.ALTERED_AMOUNT],
-                micr_confidence_score=random.randint(85, 100) if scenario not in [DemoScenario.COUNTERFEIT_CHECK] else random.randint(40, 70),
-                has_alteration_flag=scenario in [DemoScenario.ALTERED_AMOUNT, DemoScenario.FORGED_SIGNATURE],
-                signature_match_score=random.randint(85, 100) if scenario not in [DemoScenario.FORGED_SIGNATURE, DemoScenario.MISMATCHED_SIGNATURE] else random.randint(30, 60),
+                has_micr_anomaly=scenario
+                in [DemoScenario.COUNTERFEIT_CHECK, DemoScenario.ALTERED_AMOUNT],
+                micr_confidence_score=(
+                    random.randint(85, 100)
+                    if scenario not in [DemoScenario.COUNTERFEIT_CHECK]
+                    else random.randint(40, 70)
+                ),
+                has_alteration_flag=scenario
+                in [DemoScenario.ALTERED_AMOUNT, DemoScenario.FORGED_SIGNATURE],
+                signature_match_score=(
+                    random.randint(85, 100)
+                    if scenario
+                    not in [DemoScenario.FORGED_SIGNATURE, DemoScenario.MISMATCHED_SIGNATURE]
+                    else random.randint(30, 60)
+                ),
                 prior_review_count=random.randint(0, 5),
                 prior_approval_count=random.randint(0, 3),
                 prior_rejection_count=random.randint(0, 1) if account.returned_items > 0 else 0,

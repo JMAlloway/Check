@@ -18,8 +18,8 @@ class TestHealthEndpoint:
     @pytest.mark.asyncio
     async def test_health_check_returns_200(self, mock_settings):
         """Test that health check returns 200."""
-        from httpx import AsyncClient, ASGITransport
         from app.main import app
+        from httpx import ASGITransport, AsyncClient
 
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -38,8 +38,8 @@ class TestHealthEndpoint:
     @pytest.mark.asyncio
     async def test_health_check_includes_version(self, mock_settings):
         """Test that health check includes version."""
-        from httpx import AsyncClient, ASGITransport
         from app.main import app
+        from httpx import ASGITransport, AsyncClient
 
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -57,8 +57,8 @@ class TestImageByHandleEndpoint:
     @pytest.mark.asyncio
     async def test_requires_authentication(self, mock_settings):
         """Test that endpoint requires authentication."""
-        from httpx import AsyncClient, ASGITransport
         from app.main import app
+        from httpx import ASGITransport, AsyncClient
 
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -76,8 +76,8 @@ class TestImageByHandleEndpoint:
     @pytest.mark.asyncio
     async def test_rejects_invalid_token(self, mock_settings):
         """Test that invalid tokens are rejected."""
-        from httpx import AsyncClient, ASGITransport
         from app.main import app
+        from httpx import ASGITransport, AsyncClient
 
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -94,8 +94,8 @@ class TestImageByHandleEndpoint:
     @pytest.mark.asyncio
     async def test_returns_image_with_valid_token(self, mock_settings, valid_token):
         """Test that valid token returns image."""
-        from httpx import AsyncClient, ASGITransport
         from app.main import app
+        from httpx import ASGITransport, AsyncClient
 
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -120,8 +120,8 @@ class TestImageByHandleEndpoint:
     @pytest.mark.asyncio
     async def test_returns_back_image(self, mock_settings, valid_token):
         """Test that back side can be retrieved."""
-        from httpx import AsyncClient, ASGITransport
         from app.main import app
+        from httpx import ASGITransport, AsyncClient
 
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -142,8 +142,8 @@ class TestImageByHandleEndpoint:
     @pytest.mark.asyncio
     async def test_no_back_image_returns_404(self, mock_settings, valid_token):
         """Test that requesting back of single-page image returns 404."""
-        from httpx import AsyncClient, ASGITransport
         from app.main import app
+        from httpx import ASGITransport, AsyncClient
 
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -165,8 +165,8 @@ class TestImageByHandleEndpoint:
     @pytest.mark.asyncio
     async def test_blocked_path_returns_403(self, mock_settings, valid_token):
         """Test that paths outside allowed roots are blocked."""
-        from httpx import AsyncClient, ASGITransport
         from app.main import app
+        from httpx import ASGITransport, AsyncClient
 
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -188,8 +188,8 @@ class TestImageByHandleEndpoint:
     @pytest.mark.asyncio
     async def test_not_found_returns_404(self, mock_settings, valid_token):
         """Test that non-existent images return 404."""
-        from httpx import AsyncClient, ASGITransport
         from app.main import app
+        from httpx import ASGITransport, AsyncClient
 
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -211,8 +211,8 @@ class TestImageByHandleEndpoint:
     @pytest.mark.asyncio
     async def test_includes_correlation_id(self, mock_settings, valid_token):
         """Test that response includes correlation ID."""
-        from httpx import AsyncClient, ASGITransport
         from app.main import app
+        from httpx import ASGITransport, AsyncClient
 
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -240,8 +240,8 @@ class TestImageByItemEndpoint:
     @pytest.mark.asyncio
     async def test_returns_image_by_trace_and_date(self, mock_settings, valid_token):
         """Test retrieving image by trace number and date."""
-        from httpx import AsyncClient, ASGITransport
         from app.main import app
+        from httpx import ASGITransport, AsyncClient
 
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -263,8 +263,8 @@ class TestImageByItemEndpoint:
     @pytest.mark.asyncio
     async def test_item_not_found_returns_404(self, mock_settings, valid_token):
         """Test that non-existent items return 404."""
-        from httpx import AsyncClient, ASGITransport
         from app.main import app
+        from httpx import ASGITransport, AsyncClient
 
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -291,8 +291,8 @@ class TestItemLookupEndpoint:
     @pytest.mark.asyncio
     async def test_returns_item_metadata(self, mock_settings, valid_token):
         """Test retrieving item metadata."""
-        from httpx import AsyncClient, ASGITransport
         from app.main import app
+        from httpx import ASGITransport, AsyncClient
 
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -320,8 +320,8 @@ class TestItemLookupEndpoint:
     @pytest.mark.asyncio
     async def test_item_not_found_returns_404(self, mock_settings, valid_token):
         """Test that non-existent items return 404."""
-        from httpx import AsyncClient, ASGITransport
         from app.main import app
+        from httpx import ASGITransport, AsyncClient
 
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -345,8 +345,8 @@ class TestSecurityHeaders:
     @pytest.mark.asyncio
     async def test_image_response_has_security_headers(self, mock_settings, valid_token):
         """Test that image responses include security headers."""
-        from httpx import AsyncClient, ASGITransport
         from app.main import app
+        from httpx import ASGITransport, AsyncClient
 
         async with AsyncClient(
             transport=ASGITransport(app=app),

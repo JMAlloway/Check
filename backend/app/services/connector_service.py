@@ -14,16 +14,12 @@ import csv
 import hashlib
 import io
 import json
-import defusedxml.ElementTree as ET  # nosec: using defusedxml for XXE protection
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import and_, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
+import defusedxml.ElementTree as ET  # nosec: using defusedxml for XXE protection
 from app.models.check import CheckItem, CheckStatus, RiskLevel
 from app.models.connector import (
     AcknowledgementStatus,
@@ -40,6 +36,9 @@ from app.models.connector import (
     RecordStatus,
 )
 from app.models.decision import Decision, DecisionAction
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 
 class ConnectorError(Exception):

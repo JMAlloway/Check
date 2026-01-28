@@ -4,10 +4,9 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, Field
-
 from app.models.decision import DecisionAction, DecisionType
 from app.schemas.common import BaseSchema, TimestampSchema
+from pydantic import BaseModel, Field
 
 # =============================================================================
 # EVIDENCE SNAPSHOT SCHEMAS

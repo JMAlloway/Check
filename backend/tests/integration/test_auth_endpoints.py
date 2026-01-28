@@ -16,10 +16,9 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.core.security import create_access_token, create_refresh_token, get_password_hash
 from app.main import app
+from fastapi.testclient import TestClient
 
 
 class TestLoginEndpoint:

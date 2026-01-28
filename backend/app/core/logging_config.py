@@ -27,9 +27,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from pythonjsonlogger import jsonlogger
-
 from app.core.config import settings
+from pythonjsonlogger import jsonlogger
 
 # Log directory for file-based shipping
 LOG_DIR = Path("/var/log/check-review")

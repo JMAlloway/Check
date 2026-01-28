@@ -2,11 +2,11 @@
 Unit tests for image decoder.
 """
 import io
-import pytest
-from PIL import Image
 
+import pytest
 from app.adapters.demo.decoder import TiffImageDecoder
-from app.adapters.interfaces import UnsupportedFormatError, DecodeError
+from app.adapters.interfaces import DecodeError, UnsupportedFormatError
+from PIL import Image
 
 
 class TestTiffImageDecoder:

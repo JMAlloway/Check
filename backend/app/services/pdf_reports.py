@@ -5,6 +5,10 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
+from app.models.audit import AuditAction, AuditLog
+from app.models.check import CheckItem, CheckStatus, RiskLevel
+from app.models.decision import Decision, DecisionAction
+from app.models.user import User
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import letter
@@ -19,11 +23,6 @@ from reportlab.platypus import (
 )
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.audit import AuditAction, AuditLog
-from app.models.check import CheckItem, CheckStatus, RiskLevel
-from app.models.decision import Decision, DecisionAction
-from app.models.user import User
 
 
 class PDFReportService:
@@ -92,7 +91,9 @@ class PDFReportService:
             )
         )
 
-    def _create_header(self, title: str, date_range: str, tenant_name: str = "Financial Institution"):
+    def _create_header(
+        self, title: str, date_range: str, tenant_name: str = "Financial Institution"
+    ):
         """Create report header elements."""
         elements = []
         elements.append(Paragraph(tenant_name, self.styles["Normal"]))
@@ -127,7 +128,12 @@ class PDFReportService:
                     ("BOTTOMPADDING", (0, 1), (-1, -1), 8),
                     ("TOPPADDING", (0, 1), (-1, -1), 8),
                     ("GRID", (0, 0), (-1, -1), 0.5, colors.gray),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
+                    (
+                        "ROWBACKGROUNDS",
+                        (0, 1),
+                        (-1, -1),
+                        [colors.white, colors.HexColor("#f8fafc")],
+                    ),
                 ]
             )
         )
@@ -256,10 +262,21 @@ class PDFReportService:
                     ]
                 )
 
-            col_widths = [0.7 * inch, 0.9 * inch, 0.7 * inch, 0.8 * inch, 0.9 * inch, 0.8 * inch, 0.6 * inch, 1.1 * inch]
+            col_widths = [
+                0.7 * inch,
+                0.9 * inch,
+                0.7 * inch,
+                0.8 * inch,
+                0.9 * inch,
+                0.8 * inch,
+                0.6 * inch,
+                1.1 * inch,
+            ]
             elements.append(self._create_table(detail_data, col_widths))
         else:
-            elements.append(Paragraph("No activity recorded for this period.", self.styles["Normal"]))
+            elements.append(
+                Paragraph("No activity recorded for this period.", self.styles["Normal"])
+            )
 
         # Footer
         elements.append(Spacer(1, 30))
@@ -312,7 +329,9 @@ class PDFReportService:
         processed_result = await self.db.execute(
             select(func.count(CheckItem.id)).where(
                 CheckItem.tenant_id == tenant_id,
-                CheckItem.status.in_([CheckStatus.APPROVED, CheckStatus.RETURNED, CheckStatus.REJECTED]),
+                CheckItem.status.in_(
+                    [CheckStatus.APPROVED, CheckStatus.RETURNED, CheckStatus.REJECTED]
+                ),
                 CheckItem.updated_at >= date_from,
                 CheckItem.updated_at <= date_to,
             )
@@ -466,8 +485,11 @@ class PDFReportService:
                 "label": now.strftime("%B %Y"),
             },
             "previous_month": {
-                "start": (now.replace(day=1) - timedelta(days=1)).replace(day=1, hour=0, minute=0, second=0, microsecond=0),
-                "end": now.replace(day=1, hour=0, minute=0, second=0, microsecond=0) - timedelta(seconds=1),
+                "start": (now.replace(day=1) - timedelta(days=1)).replace(
+                    day=1, hour=0, minute=0, second=0, microsecond=0
+                ),
+                "end": now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                - timedelta(seconds=1),
                 "label": (now.replace(day=1) - timedelta(days=1)).strftime("%B %Y"),
             },
             "current_quarter": self._get_quarter_dates(now),
@@ -478,8 +500,12 @@ class PDFReportService:
                 "label": str(now.year),
             },
             "previous_year": {
-                "start": now.replace(year=now.year - 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0),
-                "end": now.replace(year=now.year - 1, month=12, day=31, hour=23, minute=59, second=59),
+                "start": now.replace(
+                    year=now.year - 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+                ),
+                "end": now.replace(
+                    year=now.year - 1, month=12, day=31, hour=23, minute=59, second=59
+                ),
                 "label": str(now.year - 1),
             },
         }
@@ -500,7 +526,9 @@ class PDFReportService:
             processed = await self.db.execute(
                 select(func.count(CheckItem.id)).where(
                     CheckItem.tenant_id == tenant_id,
-                    CheckItem.status.in_([CheckStatus.APPROVED, CheckStatus.RETURNED, CheckStatus.REJECTED]),
+                    CheckItem.status.in_(
+                        [CheckStatus.APPROVED, CheckStatus.RETURNED, CheckStatus.REJECTED]
+                    ),
                     CheckItem.updated_at >= start,
                     CheckItem.updated_at <= end,
                 )
@@ -522,7 +550,9 @@ class PDFReportService:
             total_decisions = await self.db.execute(
                 select(func.count(Decision.id)).where(
                     Decision.tenant_id == tenant_id,
-                    Decision.action.in_([DecisionAction.APPROVE, DecisionAction.RETURN, DecisionAction.REJECT]),
+                    Decision.action.in_(
+                        [DecisionAction.APPROVE, DecisionAction.RETURN, DecisionAction.REJECT]
+                    ),
                     Decision.created_at >= start,
                     Decision.created_at <= end,
                 )
@@ -561,7 +591,11 @@ class PDFReportService:
             )
             sla_breach_count = sla_breached.scalar() or 0
 
-            sla_compliance = ((sla_total_count - sla_breach_count) / sla_total_count * 100) if sla_total_count > 0 else 100
+            sla_compliance = (
+                ((sla_total_count - sla_breach_count) / sla_total_count * 100)
+                if sla_total_count > 0
+                else 100
+            )
 
             return {
                 "items_processed": items_processed,
@@ -573,13 +607,22 @@ class PDFReportService:
         # Calculate all metrics
         metrics = {}
         for period_name, period_dates in periods.items():
-            metrics[period_name] = await get_period_metrics(period_dates["start"], period_dates["end"])
+            metrics[period_name] = await get_period_metrics(
+                period_dates["start"], period_dates["end"]
+            )
 
         # Month-over-Month section
-        elements.append(Paragraph("Month-over-Month (MoM) Performance", self.styles["SectionHeader"]))
+        elements.append(
+            Paragraph("Month-over-Month (MoM) Performance", self.styles["SectionHeader"])
+        )
 
         mom_data = [
-            ["Metric", periods["previous_month"]["label"], periods["current_month"]["label"], "Change"],
+            [
+                "Metric",
+                periods["previous_month"]["label"],
+                periods["current_month"]["label"],
+                "Change",
+            ],
         ]
 
         # Items processed MoM
@@ -606,14 +649,23 @@ class PDFReportService:
         change_sla = f"{curr_sla - prev_sla:+.1f}pp"
         mom_data.append(["SLA Compliance", f"{prev_sla:.1f}%", f"{curr_sla:.1f}%", change_sla])
 
-        elements.append(self._create_table(mom_data, [2 * inch, 1.5 * inch, 1.5 * inch, 1.2 * inch]))
+        elements.append(
+            self._create_table(mom_data, [2 * inch, 1.5 * inch, 1.5 * inch, 1.2 * inch])
+        )
         elements.append(Spacer(1, 25))
 
         # Quarter-over-Quarter section
-        elements.append(Paragraph("Quarter-over-Quarter (QoQ) Performance", self.styles["SectionHeader"]))
+        elements.append(
+            Paragraph("Quarter-over-Quarter (QoQ) Performance", self.styles["SectionHeader"])
+        )
 
         qoq_data = [
-            ["Metric", periods["previous_quarter"]["label"], periods["current_quarter"]["label"], "Change"],
+            [
+                "Metric",
+                periods["previous_quarter"]["label"],
+                periods["current_quarter"]["label"],
+                "Change",
+            ],
         ]
 
         prev_items = metrics["previous_quarter"]["items_processed"]
@@ -636,14 +688,21 @@ class PDFReportService:
         change_sla = f"{curr_sla - prev_sla:+.1f}pp"
         qoq_data.append(["SLA Compliance", f"{prev_sla:.1f}%", f"{curr_sla:.1f}%", change_sla])
 
-        elements.append(self._create_table(qoq_data, [2 * inch, 1.5 * inch, 1.5 * inch, 1.2 * inch]))
+        elements.append(
+            self._create_table(qoq_data, [2 * inch, 1.5 * inch, 1.5 * inch, 1.2 * inch])
+        )
         elements.append(Spacer(1, 25))
 
         # Year-over-Year section
         elements.append(Paragraph("Year-over-Year (YoY) Performance", self.styles["SectionHeader"]))
 
         yoy_data = [
-            ["Metric", periods["previous_year"]["label"], periods["current_year"]["label"], "Change"],
+            [
+                "Metric",
+                periods["previous_year"]["label"],
+                periods["current_year"]["label"],
+                "Change",
+            ],
         ]
 
         prev_items = metrics["previous_year"]["items_processed"]
@@ -666,7 +725,9 @@ class PDFReportService:
         change_sla = f"{curr_sla - prev_sla:+.1f}pp"
         yoy_data.append(["SLA Compliance", f"{prev_sla:.1f}%", f"{curr_sla:.1f}%", change_sla])
 
-        elements.append(self._create_table(yoy_data, [2 * inch, 1.5 * inch, 1.5 * inch, 1.2 * inch]))
+        elements.append(
+            self._create_table(yoy_data, [2 * inch, 1.5 * inch, 1.5 * inch, 1.2 * inch])
+        )
         elements.append(Spacer(1, 25))
 
         # Current period highlights
@@ -705,7 +766,9 @@ class PDFReportService:
         if quarter == 4:
             end = datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
         else:
-            end = datetime(year, quarter_start_month + 3, 1, tzinfo=timezone.utc) - timedelta(seconds=1)
+            end = datetime(year, quarter_start_month + 3, 1, tzinfo=timezone.utc) - timedelta(
+                seconds=1
+            )
 
         return {
             "start": start,

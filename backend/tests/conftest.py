@@ -17,16 +17,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
+from app.core.config import settings
+from app.core.security import create_access_token, get_password_hash
+from app.db.session import Base, get_db
+from app.main import app
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-
-from app.core.config import settings
-from app.core.security import create_access_token, get_password_hash
-from app.db.session import Base, get_db
-from app.main import app
 
 # =============================================================================
 # Event Loop Configuration

@@ -4,10 +4,6 @@ import json
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-
 from app.api.deps import CurrentUser, DBSession, require_permission
 from app.audit.service import AuditService
 from app.models.audit import AuditAction
@@ -24,6 +20,9 @@ from app.schemas.policy import (
     RuleAction,
     RuleCondition,
 )
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 

@@ -10,13 +10,13 @@ Tests cover:
 - Session management
 """
 
-import pytest
 from datetime import datetime, timezone
-from unittest.mock import patch, MagicMock
-from fastapi import status
+from unittest.mock import MagicMock, patch
 
-from app.core.security import get_password_hash, create_access_token
-from app.models.user import User, Role, Permission
+import pytest
+from app.core.security import create_access_token, get_password_hash
+from app.models.user import Permission, Role, User
+from fastapi import status
 
 
 class TestLoginFlow:

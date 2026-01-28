@@ -4,6 +4,9 @@ import io
 from datetime import datetime, timezone
 from typing import Any
 
+from app.models.audit import AuditLog, ItemView
+from app.models.check import CheckItem
+from app.models.decision import Decision
 from PIL import Image as PILImage
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -23,10 +26,6 @@ from reportlab.platypus import (
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
-from app.models.audit import AuditLog, ItemView
-from app.models.check import CheckItem
-from app.models.decision import Decision
 
 
 class AuditPacketGenerator:

@@ -174,7 +174,7 @@ class Settings(BaseSettings):
                 f"  {chr(10).join('- ' + issue for issue in issues)}\n\n"
                 f"Current CORS_ORIGINS: {self.CORS_ORIGINS}\n\n"
                 f"Fix: Update CORS_ORIGINS to use only HTTPS URLs, e.g.:\n"
-                f'  CORS_ORIGINS=\'["https://app.yourbank.com"]\''
+                f"  CORS_ORIGINS='[\"https://app.yourbank.com\"]'"
             )
 
     # Rate limiting

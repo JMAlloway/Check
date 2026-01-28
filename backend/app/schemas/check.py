@@ -3,10 +3,9 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
-
 from app.models.check import AccountType, CheckStatus, ItemType, RiskLevel
 from app.schemas.common import BaseSchema, TimestampSchema
+from pydantic import BaseModel, Field
 
 
 class CheckImageResponse(BaseSchema):

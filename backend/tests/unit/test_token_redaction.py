@@ -7,7 +7,6 @@ redacted from logs and error messages to prevent token leakage.
 import logging
 
 import pytest
-
 from app.core.middleware import (
     SECURE_IMAGE_PATH_PATTERN,
     TOKEN_REDACTED,

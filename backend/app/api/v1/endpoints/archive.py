@@ -6,17 +6,16 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import joinedload
-
 from app.api.deps import DBSession, require_permission
 from app.audit.service import AuditService
-from app.core.rate_limit import user_limiter, RateLimits
+from app.core.rate_limit import RateLimits, user_limiter
 from app.models.audit import AuditAction, AuditLog
 from app.models.check import CheckItem, CheckStatus, RiskLevel
 from app.models.decision import Decision, DecisionAction
 from app.schemas.common import PaginatedResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.orm import joinedload
 
 router = APIRouter()
 
@@ -129,25 +128,33 @@ async def search_archived_items(
         )
         decision = decision_result.scalar_one_or_none()
 
-        items_response.append({
-            "id": item.id,
-            "external_item_id": item.external_item_id,
-            "account_number": item.account_number,
-            "amount": float(item.amount) if item.amount else None,
-            "payee_name": item.payee_name,
-            "check_number": item.check_number,
-            "status": item.status.value,
-            "risk_level": item.risk_level.value if item.risk_level else None,
-            "created_at": item.created_at.isoformat() if item.created_at else None,
-            "updated_at": item.updated_at.isoformat() if item.updated_at else None,
-            "decision": {
-                "id": decision.id,
-                "action": decision.action.value,
-                "user_id": decision.user_id,
-                "created_at": decision.created_at.isoformat() if decision.created_at else None,
-                "notes": decision.notes,
-            } if decision else None,
-        })
+        items_response.append(
+            {
+                "id": item.id,
+                "external_item_id": item.external_item_id,
+                "account_number": item.account_number,
+                "amount": float(item.amount) if item.amount else None,
+                "payee_name": item.payee_name,
+                "check_number": item.check_number,
+                "status": item.status.value,
+                "risk_level": item.risk_level.value if item.risk_level else None,
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+                "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+                "decision": (
+                    {
+                        "id": decision.id,
+                        "action": decision.action.value,
+                        "user_id": decision.user_id,
+                        "created_at": (
+                            decision.created_at.isoformat() if decision.created_at else None
+                        ),
+                        "notes": decision.notes,
+                    }
+                    if decision
+                    else None
+                ),
+            }
+        )
 
     return {
         "items": items_response,
@@ -234,7 +241,9 @@ async def get_archived_item_detail(
                 "ai_assisted": d.ai_assisted,
                 "is_dual_control_required": d.is_dual_control_required,
                 "dual_control_approver_id": d.dual_control_approver_id,
-                "dual_control_approved_at": d.dual_control_approved_at.isoformat() if d.dual_control_approved_at else None,
+                "dual_control_approved_at": (
+                    d.dual_control_approved_at.isoformat() if d.dual_control_approved_at else None
+                ),
                 "created_at": d.created_at.isoformat() if d.created_at else None,
             }
             for d in decisions
@@ -313,8 +322,7 @@ async def export_archived_items_csv(
     # Get decisions for all items
     item_ids = [item.id for item in items]
     decisions_result = await db.execute(
-        select(Decision)
-        .where(
+        select(Decision).where(
             Decision.check_item_id.in_(item_ids),
             Decision.tenant_id == tenant_id,
         )
@@ -329,57 +337,63 @@ async def export_archived_items_csv(
     writer = csv.writer(output)
 
     # Header
-    writer.writerow([
-        "Item ID",
-        "External ID",
-        "Account Number",
-        "Amount",
-        "Payee Name",
-        "Check Number",
-        "Check Date",
-        "Status",
-        "Risk Level",
-        "Risk Score",
-        "Decision Action",
-        "Decision Date",
-        "Reviewer ID",
-        "Decision Notes",
-        "AI Assisted",
-        "Dual Control Required",
-        "Created At",
-        "Updated At",
-    ])
+    writer.writerow(
+        [
+            "Item ID",
+            "External ID",
+            "Account Number",
+            "Amount",
+            "Payee Name",
+            "Check Number",
+            "Check Date",
+            "Status",
+            "Risk Level",
+            "Risk Score",
+            "Decision Action",
+            "Decision Date",
+            "Reviewer ID",
+            "Decision Notes",
+            "AI Assisted",
+            "Dual Control Required",
+            "Created At",
+            "Updated At",
+        ]
+    )
 
     # Data rows
     for item in items:
         decision = decisions_by_item.get(item.id)
-        writer.writerow([
-            item.id,
-            item.external_item_id,
-            item.account_number,
-            float(item.amount) if item.amount else "",
-            item.payee_name or "",
-            item.check_number or "",
-            item.check_date.isoformat() if item.check_date else "",
-            item.status.value,
-            item.risk_level.value if item.risk_level else "",
-            item.risk_score or "",
-            decision.action.value if decision else "",
-            decision.created_at.isoformat() if decision and decision.created_at else "",
-            decision.user_id if decision else "",
-            decision.notes or "" if decision else "",
-            decision.ai_assisted if decision else "",
-            decision.is_dual_control_required if decision else "",
-            item.created_at.isoformat() if item.created_at else "",
-            item.updated_at.isoformat() if item.updated_at else "",
-        ])
+        writer.writerow(
+            [
+                item.id,
+                item.external_item_id,
+                item.account_number,
+                float(item.amount) if item.amount else "",
+                item.payee_name or "",
+                item.check_number or "",
+                item.check_date.isoformat() if item.check_date else "",
+                item.status.value,
+                item.risk_level.value if item.risk_level else "",
+                item.risk_score or "",
+                decision.action.value if decision else "",
+                decision.created_at.isoformat() if decision and decision.created_at else "",
+                decision.user_id if decision else "",
+                decision.notes or "" if decision else "",
+                decision.ai_assisted if decision else "",
+                decision.is_dual_control_required if decision else "",
+                item.created_at.isoformat() if item.created_at else "",
+                item.updated_at.isoformat() if item.updated_at else "",
+            ]
+        )
 
     csv_content = output.getvalue()
     output.close()
 
     # Generate filename with date range
     if date_from and date_to:
-        filename = f"archive_export_{date_from.strftime('%Y%m%d')}_to_{date_to.strftime('%Y%m%d')}.csv"
+        filename = (
+            f"archive_export_{date_from.strftime('%Y%m%d')}_to_{date_to.strftime('%Y%m%d')}.csv"
+        )
     else:
         filename = f"archive_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 

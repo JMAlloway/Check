@@ -15,13 +15,12 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.main import app
 from app.models.check import CheckImage, CheckItem
 from app.models.image_token import ImageAccessToken
 from app.models.user import User
+from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class TestOneTimeTokenSecurity:
@@ -258,9 +257,8 @@ class TestSecureImageEndpoint:
         """Expired tokens should return 410 Gone."""
         # This is validated by the endpoint checking token.is_expired
         # and raising HTTPException with status_code=410
-        from fastapi import HTTPException
-
         from app.api.v1.endpoints.images import get_secure_image
+        from fastapi import HTTPException
 
         # The endpoint logic checks is_expired and raises 410
         token = ImageAccessToken(

@@ -10,14 +10,14 @@ Tests cover:
 - Multi-tenant isolation
 """
 
-import pytest
 from datetime import datetime, timezone
 from decimal import Decimal
-from fastapi import status
 
+import pytest
 from app.core.security import create_access_token
-from app.models.check import CheckItem, CheckStatus, RiskLevel, ItemType
-from app.models.user import User, Role, Permission
+from app.models.check import CheckItem, CheckStatus, ItemType, RiskLevel
+from app.models.user import Permission, Role, User
+from fastapi import status
 
 
 @pytest.fixture
@@ -86,7 +86,9 @@ class TestListCheckItems:
         assert len(data["items"]) == 5
 
     @pytest.mark.asyncio
-    async def test_list_items_filter_by_status(self, client, db_session, test_tenant_id, reviewer_headers):
+    async def test_list_items_filter_by_status(
+        self, client, db_session, test_tenant_id, reviewer_headers
+    ):
         """Test filtering items by status."""
         # Create items with different statuses
         statuses = [CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.APPROVED]
@@ -116,7 +118,9 @@ class TestListCheckItems:
         assert data["items"][0]["status"] == "new"
 
     @pytest.mark.asyncio
-    async def test_list_items_filter_by_risk_level(self, client, db_session, test_tenant_id, reviewer_headers):
+    async def test_list_items_filter_by_risk_level(
+        self, client, db_session, test_tenant_id, reviewer_headers
+    ):
         """Test filtering items by risk level."""
         risk_levels = [RiskLevel.LOW, RiskLevel.HIGH, RiskLevel.CRITICAL]
         for i, r in enumerate(risk_levels):
@@ -144,7 +148,9 @@ class TestListCheckItems:
         assert data["total"] == 1
 
     @pytest.mark.asyncio
-    async def test_list_items_pagination(self, client, db_session, test_tenant_id, reviewer_headers):
+    async def test_list_items_pagination(
+        self, client, db_session, test_tenant_id, reviewer_headers
+    ):
         """Test pagination of check items."""
         for i in range(25):
             item = CheckItem(

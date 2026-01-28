@@ -10,7 +10,6 @@ Tenant-specific permissions/roles have tenant_id set and are isolated.
 """
 
 import sqlalchemy as sa
-
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -34,13 +33,11 @@ def upgrade() -> None:
     )
 
     # Mark existing permissions as system-wide (tenant_id=NULL, is_system=TRUE)
-    op.execute(
-        """
+    op.execute("""
         UPDATE permissions
         SET is_system = true, tenant_id = NULL
         WHERE tenant_id IS NULL
-    """
-    )
+    """)
 
     # Add index for tenant-scoped queries
     op.create_index("ix_permissions_tenant_id", "permissions", ["tenant_id"], unique=False)
@@ -54,13 +51,11 @@ def upgrade() -> None:
     op.add_column("roles", sa.Column("tenant_id", sa.String(36), nullable=True))
 
     # Mark existing roles as system-wide
-    op.execute(
-        """
+    op.execute("""
         UPDATE roles
         SET tenant_id = NULL
         WHERE tenant_id IS NULL
-    """
-    )
+    """)
 
     # Add index for tenant-scoped queries
     op.create_index("ix_roles_tenant_id", "roles", ["tenant_id"], unique=False)

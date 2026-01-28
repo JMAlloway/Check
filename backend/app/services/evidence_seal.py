@@ -16,10 +16,9 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from app.models.decision import Decision
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.decision import Decision
 
 # Current seal algorithm version
 SEAL_VERSION = "sha256-v1"

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Convert Markdown technical guide to PDF."""
 
-import markdown2
-from weasyprint import HTML, CSS
 from pathlib import Path
+
+import markdown2
+from weasyprint import CSS, HTML
 
 # Read the markdown file
 md_path = Path(__file__).parent / "CHECK_REVIEW_CONSOLE_TECHNICAL_GUIDE.md"

@@ -10,8 +10,6 @@ import random
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from PIL import Image, ImageDraw, ImageFont
-
 from app.integrations.interfaces.base import (
     AccountContext,
     AccountContextProvider,
@@ -23,6 +21,7 @@ from app.integrations.interfaces.base import (
     HistoricalCheck,
     PresentedItem,
 )
+from PIL import Image, ImageDraw, ImageFont
 
 
 class MockAdapter(
@@ -166,7 +165,9 @@ class MockAdapter(
                     "batch_id": f"BATCH{random.randint(100000, 999999)}",
                     "captured_at": captured_at,
                     "source_status": 0,  # 0 = ready for processing
-                    "item_type_code": 29 if account["account_type"] == "consumer" else 31,  # DDA Debits / Commercial
+                    "item_type_code": (
+                        29 if account["account_type"] == "consumer" else 31
+                    ),  # DDA Debits / Commercial
                 }
             )
 

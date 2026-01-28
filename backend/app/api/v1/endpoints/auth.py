@@ -4,8 +4,6 @@ import secrets
 from typing import Annotated
 
 import pyotp
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
-
 from app.api.deps import CurrentUser, DBSession
 from app.audit.service import AuditService
 from app.core.config import settings
@@ -26,6 +24,7 @@ from app.schemas.auth import (
 from app.schemas.common import MessageResponse
 from app.schemas.user import CurrentUserResponse
 from app.services.auth import AuthService
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 
 router = APIRouter()
 

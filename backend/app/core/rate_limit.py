@@ -16,11 +16,10 @@ Rate Limit Categories:
 
 from typing import Optional
 
+from app.core.config import settings
 from fastapi import Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-
-from app.core.config import settings
 
 
 def get_user_identifier(request: Request) -> str:
@@ -87,6 +86,7 @@ tenant_limiter = Limiter(key_func=get_tenant_identifier)
 # Rate Limit Configurations (configurable via settings)
 # =============================================================================
 
+
 class RateLimits:
     """
     Centralized rate limit configurations.
@@ -138,6 +138,7 @@ class RateLimits:
 # =============================================================================
 # Decorator Helpers
 # =============================================================================
+
 
 def apply_rate_limit(
     category: str = "STANDARD",

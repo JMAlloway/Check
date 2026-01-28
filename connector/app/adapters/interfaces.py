@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
 from io import BytesIO
-from typing import Optional, List, Tuple
+from typing import List, Optional, Tuple
 
 
 class ImageSide(str, Enum):

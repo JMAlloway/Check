@@ -7,8 +7,8 @@ import asyncio
 from pathlib import Path
 from typing import Tuple
 
-from ..interfaces import StorageProvider, ImageHandle, StorageAccessError
 from ...core.config import get_settings
+from ..interfaces import ImageHandle, StorageAccessError, StorageProvider
 
 
 class DemoStorageProvider(StorageProvider):

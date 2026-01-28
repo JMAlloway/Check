@@ -5,15 +5,14 @@ from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Annotated
 
+from app.core.security import decode_token
+from app.db.session import AsyncSessionLocal
+from app.models.user import Role, User
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
-from app.core.security import decode_token
-from app.db.session import AsyncSessionLocal
-from app.models.user import Role, User
 
 # Security audit logger - separate from general logging for SIEM integration
 auth_logger = logging.getLogger("security.auth")

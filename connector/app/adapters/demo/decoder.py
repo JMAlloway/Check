@@ -11,12 +11,11 @@ from typing import Tuple
 from PIL import Image
 
 from ..interfaces import (
-    ImageDecoder,
     DecodedImage,
-    UnsupportedFormatError,
     DecodeError,
+    ImageDecoder,
+    UnsupportedFormatError,
 )
-
 
 # Magic bytes for image format detection
 MAGIC_BYTES = {

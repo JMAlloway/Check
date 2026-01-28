@@ -2,8 +2,6 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-
 from app.api.deps import CurrentUser, DBSession, require_permission, require_role
 from app.audit.service import AuditService
 from app.models.audit import AuditAction
@@ -27,6 +25,7 @@ from app.schemas.fraud import (
     TenantFraudConfigUpdate,
 )
 from app.services.fraud_service import FraudService
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 router = APIRouter()
 

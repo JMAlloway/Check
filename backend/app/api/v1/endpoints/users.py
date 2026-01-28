@@ -2,10 +2,6 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
-
 from app.api.deps import CurrentUser, DBSession, require_permission
 from app.audit.service import AuditService
 from app.core.security import get_password_hash
@@ -22,6 +18,9 @@ from app.schemas.user import (
     UserResponse,
     UserUpdate,
 )
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 

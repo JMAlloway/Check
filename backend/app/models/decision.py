@@ -4,6 +4,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
+from app.db.session import Base
+from app.models.base import TimestampMixin, UUIDMixin
 from sqlalchemy import (
     Boolean,
     DateTime,
@@ -17,9 +19,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.db.session import Base
-from app.models.base import TimestampMixin, UUIDMixin
 
 
 class DecisionType(str, Enum):

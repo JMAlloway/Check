@@ -11,7 +11,6 @@ across tenant boundaries.
 """
 
 import sqlalchemy as sa
-
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -29,8 +28,7 @@ def upgrade() -> None:
     # Update existing policies with a default tenant
     # In production, you would assign policies to appropriate tenants
     # based on business logic or manual assignment
-    op.execute(
-        """
+    op.execute("""
         UPDATE policies
         SET tenant_id = (
             SELECT COALESCE(
@@ -39,8 +37,7 @@ def upgrade() -> None:
             )
         )
         WHERE tenant_id IS NULL
-    """
-    )
+    """)
 
     # Make tenant_id non-nullable after data migration
     op.alter_column("policies", "tenant_id", existing_type=sa.String(36), nullable=False)

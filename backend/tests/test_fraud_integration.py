@@ -9,13 +9,13 @@ Tests cover:
 - Multi-tenant isolation
 """
 
-import pytest
 from datetime import datetime, timezone
 from decimal import Decimal
-from fastapi import status
 
+import pytest
 from app.core.security import create_access_token
-from app.models.check import CheckItem, CheckStatus, RiskLevel, ItemType
+from app.models.check import CheckItem, CheckStatus, ItemType, RiskLevel
+from fastapi import status
 
 
 @pytest.fixture
@@ -47,7 +47,9 @@ class TestFraudEventCreation:
     """Tests for fraud event creation."""
 
     @pytest.mark.asyncio
-    async def test_create_fraud_event_draft(self, client, db_session, test_tenant_id, fraud_headers):
+    async def test_create_fraud_event_draft(
+        self, client, db_session, test_tenant_id, fraud_headers
+    ):
         """Test creating a draft fraud event."""
         # Create related check item
         item = CheckItem(
@@ -158,7 +160,9 @@ class TestFraudEventWithdrawal:
     """Tests for fraud event withdrawal."""
 
     @pytest.mark.asyncio
-    async def test_withdraw_submitted_event(self, client, db_session, test_tenant_id, fraud_headers):
+    async def test_withdraw_submitted_event(
+        self, client, db_session, test_tenant_id, fraud_headers
+    ):
         """Test withdrawing a submitted fraud event."""
         # First create and submit an event
         item = CheckItem(

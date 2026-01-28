@@ -2,13 +2,9 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
-
 from app.api.deps import DBSession, require_permission
 from app.audit.service import AuditService
-from app.core.rate_limit import user_limiter, RateLimits
+from app.core.rate_limit import RateLimits, user_limiter
 from app.models.audit import AuditAction
 from app.models.check import CheckItem, CheckStatus
 from app.models.queue import Queue, QueueAssignment
@@ -21,6 +17,9 @@ from app.schemas.queue import (
     QueueStatsResponse,
     QueueUpdate,
 )
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 

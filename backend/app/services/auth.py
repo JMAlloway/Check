@@ -3,10 +3,6 @@
 import hashlib
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.config import settings
 from app.core.security import (
     create_access_token,
@@ -17,6 +13,9 @@ from app.core.security import (
 )
 from app.models.user import Role, User, UserSession
 from app.schemas.auth import Token
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 
 class AuthService:

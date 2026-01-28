@@ -11,7 +11,7 @@ NOTE: This is a stub implementation. Real implementation requires:
 from datetime import date
 from typing import Optional, Tuple
 
-from ..interfaces import ItemResolver, ImageHandle, ItemMetadata, ImageSide
+from ..interfaces import ImageHandle, ImageSide, ItemMetadata, ItemResolver
 
 
 class BankItemResolver(ItemResolver):

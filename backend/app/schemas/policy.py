@@ -3,10 +3,9 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
-
 from app.models.policy import PolicyStatus, RuleConditionOperator, RuleType
 from app.schemas.common import BaseSchema, TimestampSchema
+from pydantic import BaseModel, Field
 
 
 class RuleCondition(BaseModel):

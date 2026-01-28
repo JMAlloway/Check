@@ -7,9 +7,9 @@ from typing import Optional
 
 from fastapi import Depends, Header, HTTPException, Request, status
 
-from ..core.config import get_settings
-from ..core.security import get_jwt_validator, get_path_validator, JWTClaims
 from ..audit import get_audit_logger
+from ..core.config import get_settings
+from ..core.security import JWTClaims, get_jwt_validator, get_path_validator
 from ..services import get_image_service
 
 
@@ -130,6 +130,7 @@ def validate_path(path: str, correlation_id: str, claims: JWTClaims = None) -> N
     Raises HTTPException if path is not allowed.
     """
     import asyncio
+
     from ..audit import get_audit_logger
 
     validator = get_path_validator()

@@ -4,15 +4,14 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
+from app.api.v1 import api_router
+from app.core.config import settings
+from app.core.logging_config import configure_logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-
-from app.api.v1 import api_router
-from app.core.config import settings
-from app.core.logging_config import configure_logging
 
 logger = logging.getLogger("app.startup")
 from app.core.metrics import MetricsMiddleware, get_metrics
@@ -21,7 +20,7 @@ from app.core.middleware import (
     TokenRedactionMiddleware,
     install_token_redaction_logging,
 )
-from app.core.rate_limit import limiter, user_limiter, tenant_limiter
+from app.core.rate_limit import limiter, tenant_limiter, user_limiter
 from app.db.session import Base, engine
 
 # Import all models so they're registered with Base.metadata
@@ -38,7 +37,7 @@ async def lifespan(app: FastAPI):
 
     logger.info(
         "Starting application",
-        extra={"app_name": settings.APP_NAME, "version": settings.APP_VERSION}
+        extra={"app_name": settings.APP_NAME, "version": settings.APP_VERSION},
     )
     logger.info("Environment: %s", settings.ENVIRONMENT)
 
@@ -52,7 +51,9 @@ async def lifespan(app: FastAPI):
         if settings.METRICS_ALLOWED_IPS:
             logger.info("Metrics: ENABLED with IP allowlist: %s", settings.METRICS_ALLOWED_IPS)
         else:
-            logger.warning("Metrics: ENABLED (no IP restriction - consider setting METRICS_ALLOWED_IPS)")
+            logger.warning(
+                "Metrics: ENABLED (no IP restriction - consider setting METRICS_ALLOWED_IPS)"
+            )
     else:
         logger.info("Metrics: DISABLED (set EXPOSE_METRICS=true to enable)")
 
@@ -70,7 +71,9 @@ async def lifespan(app: FastAPI):
     # IMPORTANT: Only auto-create tables in development/local environments
     # In production, use Alembic migrations: alembic upgrade head
     if settings.ENVIRONMENT in ("local", "development", "dev"):
-        logger.warning("Auto-creating database tables (development mode) - use 'alembic upgrade head' in production")
+        logger.warning(
+            "Auto-creating database tables (development mode) - use 'alembic upgrade head' in production"
+        )
         async with engine.begin() as conn:
             # Create PostgreSQL enum types before creating tables
             # These are required by the fraud models which use create_type=False
@@ -292,9 +295,8 @@ async def health_check():
 
     Returns 503 Service Unavailable if any critical dependency is down.
     """
-    from sqlalchemy import text
-
     from app.db.session import AsyncSessionLocal
+    from sqlalchemy import text
 
     db_status = "disconnected"
     redis_status = "not_configured"

@@ -3,12 +3,11 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.check import CheckItem
 from app.models.queue import ApprovalEntitlement, ApprovalEntitlementType
 from app.models.user import User
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class EntitlementCheckResult:

@@ -13,7 +13,6 @@ from datetime import timedelta
 from typing import Any
 
 import redis.asyncio as redis
-
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -233,9 +232,7 @@ class CacheService:
             logger.warning("Failed to set active policy in cache: %s", e)
             return False
 
-    async def get_policy_version(
-        self, policy_version_id: str
-    ) -> dict[str, Any] | None:
+    async def get_policy_version(self, policy_version_id: str) -> dict[str, Any] | None:
         """Get cached policy version with rules.
 
         Args:

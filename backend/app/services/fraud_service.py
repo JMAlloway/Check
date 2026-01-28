@@ -13,10 +13,6 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import and_, case, func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.config import settings
 from app.models.check import CheckItem
 from app.models.fraud import (
@@ -43,6 +39,9 @@ from app.schemas.fraud import (
 )
 from app.services.fraud_hashing import get_hashing_service
 from app.services.pii_detection import get_pii_detection_service
+from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 
 class FraudService:

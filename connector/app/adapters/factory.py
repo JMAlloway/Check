@@ -5,9 +5,9 @@ Creates DEMO or BANK mode adapters based on configuration.
 """
 from typing import Tuple
 
-from .interfaces import ItemResolver, StorageProvider, ImageDecoder
-from .demo import DemoStorageProvider, DemoItemResolver, TiffImageDecoder
-from ..core.config import get_settings, ConnectorMode
+from ..core.config import ConnectorMode, get_settings
+from .demo import DemoItemResolver, DemoStorageProvider, TiffImageDecoder
+from .interfaces import ImageDecoder, ItemResolver, StorageProvider
 
 
 class AdapterFactory:
@@ -63,7 +63,7 @@ class AdapterFactory:
 
         NOTE: Bank adapters are stubs. This will raise NotImplementedError.
         """
-        from .bank import BankStorageProvider, BankItemResolver
+        from .bank import BankItemResolver, BankStorageProvider
 
         # These will raise NotImplementedError since they're stubs
         resolver = BankItemResolver()

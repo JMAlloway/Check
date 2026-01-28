@@ -3,20 +3,19 @@
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from pydantic import BaseModel, Field
-from sqlalchemy import select
-
 from app.api.deps import DBSession, require_permission
 from app.audit.service import AuditService
 from app.core.config import settings
-from app.core.rate_limit import limiter, user_limiter, RateLimits
+from app.core.rate_limit import RateLimits, limiter, user_limiter
 from app.core.security import verify_signed_url
 from app.integrations.adapters.factory import get_adapter
 from app.models.audit import AuditAction
 from app.models.check import CheckImage
 from app.models.image_token import ImageAccessToken
 from app.models.user import User
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 router = APIRouter()
 
@@ -299,9 +298,7 @@ async def mint_image_token(
     audit_service = AuditService(db)
 
     # Verify image exists and belongs to user's tenant
-    image_result = await db.execute(
-        select(CheckImage).where(CheckImage.id == data.image_id)
-    )
+    image_result = await db.execute(select(CheckImage).where(CheckImage.id == data.image_id))
     image = image_result.scalar_one_or_none()
 
     if not image:
@@ -369,7 +366,9 @@ async def mint_image_token(
 
 
 @router.post("/mint-tokens-batch", response_model=BatchTokenMintResponse)
-@user_limiter.limit(RateLimits.IMAGE_MINT_BATCH)  # User-based: 10/min, 50/hour (strict - up to 10 images per call)
+@user_limiter.limit(
+    RateLimits.IMAGE_MINT_BATCH
+)  # User-based: 10/min, 50/hour (strict - up to 10 images per call)
 async def mint_image_tokens_batch(
     request: Request,
     data: BatchTokenMintRequest,
@@ -395,9 +394,7 @@ async def mint_image_tokens_batch(
 
     for image_id in data.image_ids:
         # Verify each image exists and belongs to tenant
-        image_result = await db.execute(
-            select(CheckImage).where(CheckImage.id == image_id)
-        )
+        image_result = await db.execute(select(CheckImage).where(CheckImage.id == image_id))
         image = image_result.scalar_one_or_none()
 
         if not image:
@@ -418,11 +415,13 @@ async def mint_image_tokens_batch(
         db.add(token)
 
         image_url = f"{settings.API_V1_PREFIX}/images/token/{token.id}"
-        tokens.append(TokenMintResponse(
-            token_id=token.id,
-            image_url=image_url,
-            expires_at=expires_at,
-        ))
+        tokens.append(
+            TokenMintResponse(
+                token_id=token.id,
+                image_url=image_url,
+                expires_at=expires_at,
+            )
+        )
 
     # Log batch token creation
     if tokens:
@@ -469,9 +468,7 @@ async def get_image_by_token(
     audit_service = AuditService(db)
 
     # Look up the token
-    token_result = await db.execute(
-        select(ImageAccessToken).where(ImageAccessToken.id == token_id)
-    )
+    token_result = await db.execute(select(ImageAccessToken).where(ImageAccessToken.id == token_id))
     token = token_result.scalar_one_or_none()
 
     if not token:

@@ -26,9 +26,6 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any, Generator
 
-from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.check import CheckItem
 from app.models.item_context_connector import (
     ContextConnectorStatus,
@@ -40,6 +37,8 @@ from app.models.item_context_connector import (
     RecordStatus,
 )
 from app.services.sftp_service import SFTPFile, SFTPService
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # Context fields that can be imported (maps to CheckItem columns)
 CONTEXT_FIELDS = {

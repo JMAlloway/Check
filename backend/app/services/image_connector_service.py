@@ -19,12 +19,6 @@ from typing import List, Optional
 
 import httpx
 import jwt
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from sqlalchemy import and_, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.config import settings
 from app.models.image_connector import (
     ConnectorAuditLog,
@@ -32,6 +26,11 @@ from app.models.image_connector import (
     ConnectorStatus,
     ImageConnector,
 )
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class ImageConnectorError(Exception):

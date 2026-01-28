@@ -21,9 +21,8 @@ permissions on these tables.
 """
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
-
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "004_audit_immutability"
@@ -44,8 +43,7 @@ def upgrade() -> None:
     # This function raises an exception when UPDATE or DELETE is attempted,
     # enforcing write-once semantics on audit tables.
 
-    op.execute(
-        """
+    op.execute("""
         CREATE OR REPLACE FUNCTION prevent_audit_modification()
         RETURNS TRIGGER AS $$
         BEGIN
@@ -59,56 +57,47 @@ def upgrade() -> None:
             RETURN NULL;
         END;
         $$ LANGUAGE plpgsql;
-    """
-    )
+    """)
 
     # ==========================================================================
     # CREATE TRIGGERS ON AUDIT_LOGS TABLE
     # ==========================================================================
 
     # Trigger to block UPDATE on audit_logs
-    op.execute(
-        """
+    op.execute("""
         CREATE TRIGGER audit_logs_prevent_update
         BEFORE UPDATE ON audit_logs
         FOR EACH ROW
         EXECUTE FUNCTION prevent_audit_modification();
-    """
-    )
+    """)
 
     # Trigger to block DELETE on audit_logs
-    op.execute(
-        """
+    op.execute("""
         CREATE TRIGGER audit_logs_prevent_delete
         BEFORE DELETE ON audit_logs
         FOR EACH ROW
         EXECUTE FUNCTION prevent_audit_modification();
-    """
-    )
+    """)
 
     # ==========================================================================
     # CREATE TRIGGERS ON ITEM_VIEWS TABLE
     # ==========================================================================
 
     # Trigger to block UPDATE on item_views
-    op.execute(
-        """
+    op.execute("""
         CREATE TRIGGER item_views_prevent_update
         BEFORE UPDATE ON item_views
         FOR EACH ROW
         EXECUTE FUNCTION prevent_audit_modification();
-    """
-    )
+    """)
 
     # Trigger to block DELETE on item_views
-    op.execute(
-        """
+    op.execute("""
         CREATE TRIGGER item_views_prevent_delete
         BEFORE DELETE ON item_views
         FOR EACH ROW
         EXECUTE FUNCTION prevent_audit_modification();
-    """
-    )
+    """)
 
     # ==========================================================================
     # ADD GIN INDEXES FOR JSONB COLUMNS (efficient querying)

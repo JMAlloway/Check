@@ -20,8 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .api.v1 import router as api_v1_router
-from .core.config import get_settings, ConnectorMode
-
+from .core.config import ConnectorMode, get_settings
 
 # Configure logging
 logging.basicConfig(

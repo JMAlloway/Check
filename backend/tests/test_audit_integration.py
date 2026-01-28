@@ -9,15 +9,15 @@ Tests cover:
 - Multi-tenant isolation
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from fastapi import status
 
+import pytest
 from app.core.security import create_access_token
-from app.models.audit import AuditLog, AuditAction, ItemView
-from app.models.check import CheckItem, CheckStatus, RiskLevel, ItemType
+from app.models.audit import AuditAction, AuditLog, ItemView
+from app.models.check import CheckItem, CheckStatus, ItemType, RiskLevel
 from app.models.user import User
+from fastapi import status
 
 
 @pytest.fixture
@@ -84,7 +84,9 @@ class TestSearchAuditLogs:
         assert data["total"] == 5
 
     @pytest.mark.asyncio
-    async def test_search_logs_filter_by_action(self, client, db_session, test_tenant_id, auditor_headers):
+    async def test_search_logs_filter_by_action(
+        self, client, db_session, test_tenant_id, auditor_headers
+    ):
         """Test filtering logs by action."""
         # Create logs with different actions
         actions = [AuditAction.ITEM_VIEWED, AuditAction.DECISION_MADE, AuditAction.LOGIN]
@@ -111,7 +113,9 @@ class TestSearchAuditLogs:
         assert data["total"] == 1
 
     @pytest.mark.asyncio
-    async def test_search_logs_filter_by_resource(self, client, db_session, test_tenant_id, auditor_headers):
+    async def test_search_logs_filter_by_resource(
+        self, client, db_session, test_tenant_id, auditor_headers
+    ):
         """Test filtering logs by resource type."""
         log1 = AuditLog(
             id="audit-res-1",
@@ -147,7 +151,9 @@ class TestSearchAuditLogs:
         assert data["total"] == 1
 
     @pytest.mark.asyncio
-    async def test_search_logs_date_range(self, client, db_session, test_tenant_id, auditor_headers):
+    async def test_search_logs_date_range(
+        self, client, db_session, test_tenant_id, auditor_headers
+    ):
         """Test filtering logs by date range."""
         now = datetime.now(timezone.utc)
         yesterday = now - timedelta(days=1)
@@ -189,7 +195,9 @@ class TestSearchAuditLogs:
         assert data["total"] == 1
 
     @pytest.mark.asyncio
-    async def test_search_logs_pagination(self, client, db_session, test_tenant_id, auditor_headers):
+    async def test_search_logs_pagination(
+        self, client, db_session, test_tenant_id, auditor_headers
+    ):
         """Test pagination of audit logs."""
         for i in range(75):
             log = AuditLog(
@@ -237,7 +245,11 @@ class TestItemAuditTrail:
         db_session.add(item)
 
         # Create audit logs for this item
-        actions = [AuditAction.ITEM_VIEWED, AuditAction.DECISION_MADE, AuditAction.ITEM_STATUS_CHANGED]
+        actions = [
+            AuditAction.ITEM_VIEWED,
+            AuditAction.DECISION_MADE,
+            AuditAction.ITEM_STATUS_CHANGED,
+        ]
         for i, action in enumerate(actions):
             log = AuditLog(
                 id=f"audit-trail-{i}",

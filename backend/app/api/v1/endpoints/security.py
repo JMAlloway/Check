@@ -10,10 +10,6 @@ Provides API for:
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.api.deps import get_current_active_superuser, get_db
 from app.models.user import User
 from app.security.breach import BreachNotificationService
@@ -22,6 +18,9 @@ from app.security.models import (
     IncidentStatus,
     IncidentType,
 )
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 

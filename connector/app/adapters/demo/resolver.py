@@ -7,16 +7,16 @@ import asyncio
 import json
 from datetime import date, datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from ..interfaces import (
-    ItemResolver,
-    ImageHandle,
-    ItemMetadata,
-    ImageSide,
-    ItemNotFoundError,
-)
 from ...core.config import get_settings
+from ..interfaces import (
+    ImageHandle,
+    ImageSide,
+    ItemMetadata,
+    ItemNotFoundError,
+    ItemResolver,
+)
 
 
 class DemoItemResolver(ItemResolver):

@@ -10,15 +10,15 @@ Tests cover:
 - Decision history
 """
 
-import pytest
 from datetime import datetime, timezone
 from decimal import Decimal
-from fastapi import status
 
+import pytest
 from app.core.security import create_access_token
-from app.models.check import CheckItem, CheckStatus, RiskLevel, ItemType
+from app.models.check import CheckItem, CheckStatus, ItemType, RiskLevel
 from app.models.decision import Decision, DecisionAction, DecisionType, ReasonCode
 from app.models.user import User
+from fastapi import status
 
 
 @pytest.fixture
@@ -181,7 +181,9 @@ class TestDualControlWorkflow:
     """Tests for dual control workflow."""
 
     @pytest.mark.asyncio
-    async def test_dual_control_triggered(self, client, db_session, test_tenant_id, reviewer_headers):
+    async def test_dual_control_triggered(
+        self, client, db_session, test_tenant_id, reviewer_headers
+    ):
         """Test that dual control is triggered for high-value items."""
         # Create high-value item that requires dual control
         item = CheckItem(
@@ -270,7 +272,9 @@ class TestDualControlWorkflow:
         assert response.status_code == status.HTTP_200_OK
 
     @pytest.mark.asyncio
-    async def test_self_approval_blocked(self, client, db_session, test_tenant_id, test_user_id, reviewer_headers):
+    async def test_self_approval_blocked(
+        self, client, db_session, test_tenant_id, test_user_id, reviewer_headers
+    ):
         """Test that users cannot approve their own decisions."""
         item = CheckItem(
             id="check-self-approve",
@@ -316,7 +320,9 @@ class TestAIFlagAcknowledgment:
     """Tests for AI flag acknowledgment requirement."""
 
     @pytest.mark.asyncio
-    async def test_ai_flags_must_be_acknowledged(self, client, db_session, test_tenant_id, reviewer_headers):
+    async def test_ai_flags_must_be_acknowledged(
+        self, client, db_session, test_tenant_id, reviewer_headers
+    ):
         """Test that AI flags must be acknowledged before decision."""
         item = CheckItem(
             id="check-ai-flags",
@@ -350,7 +356,9 @@ class TestAIFlagAcknowledgment:
         assert "AI flags" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_ai_flags_acknowledged(self, client, db_session, test_tenant_id, reviewer_headers):
+    async def test_ai_flags_acknowledged(
+        self, client, db_session, test_tenant_id, reviewer_headers
+    ):
         """Test decision with AI flags properly acknowledged."""
         item = CheckItem(
             id="check-ai-ack",
@@ -388,7 +396,9 @@ class TestDecisionHistory:
     """Tests for decision history retrieval."""
 
     @pytest.mark.asyncio
-    async def test_get_decision_history(self, client, db_session, test_tenant_id, reviewer_headers, test_user_id):
+    async def test_get_decision_history(
+        self, client, db_session, test_tenant_id, reviewer_headers, test_user_id
+    ):
         """Test getting decision history for an item."""
         item = CheckItem(
             id="check-history",

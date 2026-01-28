@@ -37,8 +37,6 @@ import hmac
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-from sqlalchemy import select, text
-
 from app.core.security import get_password_hash
 from app.db.session import AsyncSessionLocal, Base, engine
 from app.models.audit import AuditLog, ItemView
@@ -60,6 +58,7 @@ from app.models.queue import Queue, QueueAssignment
 
 # Import ALL models to register them with Base.metadata
 from app.models.user import Permission, Role, User
+from sqlalchemy import select, text
 
 
 async def seed_database():

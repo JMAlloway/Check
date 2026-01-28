@@ -12,11 +12,10 @@ from pathlib import Path
 
 import jwt
 import pytest
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.backends import default_backend
 from PIL import Image
-
 
 # =============================================================================
 # RSA Key Pair Fixtures
@@ -223,9 +222,9 @@ def mock_settings(temp_demo_repo, public_key, monkeypatch):
     monkeypatch.setenv("CONNECTOR_LOG_DIR", str(temp_demo_repo / "logs"))
 
     # Reset singletons
-    from app.core.config import Settings
-    from app.core import security
     from app.adapters import factory
+    from app.core import security
+    from app.core.config import Settings
     from app.services import cache
 
     # Create fresh settings

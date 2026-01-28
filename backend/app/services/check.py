@@ -4,10 +4,6 @@ import json
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from sqlalchemy import and_, func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.config import settings
 from app.integrations.adapters.factory import get_adapter
 from app.models.check import AccountType, CheckImage, CheckItem, CheckStatus, RiskLevel
@@ -21,6 +17,9 @@ from app.schemas.check import (
     CheckItemResponse,
     CheckSearchRequest,
 )
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 
 class CheckService:
@@ -643,7 +642,9 @@ class CheckService:
                             category=flag_def.get("category", "risk"),
                             severity=flag_def.get("severity", "warning"),
                             confidence=item.ai_confidence if item.ai_confidence else None,
-                            explanation=flag_def.get("explanation", f"AI-detected risk indicator: {flag_code}"),
+                            explanation=flag_def.get(
+                                "explanation", f"AI-detected risk indicator: {flag_code}"
+                            ),
                         )
                     )
             except json.JSONDecodeError:
@@ -792,10 +793,9 @@ class CheckService:
             user_id: The requesting user's ID (for user-bound signed URLs)
             limit: Maximum number of history items
         """
-        from sqlalchemy import select
-
         from app.core.security import generate_signed_url
         from app.models.check import CheckHistory
+        from sqlalchemy import select
 
         # Query database directly for historical checks
         result = await self.db.execute(

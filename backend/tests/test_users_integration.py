@@ -9,10 +9,9 @@ Tests cover:
 """
 
 import pytest
-from fastapi import status
-
 from app.core.security import create_access_token, get_password_hash
-from app.models.user import User, Role, Permission
+from app.models.user import Permission, Role, User
+from fastapi import status
 
 
 @pytest.fixture
@@ -83,7 +82,9 @@ class TestListUsers:
         assert data["total"] == 5
 
     @pytest.mark.asyncio
-    async def test_list_users_filter_active(self, client, db_session, test_tenant_id, admin_headers):
+    async def test_list_users_filter_active(
+        self, client, db_session, test_tenant_id, admin_headers
+    ):
         """Test filtering users by active status."""
         # Create active user
         active_user = User(
@@ -179,7 +180,9 @@ class TestCreateUser:
         assert data["email"] == "newuser@example.com"
 
     @pytest.mark.asyncio
-    async def test_create_user_duplicate_email(self, client, db_session, test_tenant_id, admin_headers):
+    async def test_create_user_duplicate_email(
+        self, client, db_session, test_tenant_id, admin_headers
+    ):
         """Test creating user with duplicate email."""
         existing = User(
             id="existing-user",

@@ -16,14 +16,13 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
-from pydantic import ValidationError
-from sqlalchemy import inspect
-
 from app.models.audit import AuditAction, AuditLog, ItemView
 from app.models.check import CheckItem, CheckStatus, RiskLevel
 from app.models.decision import Decision, DecisionAction
 from app.models.queue import Queue, QueueType
 from app.models.user import Permission, Role, User
+from pydantic import ValidationError
+from sqlalchemy import inspect
 
 
 class TestCheckItemConstraints:

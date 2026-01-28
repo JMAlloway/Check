@@ -2,10 +2,9 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
-
 from app.models.queue import QueueType
 from app.schemas.common import BaseSchema, TimestampSchema
+from pydantic import BaseModel, Field
 
 
 class QueueBase(BaseModel):

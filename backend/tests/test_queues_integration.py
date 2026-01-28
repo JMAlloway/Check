@@ -8,15 +8,15 @@ Tests cover:
 - Multi-tenant isolation
 """
 
-import pytest
 from datetime import datetime, timezone
 from decimal import Decimal
-from fastapi import status
 
+import pytest
 from app.core.security import create_access_token
-from app.models.queue import Queue, QueueType, QueueAssignment
-from app.models.check import CheckItem, CheckStatus, RiskLevel, ItemType
+from app.models.check import CheckItem, CheckStatus, ItemType, RiskLevel
+from app.models.queue import Queue, QueueAssignment, QueueType
 from app.models.user import User
+from fastapi import status
 
 
 @pytest.fixture
@@ -84,7 +84,9 @@ class TestListQueues:
         assert len(data) == 3
 
     @pytest.mark.asyncio
-    async def test_list_queues_exclude_inactive(self, client, db_session, test_tenant_id, queue_headers):
+    async def test_list_queues_exclude_inactive(
+        self, client, db_session, test_tenant_id, queue_headers
+    ):
         """Test that inactive queues are excluded by default."""
         queue_active = Queue(
             id="queue-active",
@@ -115,7 +117,9 @@ class TestListQueues:
         assert data[0]["name"] == "Active Queue"
 
     @pytest.mark.asyncio
-    async def test_list_queues_include_inactive(self, client, db_session, test_tenant_id, queue_headers):
+    async def test_list_queues_include_inactive(
+        self, client, db_session, test_tenant_id, queue_headers
+    ):
         """Test including inactive queues."""
         queue_active = Queue(
             id="queue-active-2",
@@ -452,7 +456,9 @@ class TestQueueAssignments:
         assert data["can_approve"] is True
 
     @pytest.mark.asyncio
-    async def test_update_existing_assignment(self, client, db_session, test_tenant_id, queue_headers):
+    async def test_update_existing_assignment(
+        self, client, db_session, test_tenant_id, queue_headers
+    ):
         """Test updating an existing queue assignment."""
         queue = Queue(
             id="queue-update-assign",

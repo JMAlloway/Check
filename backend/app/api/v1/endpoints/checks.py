@@ -4,8 +4,6 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-
 from app.api.deps import DBSession, RequireCheckView, require_permission
 from app.audit.service import AuditService
 from app.models.audit import AuditAction
@@ -18,6 +16,7 @@ from app.schemas.check import (
 )
 from app.schemas.common import PaginatedResponse
 from app.services.check import CheckService
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 router = APIRouter()
 
@@ -168,9 +167,8 @@ async def assign_check_item(
     queue_id: str | None = None,
 ):
     """Assign a check item to a reviewer/approver or queue."""
-    from sqlalchemy import select
-
     from app.models.check import CheckItem
+    from sqlalchemy import select
 
     # CRITICAL: Always filter by tenant_id for multi-tenant security
     result = await db.execute(
@@ -231,9 +229,8 @@ async def update_check_status(
     status: CheckStatus = Query(...),
 ):
     """Update check item status."""
-    from sqlalchemy import select
-
     from app.models.check import CheckItem
+    from sqlalchemy import select
 
     # CRITICAL: Always filter by tenant_id for multi-tenant security
     result = await db.execute(
@@ -288,7 +285,12 @@ async def get_adjacent_items(
 
     # Default to reviewable statuses if not specified
     if status is None:
-        status = [CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL, CheckStatus.ESCALATED]
+        status = [
+            CheckStatus.NEW,
+            CheckStatus.IN_REVIEW,
+            CheckStatus.PENDING_APPROVAL,
+            CheckStatus.ESCALATED,
+        ]
 
     adjacent = await check_service.get_adjacent_items(
         item_id=item_id,

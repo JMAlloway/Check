@@ -4,6 +4,8 @@ from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 
+from app.db.session import Base
+from app.models.base import TimestampMixin, UUIDMixin
 from sqlalchemy import (
     Boolean,
     DateTime,
@@ -17,9 +19,6 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.db.session import Base
-from app.models.base import TimestampMixin, UUIDMixin
 
 
 class PolicyStatus(str, Enum):

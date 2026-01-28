@@ -14,14 +14,13 @@ import logging
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Request
-from pydantic import BaseModel, Field, field_validator
-
 from app.core.metrics import (
     security_events_total,
     track_security_event,
 )
 from app.core.rate_limit import limiter
+from fastapi import APIRouter, Request
+from pydantic import BaseModel, Field, field_validator
 
 router = APIRouter()
 logger = logging.getLogger("frontend.monitoring")

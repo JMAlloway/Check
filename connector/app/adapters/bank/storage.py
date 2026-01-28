@@ -10,7 +10,7 @@ NOTE: This is a stub implementation. Real implementation requires:
 """
 from typing import Tuple
 
-from ..interfaces import StorageProvider, ImageHandle, StorageAccessError
+from ..interfaces import ImageHandle, StorageAccessError, StorageProvider
 
 
 class BankStorageProvider(StorageProvider):

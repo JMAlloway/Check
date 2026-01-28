@@ -16,11 +16,10 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy.exc import IntegrityError, OperationalError
-
 from app.core.security import create_access_token
 from app.main import app
+from fastapi.testclient import TestClient
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 
 class TestAuthenticationErrors:

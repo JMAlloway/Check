@@ -24,9 +24,9 @@ from pathlib import Path
 
 try:
     import jwt
+    from cryptography.hazmat.backends import default_backend
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
-    from cryptography.hazmat.backends import default_backend
 except ImportError:
     print("Required packages not installed. Run:")
     print("  pip install PyJWT cryptography")

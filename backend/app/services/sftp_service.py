@@ -26,11 +26,10 @@ from pathlib import Path
 from typing import BinaryIO
 
 import paramiko
-from paramiko import SFTPClient, SSHClient, Transport
-from paramiko.ssh_exception import AuthenticationException, SSHException
-
 from app.core.encryption import decrypt_value
 from app.models.item_context_connector import ItemContextConnector
+from paramiko import SFTPClient, SSHClient, Transport
+from paramiko.ssh_exception import AuthenticationException, SSHException
 
 
 @dataclass

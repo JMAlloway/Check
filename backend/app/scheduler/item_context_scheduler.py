@@ -21,10 +21,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-from sqlalchemy import select
-
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.models.item_context_connector import (
@@ -32,6 +28,9 @@ from app.models.item_context_connector import (
     ItemContextConnector,
 )
 from app.services.item_context_service import ItemContextImportService
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 

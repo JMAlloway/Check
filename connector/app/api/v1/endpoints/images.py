@@ -12,18 +12,18 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 
 from ....adapters import ImageSide
+from ....audit import get_audit_logger
 from ....core.security import JWTClaims, get_path_validator
+from ....models import ErrorResponse, ImageSideParam
 from ....services import get_image_service
 from ....services.image_service import (
+    ImageDecodeFailedError,
     ImageNotFoundError,
     NoBackImageError,
     PathNotAllowedError,
-    ImageDecodeFailedError,
     UnsupportedImageFormatError,
     UpstreamIOError,
 )
-from ....audit import get_audit_logger
-from ....models import ImageSideParam, ErrorResponse
 from ...deps import get_correlation_id, get_request_start_time, validate_jwt, validate_path
 
 router = APIRouter()

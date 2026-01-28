@@ -17,13 +17,12 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import NamedTuple
 
-from sqlalchemy import delete, func, select, text
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.models.audit import AuditLog, ItemView
 from app.models.user import UserSession
+from sqlalchemy import delete, func, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger("audit.retention")
 

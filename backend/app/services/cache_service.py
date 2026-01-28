@@ -5,14 +5,17 @@ Provides caching layer to reduce database load for frequently accessed data:
 - User permissions (per session)
 - Policy rules (per tenant)
 - Role definitions
+- Audit packet downloads (with tenant/user ownership enforcement)
 """
 
+import base64
 import json
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import redis.asyncio as redis
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -27,11 +30,13 @@ class CacheService:
     PREFIX_ROLE = "role:"
     PREFIX_POLICY_VERSION = "policy:version:"
     PREFIX_RATE_LIMIT = "ratelimit:"
+    PREFIX_AUDIT_PACKET = "audit:packet:"
 
     # Default TTLs
     TTL_USER_PERMISSIONS = timedelta(minutes=15)
     TTL_POLICIES = timedelta(minutes=30)
     TTL_ROLES = timedelta(hours=1)
+    TTL_AUDIT_PACKET = timedelta(hours=1)
 
     def __init__(self, redis_url: str | None = None):
         """Initialize cache service.
@@ -474,6 +479,162 @@ class CacheService:
             return await self._redis.exists(key) > 0
         except Exception as e:
             logger.warning("Failed to check cache existence: %s", e)
+            return False
+
+    # ==========================================================================
+    # Audit Packet Cache (with tenant/user ownership enforcement)
+    # ==========================================================================
+
+    async def store_audit_packet(
+        self,
+        packet_id: str,
+        pdf_bytes: bytes,
+        tenant_id: str,
+        user_id: str,
+        check_item_id: str,
+        ttl: timedelta | None = None,
+    ) -> bool:
+        """Store an audit packet with ownership metadata.
+
+        SECURITY: Packets are stored with tenant_id and user_id binding.
+        On retrieval, both must match to prevent cross-tenant/cross-user access.
+
+        Args:
+            packet_id: Unique packet identifier (UUID)
+            pdf_bytes: PDF content bytes
+            tenant_id: Tenant ID that generated the packet
+            user_id: User ID that generated the packet
+            check_item_id: Check item ID for additional verification
+            ttl: Cache TTL (defaults to TTL_AUDIT_PACKET = 1 hour)
+
+        Returns:
+            True if stored successfully
+        """
+        if not await self._ensure_connected():
+            return False
+
+        try:
+            key = f"{self.PREFIX_AUDIT_PACKET}{packet_id}"
+            ttl = ttl or self.TTL_AUDIT_PACKET
+
+            # Store PDF as base64 with ownership metadata
+            # Base64 is required since Redis client uses decode_responses=True
+            packet_data = {
+                "pdf_base64": base64.b64encode(pdf_bytes).decode("ascii"),
+                "tenant_id": tenant_id,
+                "user_id": user_id,
+                "check_item_id": check_item_id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+            await self._redis.setex(key, ttl, json.dumps(packet_data))
+            logger.debug(
+                "Stored audit packet %s for tenant=%s user=%s item=%s",
+                packet_id,
+                tenant_id,
+                user_id,
+                check_item_id,
+            )
+            return True
+        except Exception as e:
+            logger.error("Failed to store audit packet %s: %s", packet_id, e)
+            return False
+
+    async def retrieve_audit_packet(
+        self,
+        packet_id: str,
+        tenant_id: str,
+        user_id: str,
+    ) -> tuple[bytes | None, str | None]:
+        """Retrieve an audit packet with ownership verification.
+
+        SECURITY: Enforces that the requesting user matches the user who
+        generated the packet, AND they belong to the same tenant.
+
+        Args:
+            packet_id: Unique packet identifier
+            tenant_id: Tenant ID of the requesting user
+            user_id: User ID of the requesting user
+
+        Returns:
+            Tuple of (pdf_bytes, check_item_id) if found and authorized,
+            (None, None) if not found or unauthorized.
+
+            IMPORTANT: Returns (None, None) for BOTH "not found" and
+            "unauthorized" to prevent information disclosure about
+            which packets exist.
+        """
+        if not await self._ensure_connected():
+            return None, None
+
+        try:
+            key = f"{self.PREFIX_AUDIT_PACKET}{packet_id}"
+            data = await self._redis.get(key)
+
+            if not data:
+                logger.debug("Audit packet %s not found in cache", packet_id)
+                return None, None
+
+            packet_data = json.loads(data)
+
+            # CRITICAL: Verify ownership - must match BOTH tenant AND user
+            stored_tenant_id = packet_data.get("tenant_id")
+            stored_user_id = packet_data.get("user_id")
+
+            if stored_tenant_id != tenant_id:
+                logger.warning(
+                    "Audit packet access denied: tenant mismatch. "
+                    "packet=%s stored_tenant=%s requesting_tenant=%s",
+                    packet_id,
+                    stored_tenant_id,
+                    tenant_id,
+                )
+                return None, None
+
+            if stored_user_id != user_id:
+                logger.warning(
+                    "Audit packet access denied: user mismatch. "
+                    "packet=%s stored_user=%s requesting_user=%s",
+                    packet_id,
+                    stored_user_id,
+                    user_id,
+                )
+                return None, None
+
+            # Ownership verified - decode and return PDF
+            pdf_bytes = base64.b64decode(packet_data["pdf_base64"])
+            check_item_id = packet_data.get("check_item_id")
+
+            logger.debug(
+                "Retrieved audit packet %s for tenant=%s user=%s",
+                packet_id,
+                tenant_id,
+                user_id,
+            )
+            return pdf_bytes, check_item_id
+
+        except Exception as e:
+            logger.error("Failed to retrieve audit packet %s: %s", packet_id, e)
+            return None, None
+
+    async def delete_audit_packet(self, packet_id: str) -> bool:
+        """Delete an audit packet from cache.
+
+        Args:
+            packet_id: Unique packet identifier
+
+        Returns:
+            True if deleted successfully
+        """
+        if not await self._ensure_connected():
+            return False
+
+        try:
+            key = f"{self.PREFIX_AUDIT_PACKET}{packet_id}"
+            await self._redis.delete(key)
+            return True
+        except Exception as e:
+            logger.warning("Failed to delete audit packet %s: %s", packet_id, e)
             return False
 
 

@@ -14,7 +14,7 @@ import csv
 import hashlib
 import io
 import json
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET  # nosec: using defusedxml for XXE protection
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any

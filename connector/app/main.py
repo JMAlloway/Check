@@ -92,13 +92,17 @@ Tokens are issued by the SaaS and validated using RS256 with a pinned public key
 )
 
 
-# Add CORS middleware (adjust for production)
+# Add CORS middleware
+# NOTE: Wildcard CORS is ONLY enabled in DEMO mode for local development.
+# In BANK (production) mode, no origins are allowed (empty list).
+# This is intentional and safe because DEMO mode is for local testing only.
+_cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"] if settings.MODE == ConnectorMode.DEMO else []
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.MODE == ConnectorMode.DEMO else [],
+    allow_origins=_cors_origins,  # Explicit localhost origins for demo, empty for production
     allow_credentials=True,
     allow_methods=["GET", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type", "X-Correlation-ID"],
 )
 
 

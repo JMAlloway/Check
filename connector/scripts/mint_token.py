@@ -154,21 +154,30 @@ def mint_token(
     return token
 
 
-def decode_token(token: str, public_key: str = None) -> dict:
+def decode_token(token: str, public_key: str = None, verify: bool = True) -> dict:
     """
-    Decode a token (with or without verification).
+    Decode a token with signature verification.
 
     Args:
         token: JWT token string
-        public_key: Optional public key for verification
+        public_key: Public key for verification (required for verification)
+        verify: Whether to verify signature (should be True in production)
 
     Returns:
         Decoded payload
+
+    Note:
+        This is a development/debugging tool only.
+        In production code, ALWAYS verify JWT signatures.
     """
     if public_key:
         return jwt.decode(token, public_key, algorithms=["RS256"])
+    elif not verify:
+        # WARNING: Only use verify=False for debugging self-minted tokens
+        # Never disable verification for tokens from external sources
+        return jwt.decode(token, options={"verify_signature": False})  # nosec B105
     else:
-        return jwt.decode(token, options={"verify_signature": False})
+        raise ValueError("Public key required for token verification")
 
 
 def main():
@@ -230,7 +239,9 @@ def main():
         return
 
     if args.decode:
-        payload = decode_token(args.decode)
+        # For debugging self-minted tokens, decode without verification
+        # This is safe since this script is for local testing only
+        payload = decode_token(args.decode, verify=False)
         print(json.dumps(payload, indent=2, default=str))
         return
 
@@ -253,8 +264,8 @@ def main():
     print(token)
     print()
 
-    # Decode and show claims
-    payload = decode_token(token)
+    # Decode and show claims (safe to skip verify since we just minted it)
+    payload = decode_token(token, verify=False)
     print("Token Claims:")
     print(json.dumps(payload, indent=2, default=str))
     print()

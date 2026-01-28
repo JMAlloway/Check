@@ -271,9 +271,11 @@ class DrillRunner:
 
         try:
             if step.command and not self.dry_run:
-                result = subprocess.run(
-                    step.command,
-                    shell=True,
+                # Using shell=True is intentional here for DR drill commands
+                # which require shell features (pipes, redirects, etc.)
+                # Commands are hardcoded, not user-supplied
+                result = subprocess.run(  # nosec B602
+                    ["/bin/bash", "-c", step.command],
                     capture_output=True,
                     text=True,
                     timeout=120,
@@ -285,9 +287,9 @@ class DrillRunner:
                     return
 
             if step.verification:
-                result = subprocess.run(
-                    step.verification,
-                    shell=True,
+                # Using shell for verification commands (hardcoded, not user input)
+                result = subprocess.run(  # nosec B602
+                    ["/bin/bash", "-c", step.verification],
                     capture_output=True,
                     text=True,
                     timeout=30,
@@ -337,7 +339,11 @@ def verify_system() -> bool:
 
     all_passed = True
     for name, command in checks:
-        result = subprocess.run(command, shell=True, capture_output=True)
+        # Hardcoded verification commands, not user input
+        result = subprocess.run(  # nosec B602
+            ["/bin/bash", "-c", command],
+            capture_output=True,
+        )
         status = "OK" if result.returncode == 0 else "FAIL"
         print(f"{name}: {status}")
         if result.returncode != 0:

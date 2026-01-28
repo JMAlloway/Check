@@ -4,8 +4,11 @@ import secrets
 from typing import Annotated
 
 import pyotp
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+
 from app.api.deps import CurrentUser, DBSession
 from app.audit.service import AuditService
+from app.core.client_ip import get_client_ip
 from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.core.security import get_password_hash, verify_password
@@ -24,7 +27,6 @@ from app.schemas.auth import (
 from app.schemas.common import MessageResponse
 from app.schemas.user import CurrentUserResponse
 from app.services.auth import AuthService
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 
 router = APIRouter()
 
@@ -90,7 +92,7 @@ async def login(
     auth_service = AuthService(db)
     audit_service = AuditService(db)
 
-    ip_address = request.client.host if request.client else None
+    ip_address = get_client_ip(request)
     user_agent = request.headers.get("user-agent")
 
     user, error = await auth_service.authenticate_user(
@@ -216,7 +218,7 @@ async def refresh_token(
     """
     auth_service = AuthService(db)
 
-    ip_address = request.client.host if request.client else None
+    ip_address = get_client_ip(request)
     user_agent = request.headers.get("user-agent")
 
     # Prefer cookie-based refresh token (more secure)
@@ -301,7 +303,7 @@ async def logout(
         resource_id=current_user.id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description="User logged out",
     )
 
@@ -386,7 +388,7 @@ async def change_password(
         resource_id=current_user.id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"User changed password, {sessions_revoked} sessions invalidated",
     )
 
@@ -437,7 +439,7 @@ async def setup_mfa(
         resource_id=current_user.id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description="MFA setup initiated",
     )
 
@@ -489,7 +491,7 @@ async def verify_mfa(
         resource_id=current_user.id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description="MFA enabled successfully",
     )
 
@@ -539,7 +541,7 @@ async def disable_mfa(
         resource_id=current_user.id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description="MFA disabled",
     )
 

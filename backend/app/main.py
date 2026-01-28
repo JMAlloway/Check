@@ -4,14 +4,16 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from app.api.v1 import api_router
-from app.core.config import settings
-from app.core.logging_config import configure_logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+
+from app.api.v1 import api_router
+from app.core.client_ip import get_client_ip
+from app.core.config import settings
+from app.core.logging_config import configure_logging
 
 logger = logging.getLogger("app.startup")
 from app.core.metrics import MetricsMiddleware, get_metrics
@@ -240,8 +242,8 @@ async def metrics(request: Request):
     if settings.METRICS_ALLOWED_IPS:
         import ipaddress
 
-        client_ip = request.client.host if request.client else None
-        if not client_ip:
+        client_ip = get_client_ip(request)
+        if client_ip == "unknown":
             return JSONResponse(
                 status_code=403,
                 content={"detail": "Unable to determine client IP"},
@@ -295,8 +297,9 @@ async def health_check():
 
     Returns 503 Service Unavailable if any critical dependency is down.
     """
-    from app.db.session import AsyncSessionLocal
     from sqlalchemy import text
+
+    from app.db.session import AsyncSessionLocal
 
     db_status = "disconnected"
     redis_status = "not_configured"

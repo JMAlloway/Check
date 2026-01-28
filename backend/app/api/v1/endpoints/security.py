@@ -10,7 +10,12 @@ Provides API for:
 from datetime import datetime, timezone
 from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.deps import get_current_active_superuser, get_db
+from app.core.client_ip import get_client_ip
 from app.models.user import User
 from app.security.breach import BreachNotificationService
 from app.security.models import (
@@ -18,9 +23,6 @@ from app.security.models import (
     IncidentStatus,
     IncidentType,
 )
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
@@ -176,7 +178,7 @@ async def create_incident(
         affected_records_count=data.affected_records_count,
         data_types_exposed=data.data_types_exposed,
         evidence=data.evidence,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
     )
 
     await db.commit()
@@ -208,7 +210,7 @@ async def confirm_incident(
             username=current_user.username,
             root_cause=data.root_cause,
             additional_data_types=data.additional_data_types,
-            ip_address=request.client.host if request.client else None,
+            ip_address=get_client_ip(request),
         )
         await db.commit()
         return _incident_to_response(incident)
@@ -238,7 +240,7 @@ async def contain_incident(
             user_id=current_user.id,
             username=current_user.username,
             containment_actions=data.containment_actions,
-            ip_address=request.client.host if request.client else None,
+            ip_address=get_client_ip(request),
         )
         await db.commit()
         return _incident_to_response(incident)
@@ -269,7 +271,7 @@ async def resolve_incident(
             username=current_user.username,
             remediation_steps=data.remediation_steps,
             lessons_learned=data.lessons_learned,
-            ip_address=request.client.host if request.client else None,
+            ip_address=get_client_ip(request),
         )
         await db.commit()
         return _incident_to_response(incident)
@@ -345,7 +347,7 @@ async def send_notification(
             username=current_user.username,
             delivery_method=data.delivery_method,
             delivery_reference=data.delivery_reference,
-            ip_address=request.client.host if request.client else None,
+            ip_address=get_client_ip(request),
         )
         await db.commit()
 

@@ -3,14 +3,16 @@
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
+from fastapi import APIRouter, Depends, Query, Request, Response
+from sqlalchemy import and_, func, select
+
 from app.api.deps import DBSession, require_permission
 from app.audit.service import AuditService
+from app.core.client_ip import get_client_ip
 from app.core.rate_limit import RateLimits, user_limiter
 from app.models.audit import AuditAction, AuditLog
 from app.models.check import CheckItem, CheckStatus, RiskLevel
 from app.models.decision import Decision, DecisionAction
-from fastapi import APIRouter, Depends, Query, Request, Response
-from sqlalchemy import and_, func, select
 
 router = APIRouter()
 
@@ -327,7 +329,7 @@ async def export_decisions_csv(
             "date_to": date_to.isoformat() if date_to else None,
         },
         exported=True,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
     )
 
     # CRITICAL: Filter by tenant_id for multi-tenant security
@@ -436,7 +438,7 @@ async def export_daily_activity_pdf(
             "date_to": date_to.isoformat(),
         },
         exported=True,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
     )
     await db.commit()
 
@@ -490,7 +492,7 @@ async def export_daily_summary_pdf(
             "date_to": date_to.isoformat(),
         },
         exported=True,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
     )
     await db.commit()
 
@@ -533,7 +535,7 @@ async def export_executive_overview_pdf(
         tenant_id=tenant_id,
         parameters={},
         exported=True,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
     )
     await db.commit()
 

@@ -4,8 +4,11 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+
 from app.api.deps import DBSession, RequireCheckView, require_permission
 from app.audit.service import AuditService
+from app.core.client_ip import get_client_ip
 from app.models.audit import AuditAction
 from app.models.check import CheckStatus, RiskLevel
 from app.schemas.check import (
@@ -16,7 +19,6 @@ from app.schemas.check import (
 )
 from app.schemas.common import PaginatedResponse
 from app.services.check import CheckService
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 router = APIRouter()
 
@@ -127,7 +129,7 @@ async def get_check_item(
         user_id=current_user.id,
         tenant_id=current_user.tenant_id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
     )
 
     await db.commit()  # Commit the audit log
@@ -167,8 +169,9 @@ async def assign_check_item(
     queue_id: str | None = None,
 ):
     """Assign a check item to a reviewer/approver or queue."""
-    from app.models.check import CheckItem
     from sqlalchemy import select
+
+    from app.models.check import CheckItem
 
     # CRITICAL: Always filter by tenant_id for multi-tenant security
     result = await db.execute(
@@ -206,7 +209,7 @@ async def assign_check_item(
         resource_id=item_id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description="Check item assignment updated",
         before_value=before_state,
         after_value={
@@ -229,8 +232,9 @@ async def update_check_status(
     status: CheckStatus = Query(...),
 ):
     """Update check item status."""
-    from app.models.check import CheckItem
     from sqlalchemy import select
+
+    from app.models.check import CheckItem
 
     # CRITICAL: Always filter by tenant_id for multi-tenant security
     result = await db.execute(
@@ -258,7 +262,7 @@ async def update_check_status(
         resource_id=item_id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"Status changed from {old_status.value} to {status.value}",
         before_value={"status": old_status.value},
         after_value={"status": status.value},

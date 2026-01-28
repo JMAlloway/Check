@@ -27,8 +27,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from app.core.config import settings
 from pythonjsonlogger import jsonlogger
+
+from app.core.config import settings
 
 # Log directory for file-based shipping
 LOG_DIR = Path("/var/log/check-review")
@@ -328,7 +329,7 @@ def format_security_event(
                 description="User logged in successfully",
                 user_id=user.id,
                 username=user.username,
-                ip_address=request.client.host,
+                ip_address=get_client_ip(request),  # Use secure IP extraction
             )
         )
     """

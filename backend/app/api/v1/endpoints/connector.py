@@ -16,8 +16,14 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import StreamingResponse
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
+
 from app.api.deps import CurrentUser, DBSession, require_permission
 from app.audit.service import AuditService
+from app.core.client_ip import get_client_ip
 from app.models.audit import AuditAction
 from app.models.connector import (
     BankConnectorConfig,
@@ -56,10 +62,6 @@ from app.services.connector_service import (
     DualControlViolation,
     FileGenerationError,
 )
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
@@ -176,7 +178,7 @@ async def create_bank_config(
         resource_id=config.id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"Created bank connector config: {config.bank_name}",
         metadata={"bank_id": config.bank_id},
     )
@@ -302,7 +304,7 @@ async def create_batch(
         resource_id=batch.id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"Created commit batch: {batch.batch_number}",
         metadata={
             "total_records": batch.total_records,
@@ -461,7 +463,7 @@ async def approve_batch(
         resource_id=batch.id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"Approved commit batch: {batch.batch_number}",
         metadata={"notes": approval.approval_notes},
     )
@@ -505,7 +507,7 @@ async def cancel_batch(
         resource_id=batch.id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"Cancelled commit batch: {batch.batch_number}",
         metadata={"reason": cancel_data.reason},
     )
@@ -559,7 +561,7 @@ async def generate_batch_file(
         resource_id=batch.id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"Generated commit file: {file_name}",
         metadata={
             "file_name": file_name,
@@ -677,7 +679,7 @@ async def mark_batch_transmitted(
         resource_id=batch.id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"Marked batch as transmitted: {batch.batch_number}",
         metadata={"transmission_id": transmission_id},
     )
@@ -726,7 +728,7 @@ async def process_acknowledgement(
         resource_id=batch_id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"Processed acknowledgement: {ack.status.value}",
         metadata={
             "accepted": ack.accepted_count,
@@ -862,7 +864,7 @@ async def resolve_failed_record(
         resource_id=record.id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"Manually resolved failed record",
         metadata={"notes": resolution.resolution_notes},
     )

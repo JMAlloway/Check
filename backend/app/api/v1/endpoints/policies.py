@@ -4,8 +4,13 @@ import json
 from datetime import datetime, timezone
 from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
 from app.api.deps import CurrentUser, DBSession, require_permission
 from app.audit.service import AuditService
+from app.core.client_ip import get_client_ip
 from app.models.audit import AuditAction
 from app.models.policy import Policy, PolicyRule, PolicyStatus, PolicyVersion
 from app.schemas.policy import (
@@ -20,9 +25,6 @@ from app.schemas.policy import (
     RuleAction,
     RuleCondition,
 )
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
@@ -130,7 +132,7 @@ async def create_policy(
         resource_id=policy.id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"Created policy {policy.name}",
     )
 
@@ -391,7 +393,7 @@ async def activate_policy(
         resource_id=policy_id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"Activated policy {policy.name} version {target_version.version_number}",
     )
 
@@ -464,7 +466,7 @@ async def update_policy(
             resource_id=policy_id,
             user_id=current_user.id,
             username=current_user.username,
-            ip_address=request.client.host if request.client else None,
+            ip_address=get_client_ip(request),
             description=f"Updated policy {policy.name}: {', '.join(changes)}",
         )
 
@@ -593,7 +595,7 @@ async def delete_policy(
         resource_id=policy_id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"Deleted policy '{policy_name}' with {version_count} version(s)",
     )
 

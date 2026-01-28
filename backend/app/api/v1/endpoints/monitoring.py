@@ -14,13 +14,15 @@ import logging
 from datetime import datetime, timezone
 from typing import Literal
 
+from fastapi import APIRouter, Request
+from pydantic import BaseModel, Field, field_validator
+
+from app.core.client_ip import get_client_ip
 from app.core.metrics import (
     security_events_total,
     track_security_event,
 )
 from app.core.rate_limit import limiter
-from fastapi import APIRouter, Request
-from pydantic import BaseModel, Field, field_validator
 
 router = APIRouter()
 logger = logging.getLogger("frontend.monitoring")
@@ -116,7 +118,7 @@ async def receive_monitoring_events(
     SECURITY: Rate limited to 30 requests/minute per IP to prevent abuse.
     Each request can contain up to 50 events.
     """
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     processed = 0
 
     for event in data.events:

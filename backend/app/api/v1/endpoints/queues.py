@@ -2,8 +2,13 @@
 
 from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
+
 from app.api.deps import DBSession, require_permission
 from app.audit.service import AuditService
+from app.core.client_ip import get_client_ip
 from app.core.rate_limit import RateLimits, user_limiter
 from app.models.audit import AuditAction
 from app.models.check import CheckItem, CheckStatus
@@ -17,9 +22,6 @@ from app.schemas.queue import (
     QueueStatsResponse,
     QueueUpdate,
 )
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
@@ -103,7 +105,7 @@ async def create_queue(
         resource_id=queue.id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"Created queue {queue.name}",
     )
 
@@ -208,7 +210,7 @@ async def update_queue(
         resource_id=queue_id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"Updated queue {queue.name}",
     )
 

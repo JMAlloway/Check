@@ -3,8 +3,13 @@
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+
 from app.api.deps import DBSession, require_permission
 from app.audit.service import AuditService
+from app.core.client_ip import get_client_ip
 from app.core.config import settings
 from app.core.rate_limit import RateLimits, limiter, user_limiter
 from app.core.security import verify_signed_url
@@ -13,9 +18,6 @@ from app.models.audit import AuditAction
 from app.models.check import CheckImage
 from app.models.image_token import ImageAccessToken
 from app.models.user import User
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from pydantic import BaseModel, Field
-from sqlalchemy import select
 
 router = APIRouter()
 
@@ -141,7 +143,7 @@ async def get_secure_image(
                 resource_id=resource_id,
                 user_id=user.id,
                 username=user.username,
-                ip_address=request.client.host if request.client else None,
+                ip_address=get_client_ip(request),
                 description="User viewed check thumbnail via signed URL",
             )
             return Response(
@@ -159,7 +161,7 @@ async def get_secure_image(
                 resource_id=resource_id,
                 user_id=user.id,
                 username=user.username,
-                ip_address=request.client.host if request.client else None,
+                ip_address=get_client_ip(request),
                 description="User viewed full check image via signed URL",
             )
             return Response(
@@ -210,7 +212,7 @@ async def get_image_direct(
                 resource_id=image_id,
                 user_id=current_user.id,
                 username=current_user.username,
-                ip_address=request.client.host if request.client else None,
+                ip_address=get_client_ip(request),
                 description="User viewed check image directly",
             )
 
@@ -245,7 +247,7 @@ async def log_image_zoom(
         resource_id=image_id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"User zoomed image to {zoom_level}%",
         metadata={"zoom_level": zoom_level, "view_id": view_id},
     )
@@ -317,7 +319,7 @@ async def mint_image_token(
             user_id=current_user.id,
             username=current_user.username,
             tenant_id=tenant_id,
-            ip_address=request.client.host if request.client else None,
+            ip_address=get_client_ip(request),
             description="Token mint denied - tenant mismatch",
         )
         await db.commit()
@@ -345,7 +347,7 @@ async def mint_image_token(
         user_id=current_user.id,
         username=current_user.username,
         tenant_id=tenant_id,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"One-time image token created for image {data.image_id}",
         metadata={
             "image_id": data.image_id,
@@ -432,7 +434,7 @@ async def mint_image_tokens_batch(
             user_id=current_user.id,
             username=current_user.username,
             tenant_id=tenant_id,
-            ip_address=request.client.host if request.client else None,
+            ip_address=get_client_ip(request),
             description=f"Batch minted {len(tokens)} one-time image tokens",
             metadata={
                 "image_ids": data.image_ids,
@@ -486,7 +488,7 @@ async def get_image_by_token(
             user_id=token.created_by_user_id,
             username=None,
             tenant_id=token.tenant_id,
-            ip_address=request.client.host if request.client else None,
+            ip_address=get_client_ip(request),
             description="Attempt to use expired image token",
         )
         await db.commit()
@@ -504,7 +506,7 @@ async def get_image_by_token(
             user_id=token.created_by_user_id,
             username=None,
             tenant_id=token.tenant_id,
-            ip_address=request.client.host if request.client else None,
+            ip_address=get_client_ip(request),
             description="Attempt to reuse one-time image token",
             metadata={
                 "original_used_at": token.used_at.isoformat() if token.used_at else None,
@@ -520,7 +522,7 @@ async def get_image_by_token(
     # CRITICAL: Mark token as used BEFORE serving the image
     # This prevents race conditions where the same token is used twice
     token.used_at = datetime.now(timezone.utc)
-    token.used_by_ip = request.client.host if request.client else None
+    token.used_by_ip = get_client_ip(request)
     token.used_by_user_agent = request.headers.get("user-agent", "")[:500]
     await db.commit()
 
@@ -538,7 +540,7 @@ async def get_image_by_token(
                 user_id=token.created_by_user_id,
                 username=None,
                 tenant_id=token.tenant_id,
-                ip_address=request.client.host if request.client else None,
+                ip_address=get_client_ip(request),
                 description=f"One-time token used for thumbnail {token.image_id}",
             )
             await db.commit()
@@ -558,7 +560,7 @@ async def get_image_by_token(
                 user_id=token.created_by_user_id,
                 username=None,
                 tenant_id=token.tenant_id,
-                ip_address=request.client.host if request.client else None,
+                ip_address=get_client_ip(request),
                 description=f"One-time token used for image {token.image_id}",
             )
             await db.commit()

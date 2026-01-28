@@ -5,14 +5,16 @@ from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Annotated
 
-from app.core.security import decode_token
-from app.db.session import AsyncSessionLocal
-from app.models.user import Role, User
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
+from app.core.client_ip import get_client_ip
+from app.core.security import decode_token
+from app.db.session import AsyncSessionLocal
+from app.models.user import Role, User
 
 # Security audit logger - separate from general logging for SIEM integration
 auth_logger = logging.getLogger("security.auth")
@@ -128,7 +130,7 @@ def _log_auth_failure(
     }
 
     if request:
-        log_data["ip_address"] = request.client.host if request.client else None
+        log_data["ip_address"] = get_client_ip(request)
         log_data["user_agent"] = request.headers.get("user-agent")
         log_data["path"] = request.url.path
         log_data["method"] = request.method

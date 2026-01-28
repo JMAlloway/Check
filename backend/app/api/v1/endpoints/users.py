@@ -2,8 +2,13 @@
 
 from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
+
 from app.api.deps import CurrentUser, DBSession, require_permission
 from app.audit.service import AuditService
+from app.core.client_ip import get_client_ip
 from app.core.security import get_password_hash
 from app.models.audit import AuditAction
 from app.models.user import Permission, Role, User
@@ -18,9 +23,6 @@ from app.schemas.user import (
     UserResponse,
     UserUpdate,
 )
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
@@ -136,7 +138,7 @@ async def create_user(
         resource_id=user.id,
         user_id=current_user.id,
         username=current_user.username,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         description=f"Created user {user.username}",
         after_value={"username": user.username, "email": user.email},
     )
@@ -281,7 +283,7 @@ async def update_user(
             resource_id=user_id,
             user_id=current_user.id,
             username=current_user.username,
-            ip_address=request.client.host if request.client else None,
+            ip_address=get_client_ip(request),
             description=f"Updated user {user.username}",
             metadata=changes,
         )

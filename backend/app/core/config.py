@@ -180,6 +180,22 @@ class Settings(BaseSettings):
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 100
 
+    # Proxy/Load Balancer Configuration (for correct client IP detection)
+    # CRITICAL: Set this to the IP(s) of your reverse proxy/load balancer
+    # Without this, audit trails and rate limiting will use proxy IPs, not client IPs
+    # Format: comma-separated IPs or CIDR ranges, e.g., "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    # Docker default: "172.16.0.0/12" (Docker network range)
+    # Kubernetes: Set to your ingress controller pod CIDR
+    TRUSTED_PROXY_IPS: str = "127.0.0.1,::1"  # Default: only localhost trusted
+
+    @field_validator("TRUSTED_PROXY_IPS", mode="before")
+    @classmethod
+    def parse_trusted_proxy_ips(cls, v: Any) -> str:
+        """Parse TRUSTED_PROXY_IPS, stripping whitespace."""
+        if isinstance(v, str):
+            return v.strip()
+        return v or "127.0.0.1,::1"
+
     # Endpoint Exposure Control (Security)
     # These should be False in production/pilot unless behind VPN/internal ingress
     EXPOSE_DOCS: bool = True  # OpenAPI docs at /api/v1/docs - auto-disabled in production

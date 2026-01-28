@@ -4,6 +4,10 @@ import json
 from datetime import datetime, timezone
 from typing import Annotated, Any
 
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
 from app.api.deps import (
     CurrentUser,
     DBSession,
@@ -12,6 +16,7 @@ from app.api.deps import (
     require_permission,
 )
 from app.audit.service import AuditService
+from app.core.client_ip import get_client_ip
 from app.models.audit import AuditAction
 from app.models.check import CheckImage, CheckItem, CheckStatus
 from app.models.decision import Decision, DecisionAction, DecisionType, ReasonCode
@@ -30,9 +35,6 @@ from app.schemas.decision import (
 from app.schemas.policy import PolicyEvaluationResult
 from app.services.entitlement_service import EntitlementService
 from app.services.evidence_seal import get_previous_evidence_hash, seal_evidence_snapshot
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
@@ -210,7 +212,7 @@ async def create_decision(
     # Initialize services
     entitlement_service = EntitlementService(db)
     audit_service = AuditService(db)
-    ip_address = request.client.host if request.client else None
+    ip_address = get_client_ip(request)
 
     # Check entitlements based on decision type
     if decision_data.decision_type == DecisionType.REVIEW_RECOMMENDATION:
@@ -588,7 +590,7 @@ async def approve_dual_control(
     - Not be the same user who made the original recommendation
     """
     audit_service = AuditService(db)
-    ip_address = request.client.host if request.client else None
+    ip_address = get_client_ip(request)
 
     # CRITICAL: Filter by tenant_id for multi-tenant security
     result = await db.execute(

@@ -12,7 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.client_ip import get_client_ip
+from app.core.config import settings
 from app.core.security import decode_token
+from app.core.tenant import TenantAwareSession, TenantContext
 from app.db.session import AsyncSessionLocal
 from app.models.user import Role, User
 
@@ -256,3 +258,64 @@ RequireCheckReview = Annotated[User, Depends(require_permission("check_item", "r
 RequireCheckApprove = Annotated[User, Depends(require_permission("check_item", "approve"))]
 RequireAuditView = Annotated[User, Depends(require_permission("audit", "view"))]
 RequireAdmin = Annotated[User, Depends(require_role("admin"))]
+
+
+# =============================================================================
+# TENANT-SCOPED DATABASE SESSION
+# =============================================================================
+
+
+async def get_tenant_db(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> AsyncGenerator[TenantAwareSession, None]:
+    """
+    Dependency to get a tenant-scoped database session.
+
+    SECURITY: This session:
+    - Automatically validates that queries on tenant-scoped models include tenant_id
+    - Auto-sets tenant_id when adding new tenant-scoped entities
+    - Prevents cross-tenant data access even if developer forgets to filter
+    - Logs all tenant isolation violations for security monitoring
+
+    Usage:
+        @router.get("/items")
+        async def list_items(
+            db: TenantDBSession,  # Uses this dependency
+            current_user: CurrentUser,
+        ):
+            # This query will be validated to include tenant_id filter
+            result = await db.execute(
+                select(CheckItem).where(CheckItem.tenant_id == current_user.tenant_id)
+            )
+
+    IMPORTANT: Use this for all tenant-specific endpoints.
+    Use regular get_db() only for:
+    - System-level operations (migrations, health checks)
+    - Cross-tenant admin operations (with explicit authorization)
+
+    Strict mode is determined by ENVIRONMENT:
+    - production/pilot/staging/uat: strict=True (fail on violation)
+    - development: strict=False (warn only, for gradual adoption)
+    """
+    # Determine if strict mode based on environment
+    strict_environments = {"production", "pilot", "staging", "uat"}
+    strict = settings.ENVIRONMENT.lower() in strict_environments
+
+    async with AsyncSessionLocal() as session:
+        tenant_session = TenantAwareSession(
+            session=session,
+            tenant_id=current_user.tenant_id,
+            strict=strict,
+        )
+        try:
+            yield tenant_session
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            TenantContext.clear()
+            await session.close()
+
+
+# Type alias for tenant-scoped session
+TenantDBSession = Annotated[TenantAwareSession, Depends(get_tenant_db)]

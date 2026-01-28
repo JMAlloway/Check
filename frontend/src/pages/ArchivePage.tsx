@@ -76,7 +76,6 @@ interface ArchiveItemDetail {
 
 const STATUS_OPTIONS = ['approved', 'returned', 'rejected', 'exception'];
 const RISK_LEVELS = ['low', 'medium', 'high', 'critical'];
-const DECISION_ACTIONS = ['approve', 'return', 'reject', 'escalate', 'hold'];
 
 const statusColors: Record<string, string> = {
   approved: 'bg-green-100 text-green-800',
@@ -109,7 +108,7 @@ export default function ArchivePage() {
   const [amountMax, setAmountMax] = useState('');
 
   // Archive search query
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['archive', page, pageSize, statusFilter, riskFilter, dateFrom, dateTo, amountMin, amountMax, searchQuery],
     queryFn: () =>
       archiveApi.searchItems({
@@ -611,7 +610,7 @@ export default function ArchivePage() {
                       Decision History
                     </h3>
                     <div className="space-y-2">
-                      {itemDetail.decisions.map((decision) => (
+                      {itemDetail.decisions.map((decision: ArchiveItemDetail['decisions'][number]) => (
                         <div
                           key={decision.id}
                           className="bg-gray-50 rounded-lg p-3 text-sm"
@@ -648,7 +647,7 @@ export default function ArchivePage() {
                       Audit Trail
                     </h3>
                     <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
-                      {itemDetail.audit_trail.map((log) => (
+                      {itemDetail.audit_trail.map((log: ArchiveItemDetail['audit_trail'][number]) => (
                         <div key={log.id} className="p-3 text-sm">
                           <div className="flex items-center justify-between">
                             <span className="font-medium">{log.action}</span>

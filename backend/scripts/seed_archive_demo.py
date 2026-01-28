@@ -320,21 +320,81 @@ async def seed_archive_data():
                     db.add(approval_decision)
                     decision_count += 1
 
-                # Create audit log entry for the decision
-                audit_log = AuditLog(
-                    id=str(uuid.uuid4()),
-                    tenant_id=tenant_id,
-                    timestamp=decision_date,
-                    user_id=reviewer_id,
-                    username=reviewer.username,
-                    ip_address="127.0.0.1",
-                    action=AuditAction.DECISION_MADE,
-                    resource_type="check_item",
-                    resource_id=check_item.id,
-                    description=f"Decision: {config['action'].value} - {check_item.external_item_id}",
-                    is_demo=True,
+                # Create comprehensive audit trail entries
+                audit_entries = []
+
+                # 1. Item assigned to reviewer
+                assign_time = presented_date + timedelta(minutes=random.randint(5, 30))
+                audit_entries.append(
+                    AuditLog(
+                        id=str(uuid.uuid4()),
+                        tenant_id=tenant_id,
+                        timestamp=assign_time,
+                        user_id="system",
+                        username="System",
+                        ip_address="127.0.0.1",
+                        action=AuditAction.ITEM_ASSIGNED,
+                        resource_type="check_item",
+                        resource_id=check_item.id,
+                        description=f"Assigned to reviewer: {reviewer.username}",
+                        is_demo=True,
+                    )
                 )
-                db.add(audit_log)
+
+                # 2. Item viewed by reviewer
+                view_time = assign_time + timedelta(minutes=random.randint(10, 60))
+                audit_entries.append(
+                    AuditLog(
+                        id=str(uuid.uuid4()),
+                        tenant_id=tenant_id,
+                        timestamp=view_time,
+                        user_id=reviewer_id,
+                        username=reviewer.username,
+                        ip_address="192.168.1." + str(random.randint(10, 250)),
+                        action=AuditAction.ITEM_VIEWED,
+                        resource_type="check_item",
+                        resource_id=check_item.id,
+                        description="Viewed check item details",
+                        is_demo=True,
+                    )
+                )
+
+                # 3. Decision made
+                audit_entries.append(
+                    AuditLog(
+                        id=str(uuid.uuid4()),
+                        tenant_id=tenant_id,
+                        timestamp=decision_date,
+                        user_id=reviewer_id,
+                        username=reviewer.username,
+                        ip_address="192.168.1." + str(random.randint(10, 250)),
+                        action=AuditAction.DECISION_MADE,
+                        resource_type="check_item",
+                        resource_id=check_item.id,
+                        description=f"Decision: {config['action'].value} - {decision.notes}",
+                        is_demo=True,
+                    )
+                )
+
+                # 4. Status changed
+                audit_entries.append(
+                    AuditLog(
+                        id=str(uuid.uuid4()),
+                        tenant_id=tenant_id,
+                        timestamp=decision_date + timedelta(seconds=1),
+                        user_id=reviewer_id,
+                        username=reviewer.username,
+                        ip_address="192.168.1." + str(random.randint(10, 250)),
+                        action=AuditAction.ITEM_STATUS_CHANGED,
+                        resource_type="check_item",
+                        resource_id=check_item.id,
+                        description=f"Status changed from in_review to {config['status'].value}",
+                        is_demo=True,
+                    )
+                )
+
+                for audit_entry in audit_entries:
+                    db.add(audit_entry)
 
         await db.commit()
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { archiveApi } from '../services/api';
 import {
@@ -8,6 +8,8 @@ import {
   FunnelIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 
@@ -93,11 +95,12 @@ const riskColors: Record<string, string> = {
 
 export default function ArchivePage() {
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(25);
+  const [pageSize] = useState(50); // Increased for better grouping
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
@@ -190,6 +193,75 @@ export default function ArchivePage() {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const formatDateGroup = (dateStr: string) => {
+    if (!dateStr) return 'Unknown Date';
+    const date = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    }
+    if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    }
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
+  const getDateKey = (dateStr: string) => {
+    if (!dateStr) return 'unknown';
+    return new Date(dateStr).toDateString();
+  };
+
+  // Group items by date
+  const groupedItems = useMemo(() => {
+    if (!data?.items) return new Map<string, ArchiveItem[]>();
+
+    const groups = new Map<string, ArchiveItem[]>();
+    data.items.forEach((item: ArchiveItem) => {
+      const dateKey = getDateKey(item.updated_at);
+      if (!groups.has(dateKey)) {
+        groups.set(dateKey, []);
+      }
+      groups.get(dateKey)!.push(item);
+    });
+
+    // Sort groups by date (newest first)
+    return new Map(
+      Array.from(groups.entries()).sort((a, b) => {
+        if (a[0] === 'unknown') return 1;
+        if (b[0] === 'unknown') return -1;
+        return new Date(b[0]).getTime() - new Date(a[0]).getTime();
+      })
+    );
+  }, [data?.items]);
+
+  const toggleDateGroup = (dateKey: string) => {
+    setExpandedDates((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(dateKey)) {
+        newSet.delete(dateKey);
+      } else {
+        newSet.add(dateKey);
+      }
+      return newSet;
+    });
+  };
+
+  const expandAllGroups = () => {
+    setExpandedDates(new Set(groupedItems.keys()));
+  };
+
+  const collapseAllGroups = () => {
+    setExpandedDates(new Set());
   };
 
   return (
@@ -423,87 +495,138 @@ export default function ArchivePage() {
         )}
       </div>
 
-      {/* Results Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      {/* Results - Grouped by Date */}
+      <div className="space-y-4">
         {isLoading ? (
-          <div className="p-8 text-center text-gray-500">Loading...</div>
+          <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+            Loading...
+          </div>
+        ) : data?.items?.length === 0 ? (
+          <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+            No archived items found
+          </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Check Details
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Amount
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Risk
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Decision
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {data?.items?.map((item: ArchiveItem) => (
-                    <tr
-                      key={item.id}
-                      onClick={() => setSelectedItem(item.id)}
-                      className="hover:bg-gray-50 cursor-pointer"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          {item.payee_name || 'Unknown Payee'}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          Acct: {item.account_number} | Check #{item.check_number || '-'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                        {formatCurrency(item.amount || 0)}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            statusColors[item.status] || 'bg-gray-100 text-gray-800'
-                          }`}
-                        >
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            riskColors[item.risk_level] || 'bg-gray-100 text-gray-800'
-                          }`}
-                        >
-                          {item.risk_level || '-'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {item.decision?.action || '-'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {formatDate(item.updated_at)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Expand/Collapse All */}
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={expandAllGroups}
+                className="text-sm text-blue-600 hover:text-blue-800"
+              >
+                Expand All
+              </button>
+              <span className="text-gray-300">|</span>
+              <button
+                onClick={collapseAllGroups}
+                className="text-sm text-blue-600 hover:text-blue-800"
+              >
+                Collapse All
+              </button>
             </div>
+
+            {/* Date Groups */}
+            {Array.from(groupedItems.entries()).map(([dateKey, items]) => {
+              const isExpanded = expandedDates.has(dateKey);
+              const sampleItem = items[0];
+              const totalAmount = items.reduce((sum, item) => sum + (item.amount || 0), 0);
+              const statusCounts = items.reduce((acc, item) => {
+                acc[item.status] = (acc[item.status] || 0) + 1;
+                return acc;
+              }, {} as Record<string, number>);
+
+              return (
+                <div key={dateKey} className="bg-white rounded-lg shadow overflow-hidden">
+                  {/* Date Group Header */}
+                  <button
+                    onClick={() => toggleDateGroup(dateKey)}
+                    className="w-full px-6 py-4 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center space-x-4">
+                      {isExpanded ? (
+                        <ChevronUpIcon className="h-5 w-5 text-gray-500" />
+                      ) : (
+                        <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+                      )}
+                      <div className="text-left">
+                        <h3 className="text-sm font-semibold text-gray-900">
+                          {formatDateGroup(sampleItem?.updated_at)}
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          {items.length} item{items.length !== 1 ? 's' : ''} | Total: {formatCurrency(totalAmount)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {Object.entries(statusCounts).map(([status, count]) => (
+                        <span
+                          key={status}
+                          className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${
+                            statusColors[status] || 'bg-gray-100 text-gray-800'
+                          }`}
+                        >
+                          {count} {status}
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+
+                  {/* Date Group Content */}
+                  {isExpanded && (
+                    <div className="divide-y divide-gray-200">
+                      {items.map((item) => (
+                        <div
+                          key={item.id}
+                          onClick={() => setSelectedItem(item.id)}
+                          className="px-6 py-4 hover:bg-gray-50 cursor-pointer flex items-center justify-between"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {item.payee_name || 'Unknown Payee'}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  Acct: {item.account_number} | Check #{item.check_number || '-'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-4 ml-4">
+                            <span className="text-sm font-medium text-gray-900 w-24 text-right">
+                              {formatCurrency(item.amount || 0)}
+                            </span>
+                            <span
+                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full w-20 justify-center ${
+                                statusColors[item.status] || 'bg-gray-100 text-gray-800'
+                              }`}
+                            >
+                              {item.status}
+                            </span>
+                            <span
+                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full w-16 justify-center ${
+                                riskColors[item.risk_level] || 'bg-gray-100 text-gray-800'
+                              }`}
+                            >
+                              {item.risk_level || '-'}
+                            </span>
+                            <span className="text-xs text-gray-500 w-12 text-right">
+                              {new Date(item.updated_at).toLocaleTimeString('en-US', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
 
             {/* Pagination */}
             {data && (
-              <div className="bg-gray-50 px-6 py-3 flex items-center justify-between border-t">
+              <div className="bg-white rounded-lg shadow px-6 py-3 flex items-center justify-between">
                 <div className="text-sm text-gray-500">
                   Showing {((page - 1) * pageSize) + 1} to{' '}
                   {Math.min(page * pageSize, data.total)} of {data.total} results
@@ -512,7 +635,7 @@ export default function ArchivePage() {
                   <button
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={!data.has_previous}
-                    className="p-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                   >
                     <ChevronLeftIcon className="h-5 w-5" />
                   </button>
@@ -522,7 +645,7 @@ export default function ArchivePage() {
                   <button
                     onClick={() => setPage((p) => p + 1)}
                     disabled={!data.has_next}
-                    className="p-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                   >
                     <ChevronRightIcon className="h-5 w-5" />
                   </button>
@@ -609,36 +732,45 @@ export default function ArchivePage() {
                     <h3 className="text-md font-semibold text-gray-900 mb-3">
                       Decision History
                     </h3>
-                    <div className="space-y-2">
-                      {itemDetail.decisions.map((decision: ArchiveItemDetail['decisions'][number]) => (
-                        <div
-                          key={decision.id}
-                          className="bg-gray-50 rounded-lg p-3 text-sm"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium capitalize">{decision.action}</span>
-                            <span className="text-gray-500">
-                              {formatDate(decision.created_at)}
-                            </span>
-                          </div>
-                          {decision.notes && (
-                            <p className="text-gray-600 mt-1">{decision.notes}</p>
-                          )}
-                          <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
-                            {decision.ai_assisted && (
-                              <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                                AI Assisted
+                    {itemDetail.decisions && itemDetail.decisions.length > 0 ? (
+                      <div className="space-y-2">
+                        {itemDetail.decisions.map((decision: ArchiveItemDetail['decisions'][number]) => (
+                          <div
+                            key={decision.id}
+                            className="bg-gray-50 rounded-lg p-3 text-sm"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium capitalize">{decision.action}</span>
+                              <span className="text-gray-500">
+                                {formatDate(decision.created_at)}
                               </span>
+                            </div>
+                            {decision.notes && (
+                              <p className="text-gray-600 mt-1">{decision.notes}</p>
                             )}
-                            {decision.is_dual_control_required && (
-                              <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
-                                Dual Control
+                            <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
+                              <span className="text-gray-400">
+                                Type: {decision.decision_type?.replace(/_/g, ' ') || 'Unknown'}
                               </span>
-                            )}
+                              {decision.ai_assisted && (
+                                <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                                  AI Assisted
+                                </span>
+                              )}
+                              {decision.is_dual_control_required && (
+                                <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                                  Dual Control
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 rounded-lg p-4 text-center text-gray-500 text-sm">
+                        No decision records available
+                      </div>
+                    )}
                   </div>
 
                   {/* Audit Trail */}
@@ -646,20 +778,28 @@ export default function ArchivePage() {
                     <h3 className="text-md font-semibold text-gray-900 mb-3">
                       Audit Trail
                     </h3>
-                    <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
-                      {itemDetail.audit_trail.map((log: ArchiveItemDetail['audit_trail'][number]) => (
-                        <div key={log.id} className="p-3 text-sm">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium">{log.action}</span>
-                            <span className="text-gray-500 text-xs">
-                              {formatDate(log.timestamp)}
-                            </span>
+                    {itemDetail.audit_trail && itemDetail.audit_trail.length > 0 ? (
+                      <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
+                        {itemDetail.audit_trail.map((log: ArchiveItemDetail['audit_trail'][number]) => (
+                          <div key={log.id} className="p-3 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium capitalize">
+                                {log.action?.replace(/_/g, ' ') || 'Action'}
+                              </span>
+                              <span className="text-gray-500 text-xs">
+                                {formatDate(log.timestamp)}
+                              </span>
+                            </div>
+                            <p className="text-gray-600 text-xs mt-1">{log.description}</p>
+                            <p className="text-gray-400 text-xs">By: {log.username || log.user_id}</p>
                           </div>
-                          <p className="text-gray-600 text-xs mt-1">{log.description}</p>
-                          <p className="text-gray-400 text-xs">By: {log.username || log.user_id}</p>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="border rounded-lg p-4 text-center text-gray-500 text-sm">
+                        No audit trail entries available for this item
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (

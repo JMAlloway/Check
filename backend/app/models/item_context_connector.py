@@ -23,8 +23,6 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from app.db.session import Base
-from app.models.base import TimestampMixin, UUIDMixin
 from sqlalchemy import (
     Boolean,
     DateTime,
@@ -41,6 +39,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.session import Base
+from app.models.base import TimestampMixin, UUIDMixin
 
 # =============================================================================
 # ENUMERATIONS
@@ -134,6 +135,19 @@ class ItemContextConnector(Base, UUIDMixin, TimestampMixin):
     # Alternative: SSH key authentication
     sftp_private_key_encrypted: Mapped[str | None] = mapped_column(Text)
     sftp_key_passphrase_encrypted: Mapped[str | None] = mapped_column(Text)
+
+    # Host key verification (REQUIRED for MITM protection)
+    # SHA-256 fingerprint of server's host key, e.g., "SHA256:xyz..."
+    # Must be obtained from bank/server admin and verified out-of-band
+    sftp_host_key_fingerprint: Mapped[str | None] = mapped_column(
+        String(100),
+        comment="SHA-256 fingerprint of SFTP server host key for MITM protection",
+    )
+    # Optional: Algorithm of the host key (ssh-rsa, ssh-ed25519, ecdsa-sha2-nistp256, etc.)
+    sftp_host_key_type: Mapped[str | None] = mapped_column(
+        String(50),
+        comment="Host key algorithm type (e.g., 'ssh-ed25519', 'ssh-rsa')",
+    )
 
     # SFTP Paths
     sftp_remote_path: Mapped[str] = mapped_column(

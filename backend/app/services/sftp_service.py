@@ -7,17 +7,33 @@ Provides a secure, auditable SFTP client for:
 - Connection testing
 
 Security Features:
+- STRICT host key verification (MITM protection)
 - Credentials stored encrypted (via app/core/encryption.py)
 - Support for password and SSH key authentication
 - Connection timeouts and retry logic
 - Audit logging of all operations
+
+SECURITY NOTE:
+This service requires a pre-configured host key fingerprint for each
+SFTP connection. Unknown host keys are REJECTED by default.
+This prevents man-in-the-middle attacks where an attacker could
+intercept the connection and steal credentials or modify data.
+
+To set up a new SFTP connection:
+1. Obtain the host key fingerprint from the bank/server admin
+2. Verify it through an out-of-band channel (phone, secure email)
+3. Store the fingerprint in the connector configuration
+4. The service will validate the fingerprint on every connection
 """
 
 import asyncio
+import base64
 import fnmatch
 import hashlib
 import io
+import logging
 import os
+import socket
 import stat
 import tempfile
 from dataclasses import dataclass
@@ -26,10 +42,127 @@ from pathlib import Path
 from typing import BinaryIO
 
 import paramiko
-from app.core.encryption import decrypt_value
-from app.models.item_context_connector import ItemContextConnector
 from paramiko import SFTPClient, SSHClient, Transport
 from paramiko.ssh_exception import AuthenticationException, SSHException
+
+from app.core.encryption import decrypt_value
+from app.models.item_context_connector import ItemContextConnector
+
+logger = logging.getLogger(__name__)
+
+
+class HostKeyVerificationError(Exception):
+    """Raised when SFTP server host key verification fails."""
+
+    pass
+
+
+class StrictHostKeyPolicy(paramiko.MissingHostKeyPolicy):
+    """
+    Strict host key policy that validates against a stored fingerprint.
+
+    SECURITY: This policy REJECTS all connections where the server's
+    host key does not match the pre-configured fingerprint. This prevents
+    man-in-the-middle attacks.
+
+    The fingerprint must be obtained from the bank/server administrator
+    through an out-of-band secure channel and verified before first use.
+    """
+
+    def __init__(
+        self,
+        expected_fingerprint: str | None,
+        expected_key_type: str | None = None,
+    ):
+        """
+        Initialize with expected host key fingerprint.
+
+        Args:
+            expected_fingerprint: SHA-256 fingerprint (e.g., "SHA256:abc123...")
+                                  or hex fingerprint. Required for connection.
+            expected_key_type: Expected key type (e.g., "ssh-ed25519", "ssh-rsa").
+                               If provided, also validates key type matches.
+        """
+        self.expected_fingerprint = expected_fingerprint
+        self.expected_key_type = expected_key_type
+
+    def missing_host_key(self, client: SSHClient, hostname: str, key: paramiko.PKey) -> None:
+        """
+        Called when server presents a key not in known_hosts.
+
+        This method validates the key's fingerprint against our stored value.
+        Raises HostKeyVerificationError if validation fails.
+        """
+        # SECURITY: If no fingerprint configured, REJECT the connection
+        if not self.expected_fingerprint:
+            actual_fingerprint = self._get_key_fingerprint(key)
+            raise HostKeyVerificationError(
+                f"SFTP host key verification failed for {hostname}. "
+                f"No host key fingerprint configured. "
+                f"Server presented key type '{key.get_name()}' with fingerprint: {actual_fingerprint}. "
+                f"Please configure this fingerprint after verifying it with the server administrator."
+            )
+
+        # Get actual fingerprint from server's key
+        actual_fingerprint = self._get_key_fingerprint(key)
+        actual_key_type = key.get_name()
+
+        # Normalize fingerprints for comparison
+        expected_normalized = self._normalize_fingerprint(self.expected_fingerprint)
+        actual_normalized = self._normalize_fingerprint(actual_fingerprint)
+
+        # SECURITY: Validate key type if specified
+        if self.expected_key_type and actual_key_type != self.expected_key_type:
+            raise HostKeyVerificationError(
+                f"SFTP host key type mismatch for {hostname}. "
+                f"Expected '{self.expected_key_type}' but server presented '{actual_key_type}'. "
+                f"This could indicate a man-in-the-middle attack or server reconfiguration. "
+                f"Verify with server administrator before updating configuration."
+            )
+
+        # SECURITY: Constant-time comparison to prevent timing attacks
+        if not self._constant_time_compare(expected_normalized, actual_normalized):
+            raise HostKeyVerificationError(
+                f"SFTP host key fingerprint mismatch for {hostname}. "
+                f"Expected: {self.expected_fingerprint}, "
+                f"Actual: {actual_fingerprint}. "
+                f"This could indicate a man-in-the-middle attack or server key change. "
+                f"DO NOT connect until verified with server administrator."
+            )
+
+        # Key verified - log for audit trail
+        logger.info(
+            f"SFTP host key verified for {hostname}: "
+            f"type={actual_key_type}, fingerprint={actual_fingerprint}"
+        )
+
+    def _get_key_fingerprint(self, key: paramiko.PKey) -> str:
+        """Get SHA-256 fingerprint of a host key in standard format."""
+        key_bytes = key.get_fingerprint()
+        # SHA-256 fingerprint in base64 format (OpenSSH style)
+        fingerprint_b64 = (
+            base64.b64encode(hashlib.sha256(key.asbytes()).digest()).decode("ascii").rstrip("=")
+        )
+        return f"SHA256:{fingerprint_b64}"
+
+    def _normalize_fingerprint(self, fingerprint: str) -> str:
+        """Normalize fingerprint for comparison."""
+        # Remove prefix if present
+        fp = fingerprint.strip()
+        if fp.upper().startswith("SHA256:"):
+            fp = fp[7:]
+        # Remove any colons or spaces (hex format)
+        fp = fp.replace(":", "").replace(" ", "")
+        return fp.lower()
+
+    def _constant_time_compare(self, a: str, b: str) -> bool:
+        """Constant-time string comparison to prevent timing attacks."""
+        if len(a) != len(b):
+            return False
+        result = 0
+        for x, y in zip(a.encode(), b.encode()):
+            result |= x ^ y
+        return result == 0
 
 
 @dataclass
@@ -151,7 +284,15 @@ class SFTPService:
         """Synchronous connection (runs in thread pool)."""
         try:
             self._client = SSHClient()
-            self._client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+            # SECURITY: Use strict host key verification
+            # This prevents man-in-the-middle attacks by validating the server's
+            # host key against a pre-configured fingerprint
+            host_key_policy = StrictHostKeyPolicy(
+                expected_fingerprint=self.connector.sftp_host_key_fingerprint,
+                expected_key_type=getattr(self.connector, "sftp_host_key_type", None),
+            )
+            self._client.set_missing_host_key_policy(host_key_policy)
 
             # Prepare authentication
             password = self._decrypt_credential(self.connector.sftp_password_encrypted)
@@ -182,6 +323,14 @@ class SFTPService:
                 success=True, message="Connected successfully", server_version=server_version
             )
 
+        except HostKeyVerificationError as e:
+            # SECURITY: Host key verification failed - potential MITM attack
+            logger.warning(f"SFTP host key verification failed: {e}")
+            return SFTPConnectionResult(
+                success=False,
+                message="Host key verification failed - potential security risk",
+                error_details=str(e),
+            )
         except AuthenticationException as e:
             return SFTPConnectionResult(
                 success=False,
@@ -428,3 +577,100 @@ class SFTPService:
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async context manager exit."""
         await self.disconnect()
+
+
+@dataclass
+class HostKeyInfo:
+    """Information about an SFTP server's host key."""
+
+    host: str
+    port: int
+    key_type: str
+    fingerprint_sha256: str
+    fingerprint_md5: str
+    key_bits: int | None = None
+
+
+async def retrieve_host_key_fingerprint(
+    host: str,
+    port: int = 22,
+    timeout: int = 10,
+) -> HostKeyInfo:
+    """
+    Retrieve the host key fingerprint from an SFTP server.
+
+    SECURITY WARNING: This function is for INITIAL SETUP ONLY.
+    The fingerprint returned MUST be verified through an out-of-band
+    secure channel (phone call to bank admin, secure email, etc.)
+    before being stored in the connector configuration.
+
+    DO NOT blindly trust the fingerprint returned by this function
+    as it could be from a man-in-the-middle attacker.
+
+    Args:
+        host: SFTP server hostname
+        port: SFTP port (default 22)
+        timeout: Connection timeout in seconds
+
+    Returns:
+        HostKeyInfo with key type and fingerprints
+
+    Raises:
+        SSHException: If unable to retrieve host key
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        None,
+        _retrieve_host_key_fingerprint_sync,
+        host,
+        port,
+        timeout,
+    )
+
+
+def _retrieve_host_key_fingerprint_sync(
+    host: str,
+    port: int,
+    timeout: int,
+) -> HostKeyInfo:
+    """Synchronous host key retrieval."""
+    transport = None
+    try:
+        # Create a transport to retrieve the host key
+        # We don't authenticate - just get the key during handshake
+        sock = paramiko.util.retry_on_signal(
+            lambda: socket.create_connection((host, port), timeout=timeout)
+        )
+        transport = Transport(sock)
+        transport.start_client(timeout=timeout)
+
+        # Get the server's host key
+        key = transport.get_remote_server_key()
+        key_type = key.get_name()
+
+        # Calculate SHA-256 fingerprint (modern standard)
+        key_bytes = key.asbytes()
+        sha256_hash = hashlib.sha256(key_bytes).digest()
+        fingerprint_sha256 = f"SHA256:{base64.b64encode(sha256_hash).decode('ascii').rstrip('=')}"
+
+        # Also provide MD5 fingerprint (legacy, for reference)
+        md5_hash = hashlib.md5(key_bytes).digest()
+        fingerprint_md5 = ":".join(f"{b:02x}" for b in md5_hash)
+
+        # Get key bits if available
+        key_bits = None
+        if hasattr(key, "get_bits"):
+            key_bits = key.get_bits()
+
+        return HostKeyInfo(
+            host=host,
+            port=port,
+            key_type=key_type,
+            fingerprint_sha256=fingerprint_sha256,
+            fingerprint_md5=fingerprint_md5,
+            key_bits=key_bits,
+        )
+
+    finally:
+        if transport:
+            transport.close()

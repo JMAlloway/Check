@@ -1,9 +1,9 @@
 # FastAPI and web framework
-fastapi==0.109.0
+fastapi==0.109.1
 uvicorn[standard]==0.27.0
-gunicorn==21.2.0  # Production WSGI server (used in Dockerfile.backend.prod)
-python-multipart==0.0.6
-python-jose[cryptography]==3.3.0
+gunicorn==22.0.0  # Production WSGI server (used in Dockerfile.backend.prod)
+python-multipart==0.0.22
+python-jose[cryptography]==3.4.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 pydantic==2.5.3

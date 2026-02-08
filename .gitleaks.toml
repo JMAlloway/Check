@@ -1,0 +1,39 @@
+# Gitleaks configuration
+# Allowlist known demo credentials, placeholder defaults, and test values
+# that are intentionally committed to the repository.
+
+title = "Check Review Console - Gitleaks Configuration"
+
+[allowlist]
+  description = "Allowlisted patterns for demo/development credentials and placeholder defaults"
+
+  # Allowlist specific files that contain intentional demo/placeholder secrets
+  paths = [
+    '''backend/app/demo/scenarios\.py''',
+    '''backend/scripts/seed_db\.py''',
+    '''docker/\.env\.example''',
+    '''docker/\.env\.pilot\.example''',
+    '''backend/\.env\.example''',
+    '''connector/\.env\.example''',
+    '''\.github/workflows/ci\.yml''',
+  ]
+
+  # Allowlist known placeholder values used as defaults in development
+  regexes = [
+    '''change-this-in-production-use-secure-random-key''',
+    '''change-this-image-signing-key-in-production''',
+    '''change-this-csrf-secret-in-production''',
+    '''change-this-network-pepper-in-production''',
+    '''test-secret-key-for-ci-not-production''',
+    '''test-csrf-secret-for-ci''',
+    '''test-network-pepper-for-ci''',
+    '''DemoSysAdmin123!''',
+    '''DemoTenantAdmin123!''',
+    '''DemoSupervisor123!''',
+    '''DemoReviewer123!''',
+    '''DemoAuditor123!''',
+    '''DemoReadonly123!''',
+    '''DemoSenior123!''',
+    '''DemoAdmin123!''',
+    '''postgresql\+asyncpg://postgres:postgres@localhost:5432/check_review''',
+  ]

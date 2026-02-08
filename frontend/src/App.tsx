@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { authApi } from './services/api';
+import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/layout/Layout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -77,30 +78,32 @@ function App() {
   }
 
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route
-        path="/*"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <Routes>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/queue" element={<QueuePage />} />
-                <Route path="/queue/:queueId" element={<QueuePage />} />
-                <Route path="/review/:itemId" element={<CheckReviewPage />} />
-                <Route path="/admin/*" element={<AdminPage />} />
-                <Route path="/reports" element={<ReportsPage />} />
-                <Route path="/archive" element={<ArchivePage />} />
-                <Route path="/fraud/trends" element={<FraudTrendsPage />} />
-                <Route path="/help" element={<HelpPage />} />
-              </Routes>
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-    </Routes>
+    <ErrorBoundary>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/queue" element={<QueuePage />} />
+                  <Route path="/queue/:queueId" element={<QueuePage />} />
+                  <Route path="/review/:itemId" element={<CheckReviewPage />} />
+                  <Route path="/admin/*" element={<AdminPage />} />
+                  <Route path="/reports" element={<ReportsPage />} />
+                  <Route path="/archive" element={<ArchivePage />} />
+                  <Route path="/fraud/trends" element={<FraudTrendsPage />} />
+                  <Route path="/help" element={<HelpPage />} />
+                </Routes>
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </ErrorBoundary>
   );
 }
 

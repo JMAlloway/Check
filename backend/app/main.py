@@ -4,7 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
@@ -13,6 +13,7 @@ from slowapi.errors import RateLimitExceeded
 from app.api.v1 import api_router
 from app.core.client_ip import get_client_ip
 from app.core.config import settings
+from app.core.errors import APIException, api_exception_handler, generic_exception_handler, http_exception_handler
 from app.core.logging_config import configure_logging
 
 logger = logging.getLogger("app.startup")
@@ -186,6 +187,9 @@ app.state.user_limiter = user_limiter
 # Tenant-based limiter (for per-tenant quotas)
 app.state.tenant_limiter = tenant_limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+# Register standardized error handlers from errors.py
+app.add_exception_handler(APIException, api_exception_handler)
+app.add_exception_handler(HTTPException, http_exception_handler)
 
 # CORS middleware
 app.add_middleware(
@@ -206,18 +210,9 @@ app.add_middleware(TokenRedactionMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 
-# Global exception handler
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """Handle uncaught exceptions."""
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": "internal_server_error",
-            "message": "An unexpected error occurred",
-            "details": str(exc) if settings.DEBUG else None,
-        },
-    )
+# Global exception handler - delegates to standardized error handler
+# SECURITY: Never expose exception details in responses, even in debug mode
+app.add_exception_handler(Exception, generic_exception_handler)
 
 
 # Prometheus metrics endpoint with optional IP allowlisting

@@ -75,6 +75,10 @@ class AuditService:
         self.db.add(log_entry)
         await self.db.flush()
 
+        # Compute and store integrity hash after flush (ID is now assigned)
+        log_entry.integrity_hash = log_entry.compute_integrity_hash()
+        await self.db.flush()
+
         return log_entry
 
     async def log_item_viewed(

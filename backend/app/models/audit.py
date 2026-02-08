@@ -1,5 +1,7 @@
 """Audit log models."""
 
+import hashlib
+import json
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -191,6 +193,9 @@ class AuditLog(Base, UUIDMixin):
     # Session context
     session_id: Mapped[str | None] = mapped_column(String(36))
 
+    # Tamper-proofing: SHA-256 hash of critical fields for integrity verification
+    integrity_hash: Mapped[str | None] = mapped_column(String(64))
+
     # Demo mode flag - marks synthetic demo audit entries
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -199,6 +204,30 @@ class AuditLog(Base, UUIDMixin):
         Index("ix_audit_logs_user_action", "user_id", "action"),
         Index("ix_audit_logs_timestamp_action", "timestamp", "action"),
     )
+
+    def compute_integrity_hash(self) -> str:
+        """Compute SHA-256 hash of critical audit log fields for tamper detection."""
+        canonical = json.dumps(
+            {
+                "id": str(self.id) if self.id else None,
+                "tenant_id": self.tenant_id,
+                "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+                "user_id": self.user_id,
+                "action": self.action.value if self.action else None,
+                "resource_type": self.resource_type,
+                "resource_id": self.resource_id,
+                "description": self.description,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    def verify_integrity(self) -> bool:
+        """Verify the stored integrity hash matches the current field values."""
+        if not self.integrity_hash:
+            return False
+        return self.integrity_hash == self.compute_integrity_hash()
 
 
 class ItemView(Base, UUIDMixin, TimestampMixin):

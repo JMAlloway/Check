@@ -57,9 +57,9 @@ class AuthService:
             # Increment failed attempts
             user.failed_login_attempts += 1
 
-            # Lock account after 5 failed attempts
-            if user.failed_login_attempts >= 5:
-                user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
+            # Lock account after 3 failed attempts (banking standard)
+            if user.failed_login_attempts >= 3:
+                user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=60)
 
             await self.db.commit()
             return None, "Invalid username or password"

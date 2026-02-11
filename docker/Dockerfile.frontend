@@ -1,16 +1,23 @@
 # Frontend Dockerfile
 FROM node:20-alpine
 
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001 -G nodejs
+
 WORKDIR /app
 
 # Copy package files
 COPY frontend/package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies with npm ci for reproducible builds
+RUN npm ci
 
 # Copy application code
-COPY frontend/ .
+COPY --chown=nextjs:nodejs frontend/ .
+
+# Switch to non-root user
+USER nextjs
 
 # Expose port
 EXPOSE 3000

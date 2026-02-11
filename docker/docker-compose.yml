@@ -53,9 +53,8 @@ services:
       DEBUG: ${DEBUG:-false}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       # DEMO_MODE: Set to "true" to auto-seed demo users on startup
-      # Demo credentials: reviewer_demo/DemoReviewer123!, system_admin_demo/DemoSysAdmin123!, etc.
+      # Demo users are created with generated passwords - check startup logs or API
       # If false, run: docker-compose exec backend python scripts/seed_db.py
-      # Production credentials: system_admin/sysadmin123, reviewer/reviewer123, etc.
       DEMO_MODE: ${DEMO_MODE:-false}
       DEMO_DATA_COUNT: ${DEMO_DATA_COUNT:-60}
       CORS_ORIGINS: '["http://localhost:3000", "http://localhost:5173"]'

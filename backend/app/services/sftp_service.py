@@ -356,16 +356,18 @@ class SFTPService:
         if self._sftp:
             try:
                 self._sftp.close()
-            except Exception:
-                pass
-            self._sftp = None
+            except Exception as e:
+                logger.debug("Error closing SFTP session: %s", e)
+            finally:
+                self._sftp = None
 
         if self._client:
             try:
                 self._client.close()
-            except Exception:
-                pass
-            self._client = None
+            except Exception as e:
+                logger.debug("Error closing SSH client: %s", e)
+            finally:
+                self._client = None
 
         self._transport = None
 

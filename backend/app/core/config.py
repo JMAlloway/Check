@@ -91,6 +91,14 @@ class Settings(BaseSettings):
     HIGH_PRIORITY_THRESHOLD: float = 10000.0
     DUAL_CONTROL_THRESHOLD: float = 5000.0
 
+    # Risk assessment thresholds (amount-based)
+    # These thresholds determine risk score contribution based on check amount
+    RISK_THRESHOLD_LOW: float = 5000.0  # +10 to risk score
+    RISK_THRESHOLD_MEDIUM: float = 10000.0  # +20 to risk score
+    RISK_THRESHOLD_HIGH: float = 25000.0  # +30 to risk score
+    RISK_THRESHOLD_CRITICAL: float = 50000.0  # +40 to risk score
+    RISK_THRESHOLD_EXTREME: float = 100000.0  # +50 to priority score
+
     # Audit settings
     AUDIT_LOG_RETENTION_YEARS: int = 7
 

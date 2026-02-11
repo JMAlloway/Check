@@ -19,7 +19,9 @@ export default defineConfig({
     host: '0.0.0.0', // Allow external connections in Docker
     allowedHosts: [
       'localhost',
-      '.trycloudflare.com', // Allow Cloudflare quick tunnels
+      // Note: For Cloudflare tunnels, add your specific tunnel hostname to this list
+      // e.g., 'my-tunnel-name.trycloudflare.com'
+      // Wildcard '.trycloudflare.com' is intentionally NOT used to prevent host header attacks
     ],
     proxy: {
       '/api': {

@@ -5,10 +5,13 @@ Provides system health, metrics, alerts, and DR status for the Operations Dashbo
 """
 
 import asyncio
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger(__name__)
 from app.api.deps import get_current_active_user
 from app.core.config import settings
 from app.db.session import get_db
@@ -229,8 +232,12 @@ async def fetch_prometheus_metric(query: str) -> float | None:
                 data = response.json()
                 if data["data"]["result"]:
                     return float(data["data"]["result"][0]["value"][1])
-    except Exception:
-        pass
+    except httpx.TimeoutException:
+        logger.debug("Prometheus query timed out for: %s", query)
+    except httpx.RequestError as e:
+        logger.debug("Prometheus request error for %s: %s", query, e)
+    except (KeyError, IndexError, ValueError) as e:
+        logger.warning("Invalid Prometheus response for %s: %s", query, e)
     return None
 
 
@@ -259,8 +266,12 @@ async def fetch_alerts_from_alertmanager() -> list[Alert]:
                             labels=alert_data.get("labels", {}),
                         )
                     )
-    except Exception:
-        pass
+    except httpx.TimeoutException:
+        logger.debug("Alertmanager request timed out")
+    except httpx.RequestError as e:
+        logger.debug("Alertmanager request error: %s", e)
+    except (KeyError, ValueError) as e:
+        logger.warning("Invalid Alertmanager response: %s", e)
     return alerts
 
 

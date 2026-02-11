@@ -167,17 +167,31 @@ class CacheService:
 
         Returns:
             True if invalidated successfully
+
+        Note: Uses Lua script for atomic SCAN+DELETE to prevent race conditions
+        where stale data could persist if keys are added between SCAN and DELETE.
         """
         if not await self._ensure_connected():
             return False
 
         try:
             pattern = f"{self.PREFIX_USER_PERMISSIONS}{tenant_id}:*"
-            keys = []
-            async for key in self._redis.scan_iter(match=pattern):
-                keys.append(key)
-            if keys:
-                await self._redis.delete(*keys)
+            # Use Lua script for atomic scan and delete to prevent race conditions
+            # This ensures no keys matching the pattern are missed between scan and delete
+            lua_script = """
+            local cursor = "0"
+            local deleted = 0
+            repeat
+                local result = redis.call("SCAN", cursor, "MATCH", ARGV[1], "COUNT", 100)
+                cursor = result[1]
+                local keys = result[2]
+                if #keys > 0 then
+                    deleted = deleted + redis.call("DEL", unpack(keys))
+                end
+            until cursor == "0"
+            return deleted
+            """
+            await self._redis.eval(lua_script, 0, pattern)
             return True
         except Exception as e:
             logger.warning("Failed to invalidate tenant permissions: %s", e)
@@ -305,14 +319,24 @@ class CacheService:
             key = f"{self.PREFIX_TENANT_POLICIES}{tenant_id}:active"
             await self._redis.delete(key)
 
-            # If specific policy, invalidate its versions
+            # If specific policy, invalidate its versions atomically
             if policy_id:
                 pattern = f"{self.PREFIX_POLICY_VERSION}{policy_id}:*"
-                keys = []
-                async for k in self._redis.scan_iter(match=pattern):
-                    keys.append(k)
-                if keys:
-                    await self._redis.delete(*keys)
+                # Use Lua script for atomic scan and delete to prevent race conditions
+                lua_script = """
+                local cursor = "0"
+                local deleted = 0
+                repeat
+                    local result = redis.call("SCAN", cursor, "MATCH", ARGV[1], "COUNT", 100)
+                    cursor = result[1]
+                    local keys = result[2]
+                    if #keys > 0 then
+                        deleted = deleted + redis.call("DEL", unpack(keys))
+                    end
+                until cursor == "0"
+                return deleted
+                """
+                await self._redis.eval(lua_script, 0, pattern)
 
             return True
         except Exception as e:

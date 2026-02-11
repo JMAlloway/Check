@@ -151,10 +151,13 @@ export default function CheckImageViewer({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleZoomIn, handleZoomOut, handleZoomPreset, handleFitToScreen, showMagnifier, showROI, activeImage]);
 
-  // Log zoom usage
+  // Log zoom usage (best-effort, non-blocking)
   useEffect(() => {
     if (zoom !== DEFAULT_ZOOM && currentImage) {
-      imageApi.logZoom(currentImage.id, zoom).catch(() => {});
+      imageApi.logZoom(currentImage.id, zoom).catch((error) => {
+        // Log zoom tracking failures for debugging, but don't block the user
+        console.debug('Failed to log zoom usage:', error?.message || error);
+      });
     }
   }, [zoom, currentImage]);
 

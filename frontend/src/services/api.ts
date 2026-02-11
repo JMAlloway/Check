@@ -63,6 +63,7 @@ export const api = axios.create({
 
 // Track if we're currently refreshing to prevent multiple refresh attempts
 let isRefreshing = false;
+let refreshPromise: Promise<string> | null = null;
 let refreshSubscribers: ((token: string) => void)[] = [];
 
 function subscribeTokenRefresh(cb: (token: string) => void) {
@@ -71,6 +72,12 @@ function subscribeTokenRefresh(cb: (token: string) => void) {
 
 function onTokenRefreshed(token: string) {
   refreshSubscribers.forEach((cb) => cb(token));
+  refreshSubscribers = [];
+}
+
+function resetRefreshState() {
+  isRefreshing = false;
+  refreshPromise = null;
   refreshSubscribers = [];
 }
 
@@ -110,30 +117,36 @@ api.interceptors.response.use(
         return Promise.reject(error);
       }
 
-      if (isRefreshing) {
-        // Wait for the refresh to complete
-        return new Promise((resolve) => {
-          subscribeTokenRefresh((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            resolve(api(originalRequest));
-          });
-        });
+      if (isRefreshing && refreshPromise) {
+        // Wait for the existing refresh to complete, then retry
+        try {
+          const token = await refreshPromise;
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return api(originalRequest);
+        } catch {
+          // Refresh failed, will be handled by the initiating request
+          return Promise.reject(error);
+        }
       }
 
       originalRequest._retry = true;
       isRefreshing = true;
 
-      try {
+      // Create a shared promise for concurrent requests to await
+      refreshPromise = (async () => {
         // Refresh using httpOnly cookie (no body needed)
         // The refresh token is automatically sent via the cookie
         const response = await api.post('/auth/refresh', {});
+        return response.data.access_token;
+      })();
 
-        const { access_token } = response.data;
+      try {
+        const access_token = await refreshPromise;
 
         // Update access token in memory
         setAccessToken(access_token);
 
-        // Notify subscribers and retry original request
+        // Notify any legacy subscribers and retry original request
         onTokenRefreshed(access_token);
         originalRequest.headers.Authorization = `Bearer ${access_token}`;
 
@@ -141,10 +154,10 @@ api.interceptors.response.use(
       } catch {
         // Refresh failed, logout user
         logout();
-        refreshSubscribers = [];
         // Redirect to login (handled by auth guard in router)
+        return Promise.reject(error);
       } finally {
-        isRefreshing = false;
+        resetRefreshState();
       }
     }
 
@@ -311,6 +324,26 @@ export const queueApi = {
   },
 };
 
+/**
+ * Helper function to trigger a file download from blob data.
+ * Properly cleans up blob URLs to prevent memory leaks.
+ */
+function triggerBlobDownload(data: Blob, filename: string, mimeType: string): void {
+  const blob = new Blob([data], { type: mimeType });
+  const url = window.URL.createObjectURL(blob);
+  try {
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } finally {
+    // Always clean up the blob URL, even if download fails
+    window.URL.revokeObjectURL(url);
+  }
+}
+
 // Reports API
 export const reportsApi = {
   getDashboard: async () => {
@@ -344,17 +377,8 @@ export const reportsApi = {
       responseType: 'blob',
     });
 
-    // Trigger download
-    const blob = new Blob([response.data], { type: 'application/pdf' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
     const filename = `daily_activity_${dateFrom || new Date().toISOString().split('T')[0]}.pdf`;
-    link.setAttribute('download', filename);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+    triggerBlobDownload(response.data, filename, 'application/pdf');
   },
 
   exportDailySummaryPdf: async (dateFrom?: string, dateTo?: string) => {
@@ -367,17 +391,8 @@ export const reportsApi = {
       responseType: 'blob',
     });
 
-    // Trigger download
-    const blob = new Blob([response.data], { type: 'application/pdf' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
     const filename = `daily_summary_${dateFrom || new Date().toISOString().split('T')[0]}.pdf`;
-    link.setAttribute('download', filename);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+    triggerBlobDownload(response.data, filename, 'application/pdf');
   },
 
   exportExecutiveOverviewPdf: async () => {
@@ -385,17 +400,8 @@ export const reportsApi = {
       responseType: 'blob',
     });
 
-    // Trigger download
-    const blob = new Blob([response.data], { type: 'application/pdf' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
     const filename = `executive_overview_${new Date().toISOString().split('T')[0]}.pdf`;
-    link.setAttribute('download', filename);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+    triggerBlobDownload(response.data, filename, 'application/pdf');
   },
 };
 
@@ -473,16 +479,7 @@ export const auditApi = {
       responseType: 'blob',
     });
 
-    // Create blob URL and trigger download
-    const blob = new Blob([response.data], { type: 'application/pdf' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+    triggerBlobDownload(response.data, filename, 'application/pdf');
   },
 };
 
@@ -975,18 +972,9 @@ export const archiveApi = {
       responseType: 'blob',
     });
 
-    // Trigger download
-    const blob = new Blob([response.data], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
     const dateStr = params.date_from && params.date_to
       ? `${params.date_from.split('T')[0]}_to_${params.date_to.split('T')[0]}`
       : new Date().toISOString().split('T')[0];
-    link.setAttribute('download', `archive_export_${dateStr}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+    triggerBlobDownload(response.data, `archive_export_${dateStr}.csv`, 'text/csv');
   },
 };

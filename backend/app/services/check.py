@@ -173,14 +173,14 @@ class CheckService:
         """Calculate risk level based on item and context."""
         risk_score = 0
 
-        # Amount-based risk
-        if item.amount >= 50000:
+        # Amount-based risk (using configurable thresholds)
+        if item.amount >= settings.RISK_THRESHOLD_CRITICAL:
             risk_score += 40
-        elif item.amount >= 25000:
+        elif item.amount >= settings.RISK_THRESHOLD_HIGH:
             risk_score += 30
-        elif item.amount >= 10000:
+        elif item.amount >= settings.RISK_THRESHOLD_MEDIUM:
             risk_score += 20
-        elif item.amount >= 5000:
+        elif item.amount >= settings.RISK_THRESHOLD_LOW:
             risk_score += 10
 
         # Behavior-based risk
@@ -237,14 +237,14 @@ class CheckService:
         }
         priority += risk_priorities.get(risk_level, 0)
 
-        # Amount contribution
-        if amount >= 100000:
+        # Amount contribution (using configurable thresholds)
+        if amount >= settings.RISK_THRESHOLD_EXTREME:
             priority += 50
-        elif amount >= 50000:
+        elif amount >= settings.RISK_THRESHOLD_CRITICAL:
             priority += 40
-        elif amount >= 25000:
+        elif amount >= settings.RISK_THRESHOLD_HIGH:
             priority += 30
-        elif amount >= 10000:
+        elif amount >= settings.RISK_THRESHOLD_MEDIUM:
             priority += 20
 
         return priority

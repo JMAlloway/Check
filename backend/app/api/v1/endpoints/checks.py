@@ -31,8 +31,8 @@ async def list_check_items(
     page_size: int = Query(20, ge=1, le=500),
     status: list[CheckStatus] | None = Query(None),
     risk_level: list[RiskLevel] | None = Query(None),
-    amount_min: Decimal | None = None,
-    amount_max: Decimal | None = None,
+    amount_min: Decimal | None = Query(None, ge=0),
+    amount_max: Decimal | None = Query(None, ge=0),
     queue_id: str | None = None,
     assigned_to: str | None = None,
     has_ai_flags: bool | None = None,
@@ -41,6 +41,20 @@ async def list_check_items(
     date_to: datetime | None = None,
 ):
     """List check items with filtering and pagination."""
+    # Validate amount range
+    if amount_min is not None and amount_max is not None and amount_min > amount_max:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="amount_min cannot be greater than amount_max",
+        )
+
+    # Validate date range
+    if date_from is not None and date_to is not None and date_from > date_to:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="date_from cannot be after date_to",
+        )
+
     check_service = CheckService(db)
 
     search = CheckSearchRequest(

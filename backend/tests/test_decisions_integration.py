@@ -10,7 +10,7 @@ Tests cover:
 - Decision history
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
@@ -19,7 +19,20 @@ from fastapi import status
 from app.core.security import create_access_token
 from app.models.check import CheckItem, CheckStatus, ItemType, RiskLevel
 from app.models.decision import Decision, DecisionAction, DecisionType, ReasonCode
+from app.models.queue import ApprovalEntitlement, ApprovalEntitlementType
 from app.models.user import User
+
+
+def _approve_entitlement(user_id: str, tenant_id: str) -> ApprovalEntitlement:
+    """An unrestricted APPROVE entitlement so dual-control approval is allowed."""
+    return ApprovalEntitlement(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        entitlement_type=ApprovalEntitlementType.APPROVE,
+        is_active=True,
+        effective_from=datetime.now(timezone.utc) - timedelta(days=1),
+        max_amount=Decimal("100000000"),
+    )
 
 
 @pytest.fixture
@@ -262,6 +275,7 @@ class TestDualControlWorkflow:
         db_session.add(decision)
 
         item.pending_dual_control_decision_id = decision.id
+        db_session.add(_approve_entitlement("different-approver", test_tenant_id))
         await db_session.commit()
 
         # Approve as different user
@@ -320,11 +334,24 @@ class TestDualControlWorkflow:
         db_session.add(decision)
 
         item.pending_dual_control_decision_id = decision.id
+        db_session.add(_approve_entitlement(test_user_id, test_tenant_id))
         await db_session.commit()
+
+        # Same user, but with approve permission + entitlement so the request
+        # reaches the self-approval guard (rather than being denied earlier).
+        approver_token = create_access_token(
+            subject=test_user_id,
+            additional_claims={
+                "username": "selfapprover",
+                "roles": ["supervisor"],
+                "permissions": ["check_item:view", "check_item:review", "check_item:approve"],
+                "tenant_id": test_tenant_id,
+            },
+        )
 
         response = client.post(
             "/api/v1/decisions/dual-control",
-            headers=reviewer_headers,  # Same user
+            headers={"Authorization": f"Bearer {approver_token}"},  # Same user
             json={
                 "decision_id": "decision-self-1",
                 "approve": True,

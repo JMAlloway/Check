@@ -261,10 +261,22 @@ def client(override_get_db) -> Generator[TestClient, None, None]:
             .where(User.id == payload["sub"], User.tenant_id == payload.get("tenant_id"))
         )
         existing = result.scalar_one_or_none()
-        if existing is not None:
+        if existing is not None and existing.roles:
+            # Real user with seeded roles: use as-is.
             return existing
+        # Synthesize from the token (tests encode effective permissions there).
         user = _synthesize_user_from_claims(payload)
-        await _ensure_user_row(db, user)
+        if existing is not None:
+            # Real user exists but without seeded roles: keep token-derived
+            # permissions, overlay the real persisted attributes the endpoints
+            # read (mfa_enabled, password hash, active/superuser flags). The
+            # returned object is transient (its id already exists for FKs).
+            user.mfa_enabled = existing.mfa_enabled
+            user.hashed_password = existing.hashed_password
+            user.is_active = existing.is_active
+            user.is_superuser = existing.is_superuser
+        else:
+            await _ensure_user_row(db, user)
         return user
 
     app.dependency_overrides[get_current_user] = _resolve_current_user

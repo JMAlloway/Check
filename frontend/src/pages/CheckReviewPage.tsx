@@ -5,6 +5,7 @@ import {
   ArrowLeftIcon,
   DocumentArrowDownIcon,
   ShieldExclamationIcon,
+  ShieldCheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   PlayIcon,
@@ -13,6 +14,7 @@ import {
 import { checkApi, auditApi, resolveImageUrl } from '../services/api';
 import { CheckItem, CheckHistory, ROIRegion } from '../types';
 import { useReviewSettings } from '../stores/reviewSettingsStore';
+import { useAuthStore } from '../stores/authStore';
 
 // Image URL refresh interval (60 seconds - before 90s TTL expires)
 const IMAGE_URL_REFRESH_INTERVAL = 60 * 1000;
@@ -22,6 +24,7 @@ import CheckHistoryPanel from '../components/check/CheckHistoryPanel';
 import DecisionPanel from '../components/decision/DecisionPanel';
 import NetworkIntelligencePanel from '../components/fraud/NetworkIntelligencePanel';
 import FraudReportModal from '../components/fraud/FraudReportModal';
+import EvidenceChainModal from '../components/decision/EvidenceChainModal';
 import { StatusBadge, RiskBadge, ItemTypeBadge } from '../components/common/StatusBadge';
 import toast from 'react-hot-toast';
 
@@ -41,6 +44,8 @@ export default function CheckReviewPage() {
   const [comparisonItem, setComparisonItem] = useState<CheckHistory | null>(null);
   const [showComparison, setShowComparison] = useState(false);
   const [showFraudModal, setShowFraudModal] = useState(false);
+  const [showEvidenceModal, setShowEvidenceModal] = useState(false);
+  const canViewAudit = useAuthStore((s) => s.hasPermission('audit', 'view'));
 
   const { data: item, isLoading, error } = useQuery<CheckItem>({
     queryKey: ['checkItem', itemId],
@@ -236,6 +241,15 @@ export default function CheckReviewPage() {
             <ShieldExclamationIcon className="h-5 w-5 mr-1" />
             Report Fraud
           </button>
+          {canViewAudit && (
+            <button
+              onClick={() => setShowEvidenceModal(true)}
+              className="flex items-center px-3 py-2 text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100"
+            >
+              <ShieldCheckIcon className="h-5 w-5 mr-1" />
+              Verify Evidence
+            </button>
+          )}
           <button
             onClick={handleGeneratePacket}
             disabled={isGeneratingPacket}
@@ -336,6 +350,15 @@ export default function CheckReviewPage() {
         onClose={() => setShowFraudModal(false)}
         item={item}
       />
+
+      {/* Evidence Chain Verification Modal */}
+      {canViewAudit && (
+        <EvidenceChainModal
+          isOpen={showEvidenceModal}
+          onClose={() => setShowEvidenceModal(false)}
+          itemId={item.id}
+        />
+      )}
     </div>
   );
 }

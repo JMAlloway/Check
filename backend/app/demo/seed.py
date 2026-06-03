@@ -61,6 +61,7 @@ from app.models.image_connector import ConnectorStatus, ImageConnector
 from app.models.policy import Policy, PolicyRule, PolicyStatus, PolicyVersion, RuleType
 from app.models.queue import ApprovalEntitlement, ApprovalEntitlementType, Queue, QueueType
 from app.models.user import User
+from app.services.evidence_seal import seal_evidence_snapshot
 
 
 class DemoSeeder:
@@ -88,6 +89,7 @@ class DemoSeeder:
             "check_history": 0,
             "decisions": 0,
             "pending_approvals": 0,
+            "sealed_evidence": 0,
             "approval_entitlements": 0,
             "audit_events": 0,
             "fraud_events": 0,
@@ -122,6 +124,7 @@ class DemoSeeder:
         stats["check_history"] = await self._seed_check_history()
         stats["decisions"] = await self._seed_decisions()
         stats["pending_approvals"] = await self._seed_pending_dual_control_decisions()
+        stats["sealed_evidence"] = await self._seal_demo_evidence()
         stats["approval_entitlements"] = await self._seed_approval_entitlements()
         stats["audit_events"] = await self._seed_audit_events()
         await self._update_queue_counts()
@@ -1672,6 +1675,7 @@ mwIDAQAB
                     previous_status=CheckStatus.IN_REVIEW.value,
                     new_status=check.status.value,
                     is_dual_control_required=check.requires_dual_control,
+                    created_at=check.presented_date + timedelta(hours=1),
                     is_demo=True,  # Mark as demo data
                 )
                 self.db.add(decision)
@@ -1694,6 +1698,7 @@ mwIDAQAB
                         new_status=check.status.value,
                         dual_control_approver_id=approver.id,
                         dual_control_approved_at=datetime.now(timezone.utc),
+                        created_at=check.presented_date + timedelta(hours=2),
                         is_demo=True,  # Mark as demo data
                     )
                     self.db.add(approval_decision)
@@ -1734,6 +1739,7 @@ mwIDAQAB
                 new_status=CheckStatus.PENDING_DUAL_CONTROL.value,
                 is_dual_control_required=True,
                 dual_control_approved_at=None,
+                created_at=check.presented_date + timedelta(hours=1),
                 is_demo=True,
             )
             self.db.add(decision)
@@ -1743,6 +1749,40 @@ mwIDAQAB
 
         await self.db.flush()
         return count
+
+    async def _seal_demo_evidence(self) -> int:
+        """Cryptographically seal evidence snapshots for all demo decisions.
+
+        Each check item's decisions are hash-chained in created_at order (the
+        same order the verifier uses), so the per-decision "Verify Evidence
+        Chain" action returns a valid, tamper-evident chain in the demo.
+        """
+        sealed = 0
+        for check in self.demo_checks:
+            result = await self.db.execute(
+                select(Decision)
+                .where(Decision.check_item_id == check.id)
+                .order_by(Decision.created_at.asc())
+            )
+            decisions = result.scalars().all()
+            previous_hash: str | None = None
+            for decision in decisions:
+                snapshot = {
+                    "decision_id": decision.id,
+                    "check_item_id": decision.check_item_id,
+                    "user_id": decision.user_id,
+                    "decision_type": decision.decision_type.value,
+                    "action": decision.action.value,
+                    "previous_status": decision.previous_status,
+                    "new_status": decision.new_status,
+                    "amount": str(check.amount),
+                }
+                decision.evidence_snapshot = seal_evidence_snapshot(snapshot, previous_hash)
+                previous_hash = decision.evidence_snapshot["evidence_hash"]
+                sealed += 1
+
+        await self.db.flush()
+        return sealed
 
     async def _seed_approval_entitlements(self) -> int:
         """Grant approve entitlements so demo approver roles can clear dual control.

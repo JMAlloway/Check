@@ -1,6 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore, getCsrfToken } from '../stores/authStore';
-import type { PendingApproval } from '../types';
+import type { PendingApproval, EvidenceChainVerification } from '../types';
 
 // Use relative path '/api/v1' when VITE_API_URL is not set - this allows Vite's proxy
 // to handle requests, enabling Cloudflare Tunnel and other reverse proxy setups
@@ -288,6 +288,11 @@ export const decisionApi = {
 
   getPendingApprovals: async (): Promise<PendingApproval[]> => {
     const response = await api.get('/decisions/pending-approvals');
+    return response.data;
+  },
+
+  verifyEvidenceChain: async (itemId: string): Promise<EvidenceChainVerification> => {
+    const response = await api.get(`/decisions/${itemId}/verify-evidence-chain`);
     return response.data;
   },
 

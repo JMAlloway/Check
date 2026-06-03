@@ -154,6 +154,23 @@ export interface Decision {
   created_at: string;
 }
 
+// Evidence-chain verification
+export interface EvidenceChainResult {
+  decision_id: string;
+  created_at: string | null;
+  has_evidence: boolean;
+  hash_valid: boolean | null;
+  chain_valid: boolean | null;
+  error: string | null;
+}
+
+export interface EvidenceChainVerification {
+  check_item_id: string;
+  chain_valid: boolean;
+  total_decisions: number;
+  verification_results: EvidenceChainResult[];
+}
+
 // Dual-control approval queue
 export interface PendingApproval {
   decision_id: string;

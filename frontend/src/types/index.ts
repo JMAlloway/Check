@@ -154,6 +154,44 @@ export interface Decision {
   created_at: string;
 }
 
+// Security incidents
+export interface SecurityIncident {
+  id: string;
+  tenant_id: string;
+  incident_type: string;
+  severity: string;
+  status: string;
+  title: string;
+  description: string;
+  discovered_at: string;
+  occurred_at: string | null;
+  contained_at: string | null;
+  resolved_at: string | null;
+  affected_users_count: number | null;
+  affected_records_count: number | null;
+  data_types_exposed: string[] | null;
+  pii_exposed: boolean;
+  financial_data_exposed: boolean;
+  requires_regulator_notification: boolean;
+  requires_customer_notification: boolean;
+  notification_deadline: string | null;
+  root_cause: string | null;
+  remediation_steps: string | null;
+  lessons_learned: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface IncidentTimelineEntry {
+  id: string;
+  type: string;
+  content: string;
+  user_id: string;
+  previous_value: string | null;
+  new_value: string | null;
+  created_at: string;
+}
+
 // Evidence-chain verification
 export interface EvidenceChainResult {
   decision_id: string;

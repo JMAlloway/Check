@@ -61,6 +61,8 @@ from app.models.image_connector import ConnectorStatus, ImageConnector
 from app.models.policy import Policy, PolicyRule, PolicyStatus, PolicyVersion, RuleType
 from app.models.queue import ApprovalEntitlement, ApprovalEntitlementType, Queue, QueueType
 from app.models.user import User
+from app.security.breach import BreachNotificationService
+from app.security.models import IncidentSeverity, IncidentType
 from app.services.evidence_seal import seal_evidence_snapshot
 
 
@@ -91,6 +93,7 @@ class DemoSeeder:
             "pending_approvals": 0,
             "sealed_evidence": 0,
             "approval_entitlements": 0,
+            "security_incidents": 0,
             "audit_events": 0,
             "fraud_events": 0,
             "network_alerts": 0,
@@ -126,6 +129,7 @@ class DemoSeeder:
         stats["pending_approvals"] = await self._seed_pending_dual_control_decisions()
         stats["sealed_evidence"] = await self._seal_demo_evidence()
         stats["approval_entitlements"] = await self._seed_approval_entitlements()
+        stats["security_incidents"] = await self._seed_security_incidents()
         stats["audit_events"] = await self._seed_audit_events()
         await self._update_queue_counts()
         await self.db.commit()  # Commit core data
@@ -1783,6 +1787,81 @@ mwIDAQAB
 
         await self.db.flush()
         return sealed
+
+    async def _seed_security_incidents(self) -> int:
+        """Seed a few security incidents so the incident console is populated."""
+        reporter = self.demo_users.get("system_admin")
+        if reporter is None:
+            return 0
+
+        service = BreachNotificationService(self.db)
+        now = datetime.now(timezone.utc)
+        specs = [
+            {
+                "incident_type": IncidentType.SUSPICIOUS_ACTIVITY,
+                "severity": IncidentSeverity.MEDIUM,
+                "title": "Unusual login pattern from new geography",
+                "description": (
+                    "Several reviewer accounts authenticated from an unfamiliar "
+                    "region within a short window. Under investigation."
+                ),
+                "affected_users_count": 3,
+                "data_types_exposed": None,
+                "confirm": False,
+            },
+            {
+                "incident_type": IncidentType.PHISHING,
+                "severity": IncidentSeverity.HIGH,
+                "title": "Targeted phishing campaign against operations staff",
+                "description": (
+                    "Crafted emails impersonating the core banking vendor "
+                    "attempted to harvest credentials from operations staff."
+                ),
+                "affected_users_count": 8,
+                "data_types_exposed": ["email"],
+                "confirm": True,
+            },
+            {
+                "incident_type": IncidentType.UNAUTHORIZED_ACCESS,
+                "severity": IncidentSeverity.CRITICAL,
+                "title": "Possible unauthorized access to archived check images",
+                "description": (
+                    "Anomalous bulk access to archived check images detected by "
+                    "monitoring. Potential exposure of account information."
+                ),
+                "affected_records_count": 1200,
+                "data_types_exposed": ["account_number", "name"],
+                "confirm": True,
+            },
+        ]
+
+        count = 0
+        for i, spec in enumerate(specs):
+            incident = await service.create_incident(
+                tenant_id=reporter.tenant_id,
+                incident_type=spec["incident_type"],
+                severity=spec["severity"],
+                title=spec["title"],
+                description=spec["description"],
+                discovered_at=now - timedelta(days=i + 1),
+                reported_by_id=reporter.id,
+                reported_by_username=reporter.username,
+                occurred_at=now - timedelta(days=i + 2),
+                affected_users_count=spec.get("affected_users_count"),
+                affected_records_count=spec.get("affected_records_count"),
+                data_types_exposed=spec.get("data_types_exposed"),
+            )
+            count += 1
+            if spec["confirm"]:
+                await service.confirm_incident(
+                    incident_id=str(incident.id),
+                    user_id=reporter.id,
+                    username=reporter.username,
+                    root_cause="Identified during demo seed",
+                )
+
+        await self.db.flush()
+        return count
 
     async def _seed_approval_entitlements(self) -> int:
         """Grant approve entitlements so demo approver roles can clear dual control.

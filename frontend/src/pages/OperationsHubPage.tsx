@@ -8,6 +8,7 @@ import {
   ClipboardDocumentListIcon,
   ChartBarSquareIcon,
 } from '@heroicons/react/24/outline';
+import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 
 /**
@@ -28,6 +29,8 @@ interface Capability {
   endpoint?: string;
   // Given the raw endpoint payload, return a short status string to display.
   summarize?: (data: unknown) => string;
+  // Optional in-app route to a dedicated screen for this capability.
+  link?: string;
 }
 
 function countOf(data: unknown): number {
@@ -71,6 +74,7 @@ const CAPABILITIES: Capability[] = [
     icon: ShieldExclamationIcon,
     endpoint: '/security/incidents',
     summarize: (d) => `${countOf(d)} incident(s)`,
+    link: '/security/incidents',
   },
   {
     key: 'evidence',
@@ -155,6 +159,14 @@ function CapabilityCard({ capability }: { capability: Capability }) {
         </div>
       </div>
       <p className="mt-3 text-sm text-gray-600">{capability.description}</p>
+      {capability.link && (
+        <Link
+          to={capability.link}
+          className="mt-3 inline-block text-sm font-medium text-primary-700 hover:underline"
+        >
+          Open screen →
+        </Link>
+      )}
     </div>
   );
 }

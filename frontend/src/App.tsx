@@ -20,6 +20,7 @@ const FraudTrendsPage = lazy(() => import('./pages/FraudTrendsPage'));
 const ArchivePage = lazy(() => import('./pages/ArchivePage'));
 const HelpPage = lazy(() => import('./pages/HelpPage'));
 const OperationsHubPage = lazy(() => import('./pages/OperationsHubPage'));
+const SecurityIncidentsPage = lazy(() => import('./pages/SecurityIncidentsPage'));
 
 function RouteFallback() {
   return (
@@ -114,6 +115,7 @@ function App() {
                     <Route path="/archive" element={<ArchivePage />} />
                     <Route path="/fraud/trends" element={<FraudTrendsPage />} />
                     <Route path="/operations" element={<OperationsHubPage />} />
+                    <Route path="/security/incidents" element={<SecurityIncidentsPage />} />
                     <Route path="/help" element={<HelpPage />} />
                   </Routes>
                 </Suspense>

@@ -1,6 +1,11 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore, getCsrfToken } from '../stores/authStore';
-import type { PendingApproval, EvidenceChainVerification } from '../types';
+import type {
+  PendingApproval,
+  EvidenceChainVerification,
+  SecurityIncident,
+  IncidentTimelineEntry,
+} from '../types';
 
 // Use relative path '/api/v1' when VITE_API_URL is not set - this allows Vite's proxy
 // to handle requests, enabling Cloudflare Tunnel and other reverse proxy setups
@@ -999,5 +1004,55 @@ export const archiveApi = {
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
+  },
+};
+
+// Security incidents API (superuser only)
+export const securityApi = {
+  listIncidents: async (): Promise<SecurityIncident[]> => {
+    const response = await api.get('/security/incidents');
+    return response.data;
+  },
+
+  createIncident: async (data: {
+    incident_type: string;
+    severity: string;
+    title: string;
+    description: string;
+    discovered_at: string;
+    occurred_at?: string;
+    affected_users_count?: number;
+    affected_records_count?: number;
+    data_types_exposed?: string[];
+  }): Promise<SecurityIncident> => {
+    const response = await api.post('/security/incidents', data);
+    return response.data;
+  },
+
+  confirmIncident: async (id: string, root_cause?: string): Promise<SecurityIncident> => {
+    const response = await api.post(`/security/incidents/${id}/confirm`, { root_cause });
+    return response.data;
+  },
+
+  containIncident: async (id: string, containment_actions: string): Promise<SecurityIncident> => {
+    const response = await api.post(`/security/incidents/${id}/contain`, { containment_actions });
+    return response.data;
+  },
+
+  resolveIncident: async (
+    id: string,
+    remediation_steps: string,
+    lessons_learned?: string
+  ): Promise<SecurityIncident> => {
+    const response = await api.post(`/security/incidents/${id}/resolve`, {
+      remediation_steps,
+      lessons_learned,
+    });
+    return response.data;
+  },
+
+  getTimeline: async (id: string): Promise<IncidentTimelineEntry[]> => {
+    const response = await api.get(`/security/incidents/${id}/timeline`);
+    return response.data;
   },
 };

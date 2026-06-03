@@ -1,20 +1,33 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { authApi } from './services/api';
 import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/layout/Layout';
+// LoginPage stays eager so the unauthenticated entry point paints immediately.
 import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import QueuePage from './pages/QueuePage';
-import ApprovalsPage from './pages/ApprovalsPage';
-import CheckReviewPage from './pages/CheckReviewPage';
-import AdminPage from './pages/AdminPage';
-import ReportsPage from './pages/ReportsPage';
-import FraudTrendsPage from './pages/FraudTrendsPage';
-import ArchivePage from './pages/ArchivePage';
-import HelpPage from './pages/HelpPage';
-import OperationsHubPage from './pages/OperationsHubPage';
+
+// Route-based code splitting: each authenticated page (and its heavy deps such
+// as recharts) loads in its own chunk on first navigation, keeping the initial
+// bundle small.
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const QueuePage = lazy(() => import('./pages/QueuePage'));
+const ApprovalsPage = lazy(() => import('./pages/ApprovalsPage'));
+const CheckReviewPage = lazy(() => import('./pages/CheckReviewPage'));
+const AdminPage = lazy(() => import('./pages/AdminPage'));
+const ReportsPage = lazy(() => import('./pages/ReportsPage'));
+const FraudTrendsPage = lazy(() => import('./pages/FraudTrendsPage'));
+const ArchivePage = lazy(() => import('./pages/ArchivePage'));
+const HelpPage = lazy(() => import('./pages/HelpPage'));
+const OperationsHubPage = lazy(() => import('./pages/OperationsHubPage'));
+
+function RouteFallback() {
+  return (
+    <div className="flex items-center justify-center py-24" role="status" aria-label="Loading">
+      <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-bank-navy"></div>
+    </div>
+  );
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -88,20 +101,22 @@ function App() {
           element={
             <ProtectedRoute>
               <Layout>
-                <Routes>
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                  <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/queue" element={<QueuePage />} />
-                  <Route path="/queue/:queueId" element={<QueuePage />} />
-                  <Route path="/approvals" element={<ApprovalsPage />} />
-                  <Route path="/review/:itemId" element={<CheckReviewPage />} />
-                  <Route path="/admin/*" element={<AdminPage />} />
-                  <Route path="/reports" element={<ReportsPage />} />
-                  <Route path="/archive" element={<ArchivePage />} />
-                  <Route path="/fraud/trends" element={<FraudTrendsPage />} />
-                  <Route path="/operations" element={<OperationsHubPage />} />
-                  <Route path="/help" element={<HelpPage />} />
-                </Routes>
+                <Suspense fallback={<RouteFallback />}>
+                  <Routes>
+                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/queue" element={<QueuePage />} />
+                    <Route path="/queue/:queueId" element={<QueuePage />} />
+                    <Route path="/approvals" element={<ApprovalsPage />} />
+                    <Route path="/review/:itemId" element={<CheckReviewPage />} />
+                    <Route path="/admin/*" element={<AdminPage />} />
+                    <Route path="/reports" element={<ReportsPage />} />
+                    <Route path="/archive" element={<ArchivePage />} />
+                    <Route path="/fraud/trends" element={<FraudTrendsPage />} />
+                    <Route path="/operations" element={<OperationsHubPage />} />
+                    <Route path="/help" element={<HelpPage />} />
+                  </Routes>
+                </Suspense>
               </Layout>
             </ProtectedRoute>
           }

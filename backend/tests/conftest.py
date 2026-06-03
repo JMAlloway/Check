@@ -30,9 +30,16 @@ from app.api.deps import get_current_user, get_db, security
 from app.core.config import settings
 from app.core.security import create_access_token, decode_token, get_password_hash
 from app.db.enums import create_enum_types
+from app.core.rate_limit import limiter, tenant_limiter, user_limiter
 from app.db.session import Base
 from app.main import app
 from app.models.user import Permission, Role, User
+
+# Rate limiting is irrelevant to test correctness and causes flaky 429s when many
+# requests run in sequence. Disable all limiters for the test session.
+limiter.enabled = False
+user_limiter.enabled = False
+tenant_limiter.enabled = False
 
 # =============================================================================
 # Database Fixtures
@@ -145,8 +152,10 @@ def _synthesize_user_from_claims(payload: dict) -> "User":
     """
     perms = payload.get("permissions", []) or []
     role = Role(name=(payload.get("roles") or ["user"])[0])
+    # Permission.name is the action (e.g. "review"); EntitlementService's
+    # no-explicit-entitlement fallback checks `permission.name == "review"`.
     role.permissions = [
-        Permission(name=p, resource=resource, action=action)
+        Permission(name=action, resource=resource, action=action)
         for p in perms
         if p != "*:*"
         for resource, _, action in [p.partition(":")]

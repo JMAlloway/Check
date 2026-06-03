@@ -156,6 +156,28 @@ api.interceptors.response.use(
       }
     }
 
+    // Transient-failure retry with exponential backoff for safe (idempotent)
+    // requests: network errors, 429, and 5xx. Auth (401) is handled above and
+    // is intentionally excluded here.
+    const retryable =
+      !error.response ||
+      error.response.status === 429 ||
+      error.response.status >= 500;
+    const method = (originalRequest?.method ?? 'get').toLowerCase();
+    const isSafe = method === 'get' || method === 'head';
+    const cfg = originalRequest as InternalAxiosRequestConfig & { _retryCount?: number };
+
+    if (retryable && isSafe && cfg) {
+      cfg._retryCount = (cfg._retryCount ?? 0) + 1;
+      const MAX_RETRIES = 3;
+      if (cfg._retryCount <= MAX_RETRIES) {
+        const base = 300 * 2 ** (cfg._retryCount - 1); // 300, 600, 1200ms
+        const delay = base + Math.random() * 200; // jitter
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return api(cfg);
+      }
+    }
+
     return Promise.reject(error);
   }
 );

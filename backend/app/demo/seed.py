@@ -2184,29 +2184,39 @@ mwIDAQAB
         return count
 
     async def _seed_approval_entitlements(self) -> int:
-        """Grant approve entitlements so demo approver roles can clear dual control.
+        """Grant review/approve entitlements so demo users can actually decide.
 
-        system_admin is a superuser and bypasses entitlement checks; the other
-        senior roles need an explicit (unrestricted, demo) APPROVE entitlement.
+        Recording a review recommendation requires a REVIEW entitlement, and
+        clearing dual control requires an APPROVE entitlement (both on top of
+        the RBAC permission). system_admin is a superuser and bypasses these
+        checks; every other working role needs an explicit (unrestricted, demo)
+        entitlement or they get a 403 at decision time.
         """
-        approver_roles = ["senior_reviewer", "supervisor", "administrator"]
+        # role -> entitlement types to grant
+        grants = {
+            "reviewer": [ApprovalEntitlementType.REVIEW],
+            "senior_reviewer": [ApprovalEntitlementType.REVIEW, ApprovalEntitlementType.APPROVE],
+            "supervisor": [ApprovalEntitlementType.REVIEW, ApprovalEntitlementType.APPROVE],
+            "administrator": [ApprovalEntitlementType.REVIEW, ApprovalEntitlementType.APPROVE],
+        }
         now = datetime.now(timezone.utc)
         count = 0
-        for role in approver_roles:
+        for role, types in grants.items():
             user = self.demo_users.get(role)
             if user is None:
                 continue
-            entitlement = ApprovalEntitlement(
-                id=str(uuid.uuid4()),
-                user_id=user.id,
-                entitlement_type=ApprovalEntitlementType.APPROVE,
-                tenant_id="DEMO-TENANT-000000000000000000000000",
-                is_active=True,
-                effective_from=now,
-                grant_reason="Demo seed: enable dual-control approvals",
-            )
-            self.db.add(entitlement)
-            count += 1
+            for etype in types:
+                entitlement = ApprovalEntitlement(
+                    id=str(uuid.uuid4()),
+                    user_id=user.id,
+                    entitlement_type=etype,
+                    tenant_id="DEMO-TENANT-000000000000000000000000",
+                    is_active=True,
+                    effective_from=now,
+                    grant_reason="Demo seed: enable review/approval decisions",
+                )
+                self.db.add(entitlement)
+                count += 1
 
         await self.db.flush()
         return count

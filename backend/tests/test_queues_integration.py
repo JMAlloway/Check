@@ -319,6 +319,9 @@ class TestQueueStats:
         # Create check items in this queue
         for i in range(5):
             item = CheckItem(
+                source_system="test_core",
+                account_number_masked="****0000",
+                account_type="consumer",
                 id=f"check-stats-{i}",
                 tenant_id=test_tenant_id,
                 external_item_id=f"EXT-STATS-{i}",

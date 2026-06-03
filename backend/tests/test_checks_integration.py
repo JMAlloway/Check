@@ -63,6 +63,9 @@ class TestListCheckItems:
         # Create test check items
         for i in range(5):
             item = CheckItem(
+                source_system="test_core",
+                account_number_masked="****0000",
+                account_type="consumer",
                 id=f"check-item-{i}",
                 tenant_id=test_tenant_id,
                 external_item_id=f"EXT-{i}",
@@ -95,6 +98,9 @@ class TestListCheckItems:
         statuses = [CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.APPROVED]
         for i, s in enumerate(statuses):
             item = CheckItem(
+                source_system="test_core",
+                account_number_masked="****0000",
+                account_type="consumer",
                 id=f"check-status-{i}",
                 tenant_id=test_tenant_id,
                 external_item_id=f"EXT-S-{i}",
@@ -126,6 +132,9 @@ class TestListCheckItems:
         risk_levels = [RiskLevel.LOW, RiskLevel.HIGH, RiskLevel.CRITICAL]
         for i, r in enumerate(risk_levels):
             item = CheckItem(
+                source_system="test_core",
+                account_number_masked="****0000",
+                account_type="consumer",
                 id=f"check-risk-{i}",
                 tenant_id=test_tenant_id,
                 external_item_id=f"EXT-R-{i}",
@@ -155,6 +164,9 @@ class TestListCheckItems:
         """Test pagination of check items."""
         for i in range(25):
             item = CheckItem(
+                source_system="test_core",
+                account_number_masked="****0000",
+                account_type="consumer",
                 id=f"check-page-{i}",
                 tenant_id=test_tenant_id,
                 external_item_id=f"EXT-P-{i}",
@@ -199,6 +211,9 @@ class TestGetCheckItem:
     async def test_get_item_success(self, client, db_session, test_tenant_id, reviewer_headers):
         """Test getting a check item by ID."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-get-1",
             tenant_id=test_tenant_id,
             external_item_id="EXT-GET-1",
@@ -239,6 +254,9 @@ class TestGetCheckItem:
     async def test_get_item_wrong_tenant(self, client, db_session, reviewer_headers):
         """Test that items from other tenants are not accessible."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-other-tenant",
             tenant_id="other-tenant-id",
             external_item_id="EXT-OTHER",
@@ -267,6 +285,9 @@ class TestCheckItemAssignment:
     async def test_assign_reviewer(self, client, db_session, test_tenant_id, reviewer_headers):
         """Test assigning a reviewer to a check item."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-assign-1",
             tenant_id=test_tenant_id,
             external_item_id="EXT-ASSIGN-1",
@@ -305,6 +326,9 @@ class TestCheckStatusUpdate:
     async def test_update_status(self, client, db_session, test_tenant_id):
         """Test updating check item status."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-status-update",
             tenant_id=test_tenant_id,
             external_item_id="EXT-STATUS",
@@ -358,6 +382,9 @@ class TestMyQueue:
     ):
         """Test getting queue with assigned items."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-my-queue",
             tenant_id=test_tenant_id,
             external_item_id="EXT-MY-Q",
@@ -391,6 +418,9 @@ class TestAdjacentItems:
         # Create ordered items
         for i in range(3):
             item = CheckItem(
+                source_system="test_core",
+                account_number_masked="****0000",
+                account_type="consumer",
                 id=f"check-adj-{i}",
                 tenant_id=test_tenant_id,
                 external_item_id=f"EXT-ADJ-{i}",
@@ -426,6 +456,9 @@ class TestMultiTenantIsolation:
         # Create items for tenant A
         for i in range(3):
             item = CheckItem(
+                source_system="test_core",
+                account_number_masked="****0000",
+                account_type="consumer",
                 id=f"check-tenant-a-{i}",
                 tenant_id=tenant_a,
                 external_item_id=f"EXT-A-{i}",
@@ -441,6 +474,9 @@ class TestMultiTenantIsolation:
         # Create items for tenant B
         for i in range(2):
             item = CheckItem(
+                source_system="test_core",
+                account_number_masked="****0000",
+                account_type="consumer",
                 id=f"check-tenant-b-{i}",
                 tenant_id=tenant_b,
                 external_item_id=f"EXT-B-{i}",

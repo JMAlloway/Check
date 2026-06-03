@@ -54,6 +54,9 @@ class TestFraudEventCreation:
         """Test creating a draft fraud event."""
         # Create related check item
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-fraud-1",
             tenant_id=test_tenant_id,
             external_item_id="EXT-FRAUD-1",
@@ -89,6 +92,9 @@ class TestFraudEventCreation:
     async def test_submit_fraud_event(self, client, db_session, test_tenant_id, fraud_headers):
         """Test submitting a fraud event for sharing."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-fraud-submit",
             tenant_id=test_tenant_id,
             external_item_id="EXT-FRAUD-SUB",
@@ -167,6 +173,9 @@ class TestFraudEventWithdrawal:
         """Test withdrawing a submitted fraud event."""
         # First create and submit an event
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-fraud-withdraw",
             tenant_id=test_tenant_id,
             external_item_id="EXT-FRAUD-WD",
@@ -310,6 +319,9 @@ class TestMultiTenantFraudIsolation:
 
         # Create check items for each tenant
         item_a = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-fraud-a",
             tenant_id=tenant_a,
             external_item_id="EXT-FRAUD-A",
@@ -321,6 +333,9 @@ class TestMultiTenantFraudIsolation:
             presented_date=datetime.now(timezone.utc),
         )
         item_b = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-fraud-b",
             tenant_id=tenant_b,
             external_item_id="EXT-FRAUD-B",

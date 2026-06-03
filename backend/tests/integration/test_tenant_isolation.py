@@ -65,6 +65,7 @@ class TenantTestData:
 def create_check_item(tenant_id: str) -> CheckItem:
     """Create a check item for a specific tenant."""
     return CheckItem(
+        source_system="test_core",
         id=f"CHK-{uuid.uuid4().hex[:12]}",
         tenant_id=tenant_id,
         external_item_id=f"EXT-{uuid.uuid4().hex[:8]}",

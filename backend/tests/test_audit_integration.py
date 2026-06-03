@@ -233,6 +233,9 @@ class TestItemAuditTrail:
         """Test getting audit trail for a check item."""
         # Create check item
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="item-audit-trail",
             tenant_id=test_tenant_id,
             external_item_id="EXT-AUDIT",
@@ -284,6 +287,9 @@ class TestItemViews:
         """Test getting view records for an item."""
         # Create item
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="item-views",
             tenant_id=test_tenant_id,
             external_item_id="EXT-VIEWS",
@@ -386,6 +392,9 @@ class TestAuditPacketGeneration:
         """Test generating an audit packet."""
         # Create check item
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="item-packet",
             tenant_id=test_tenant_id,
             external_item_id="EXT-PACKET",

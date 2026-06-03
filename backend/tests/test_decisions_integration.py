@@ -69,6 +69,9 @@ class TestCreateDecision:
     async def test_approve_decision(self, client, db_session, test_tenant_id, reviewer_headers):
         """Test creating an approve decision."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-approve-1",
             tenant_id=test_tenant_id,
             external_item_id="EXT-APP-1",
@@ -102,6 +105,9 @@ class TestCreateDecision:
     async def test_reject_decision(self, client, db_session, test_tenant_id, reviewer_headers):
         """Test creating a reject decision."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-reject-1",
             tenant_id=test_tenant_id,
             external_item_id="EXT-REJ-1",
@@ -134,6 +140,9 @@ class TestCreateDecision:
     async def test_escalate_decision(self, client, db_session, test_tenant_id, reviewer_headers):
         """Test creating an escalate decision."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-escalate-1",
             tenant_id=test_tenant_id,
             external_item_id="EXT-ESC-1",
@@ -188,6 +197,9 @@ class TestDualControlWorkflow:
         """Test that dual control is triggered for high-value items."""
         # Create high-value item that requires dual control
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-dual-1",
             tenant_id=test_tenant_id,
             external_item_id="EXT-DUAL-1",
@@ -222,6 +234,9 @@ class TestDualControlWorkflow:
         """Test approving a dual control decision."""
         # Create item in pending dual control state
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-dc-approve",
             tenant_id=test_tenant_id,
             external_item_id="EXT-DC-A",
@@ -278,6 +293,9 @@ class TestDualControlWorkflow:
     ):
         """Test that users cannot approve their own decisions."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-self-approve",
             tenant_id=test_tenant_id,
             external_item_id="EXT-SELF",
@@ -326,6 +344,9 @@ class TestAIFlagAcknowledgment:
     ):
         """Test that AI flags must be acknowledged before decision."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-ai-flags",
             tenant_id=test_tenant_id,
             external_item_id="EXT-AI",
@@ -362,6 +383,9 @@ class TestAIFlagAcknowledgment:
     ):
         """Test decision with AI flags properly acknowledged."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-ai-ack",
             tenant_id=test_tenant_id,
             external_item_id="EXT-AI-ACK",
@@ -402,6 +426,9 @@ class TestDecisionHistory:
     ):
         """Test getting decision history for an item."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-history",
             tenant_id=test_tenant_id,
             external_item_id="EXT-HIST",
@@ -497,6 +524,9 @@ class TestEvidenceChainVerification:
     async def test_verify_evidence_chain(self, client, db_session, test_tenant_id, test_user_id):
         """Test evidence chain verification endpoint."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-evidence",
             tenant_id=test_tenant_id,
             external_item_id="EXT-EVI",

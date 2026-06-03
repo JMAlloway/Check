@@ -95,6 +95,12 @@ async def db_session(async_engine) -> AsyncGenerator[AsyncSession, None]:
     )
 
     async with async_session() as session:
+        # Test setup data frequently references fabricated foreign keys (e.g.
+        # AuditLog.user_id="user-1"). SQLite silently allowed this; Postgres
+        # enforces it. Disable FK/trigger enforcement on this SETUP session only
+        # -- request handlers use a separate session that still enforces FKs, so
+        # the code under test is validated normally.
+        await session.execute(text("SET session_replication_role = replica"))
         yield session
         await session.rollback()
 
@@ -112,7 +118,12 @@ def override_get_db(app_engine):
 
     async def _override():
         async with session_factory() as session:
-            yield session
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
 
     return _override
 
@@ -143,11 +154,39 @@ def _synthesize_user_from_claims(payload: dict) -> "User":
         tenant_id=payload.get("tenant_id"),
         username=username,
         email=f"{username}@example.com",
+        full_name=payload.get("full_name", "Test User"),
+        hashed_password="not-a-real-hash",
         is_active=True,
         is_superuser="*:*" in perms,
     )
     user.roles = [role]
     return user
+
+
+async def _ensure_user_row(db: AsyncSession, user: "User") -> None:
+    """Persist a minimal row for the authenticated user if absent.
+
+    Endpoints write rows that foreign-key to users.id (audit_logs.user_id,
+    queue_assignments.assigned_by_id, ...). The authenticated user is
+    synthesized from the token, so its row must exist for those FKs to resolve.
+    """
+    if not user.id:
+        return
+    if await db.get(User, user.id) is not None:
+        return
+    db.add(
+        User(
+            id=user.id,
+            tenant_id=user.tenant_id,
+            username=user.username,
+            email=user.email,
+            full_name=user.full_name,
+            hashed_password=user.hashed_password,
+            is_active=True,
+            is_superuser=user.is_superuser,
+        )
+    )
+    await db.flush()
 
 
 @pytest.fixture(scope="function")
@@ -163,6 +202,7 @@ def client(override_get_db) -> Generator[TestClient, None, None]:
 
     async def _resolve_current_user(
         credentials: HTTPAuthorizationCredentials = Depends(security),
+        db: AsyncSession = Depends(get_db),
     ) -> User:
         payload = decode_token(credentials.credentials)
         if payload is None or payload.get("type") != "access" or not payload.get("sub"):
@@ -171,7 +211,9 @@ def client(override_get_db) -> Generator[TestClient, None, None]:
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        return _synthesize_user_from_claims(payload)
+        user = _synthesize_user_from_claims(payload)
+        await _ensure_user_row(db, user)
+        return user
 
     app.dependency_overrides[get_current_user] = _resolve_current_user
 

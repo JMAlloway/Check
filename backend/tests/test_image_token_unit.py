@@ -7,8 +7,16 @@ requiring the full application stack.
 
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
+
+# Resolve paths relative to this file so the tests work regardless of where the
+# repository is checked out (local vs CI runner).
+_BACKEND_DIR = str(Path(__file__).resolve().parents[1])
+_IMAGES_PY = str(
+    Path(__file__).resolve().parents[1] / "app" / "api" / "v1" / "endpoints" / "images.py"
+)
 
 
 class TestImageAccessTokenModel:
@@ -19,7 +27,7 @@ class TestImageAccessTokenModel:
         # Import inside test to avoid app startup issues
         import sys
 
-        sys.path.insert(0, "/home/user/Check/backend")
+        sys.path.insert(0, _BACKEND_DIR)
 
         from app.models.image_token import ImageAccessToken
 
@@ -36,7 +44,7 @@ class TestImageAccessTokenModel:
         """Token should not be expired when current time is before expires_at."""
         import sys
 
-        sys.path.insert(0, "/home/user/Check/backend")
+        sys.path.insert(0, _BACKEND_DIR)
 
         from app.models.image_token import ImageAccessToken
 
@@ -53,7 +61,7 @@ class TestImageAccessTokenModel:
         """Token should be marked as used when used_at is set."""
         import sys
 
-        sys.path.insert(0, "/home/user/Check/backend")
+        sys.path.insert(0, _BACKEND_DIR)
 
         from app.models.image_token import ImageAccessToken
 
@@ -71,7 +79,7 @@ class TestImageAccessTokenModel:
         """Token should not be marked as used when used_at is None."""
         import sys
 
-        sys.path.insert(0, "/home/user/Check/backend")
+        sys.path.insert(0, _BACKEND_DIR)
 
         from app.models.image_token import ImageAccessToken
 
@@ -89,7 +97,7 @@ class TestImageAccessTokenModel:
         """Token should be valid when neither expired nor used."""
         import sys
 
-        sys.path.insert(0, "/home/user/Check/backend")
+        sys.path.insert(0, _BACKEND_DIR)
 
         from app.models.image_token import ImageAccessToken
 
@@ -107,7 +115,7 @@ class TestImageAccessTokenModel:
         """Token should not be valid when expired."""
         import sys
 
-        sys.path.insert(0, "/home/user/Check/backend")
+        sys.path.insert(0, _BACKEND_DIR)
 
         from app.models.image_token import ImageAccessToken
 
@@ -125,7 +133,7 @@ class TestImageAccessTokenModel:
         """Token should not be valid when already used."""
         import sys
 
-        sys.path.insert(0, "/home/user/Check/backend")
+        sys.path.insert(0, _BACKEND_DIR)
 
         from app.models.image_token import ImageAccessToken
 
@@ -143,7 +151,7 @@ class TestImageAccessTokenModel:
         """Token should store tenant_id for validation."""
         import sys
 
-        sys.path.insert(0, "/home/user/Check/backend")
+        sys.path.insert(0, _BACKEND_DIR)
 
         from app.models.image_token import ImageAccessToken
 
@@ -160,7 +168,7 @@ class TestImageAccessTokenModel:
         """Token should track which user created it."""
         import sys
 
-        sys.path.insert(0, "/home/user/Check/backend")
+        sys.path.insert(0, _BACKEND_DIR)
 
         from app.models.image_token import ImageAccessToken
 
@@ -178,7 +186,7 @@ class TestImageAccessTokenModel:
         """Token should track usage metadata (IP, user agent)."""
         import sys
 
-        sys.path.insert(0, "/home/user/Check/backend")
+        sys.path.insert(0, _BACKEND_DIR)
 
         from app.models.image_token import ImageAccessToken
 
@@ -203,7 +211,7 @@ class TestAuditActionEnum:
         """AuditAction should have IMAGE_TOKEN_CREATED action."""
         import sys
 
-        sys.path.insert(0, "/home/user/Check/backend")
+        sys.path.insert(0, _BACKEND_DIR)
 
         from app.models.audit import AuditAction
 
@@ -214,7 +222,7 @@ class TestAuditActionEnum:
         """AuditAction should have IMAGE_TOKEN_USED action."""
         import sys
 
-        sys.path.insert(0, "/home/user/Check/backend")
+        sys.path.insert(0, _BACKEND_DIR)
 
         from app.models.audit import AuditAction
 
@@ -225,7 +233,7 @@ class TestAuditActionEnum:
         """AuditAction should have IMAGE_TOKEN_EXPIRED action."""
         import sys
 
-        sys.path.insert(0, "/home/user/Check/backend")
+        sys.path.insert(0, _BACKEND_DIR)
 
         from app.models.audit import AuditAction
 
@@ -276,17 +284,15 @@ class TestSecurityHeaders:
         """Security headers constant should be defined."""
         import sys
 
-        sys.path.insert(0, "/home/user/Check/backend")
+        sys.path.insert(0, _BACKEND_DIR)
 
         # Import just the headers constant without full app
         import importlib.util
 
-        spec = importlib.util.spec_from_file_location(
-            "images", "/home/user/Check/backend/app/api/v1/endpoints/images.py"
-        )
+        spec = importlib.util.spec_from_file_location("images", _IMAGES_PY)
         # This will fail if the file has import errors, so we read it instead
 
-        with open("/home/user/Check/backend/app/api/v1/endpoints/images.py", "r") as f:
+        with open(_IMAGES_PY, "r") as f:
             content = f.read()
 
         # Verify security headers are defined
@@ -302,7 +308,7 @@ class TestEndpointLogic:
 
     def test_token_marked_used_before_serving(self):
         """Token should be marked used BEFORE serving image (atomic)."""
-        with open("/home/user/Check/backend/app/api/v1/endpoints/images.py", "r") as f:
+        with open(_IMAGES_PY, "r") as f:
             content = f.read()
 
         # Find the one-time token endpoint (get_image_by_token)
@@ -327,7 +333,7 @@ class TestEndpointLogic:
 
     def test_batch_endpoint_has_limit(self):
         """Batch token endpoint should have a maximum limit."""
-        with open("/home/user/Check/backend/app/api/v1/endpoints/images.py", "r") as f:
+        with open(_IMAGES_PY, "r") as f:
             content = f.read()
 
         # Verify there's a batch limit check
@@ -335,7 +341,7 @@ class TestEndpointLogic:
 
     def test_tenant_validation_in_endpoints(self):
         """Endpoints should validate tenant ownership."""
-        with open("/home/user/Check/backend/app/api/v1/endpoints/images.py", "r") as f:
+        with open(_IMAGES_PY, "r") as f:
             content = f.read()
 
         # Verify tenant validation is present

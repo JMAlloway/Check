@@ -1,15 +1,14 @@
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { Link, useParams } from 'react-router-dom';
 import {
-  FunnelIcon,
   ArrowPathIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
   ExclamationTriangleIcon,
   ClockIcon,
   CheckCircleIcon,
   ShieldCheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 import { checkApi, queueApi } from '../services/api';
 import { CheckItemListItem, CheckStatus, RiskLevel, PaginatedResponse } from '../types';
@@ -17,460 +16,306 @@ import { StatusBadge, RiskBadge, SLABadge } from '../components/common/StatusBad
 import clsx from 'clsx';
 
 function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount);
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 }
 
-// Check if a date is today
-function isToday(dateStr: string): boolean {
-  const date = new Date(dateStr);
-  const today = new Date();
-  return date.toDateString() === today.toDateString();
-}
+const PAGE_SIZE = 25;
 
-// Bucket types
-type BucketType = 'pending' | 'sla_breached' | 'dual_control' | 'processed_today';
+type TabKey = 'pending' | 'sla' | 'dual' | 'processed';
 
-interface Bucket {
-  type: BucketType;
-  title: string;
+interface TabDef {
+  key: TabKey;
+  label: string;
   icon: React.ComponentType<{ className?: string }>;
-  colorClass: string;
-  bgClass: string;
-  items: CheckItemListItem[];
+  color: string;
+  filters: {
+    status?: CheckStatus[];
+    sla_breached?: boolean;
+  };
 }
 
-// Categorize items into buckets
-function categorizeItems(items: CheckItemListItem[]): Bucket[] {
-  const pending: CheckItemListItem[] = [];
-  const slaBreached: CheckItemListItem[] = [];
-  const dualControl: CheckItemListItem[] = [];
-  const processedToday: CheckItemListItem[] = [];
+const TABS: TabDef[] = [
+  {
+    key: 'pending',
+    label: 'Pending Review',
+    icon: ClockIcon,
+    color: 'text-blue-600',
+    filters: { status: ['new', 'in_review', 'pending_approval', 'escalated'] },
+  },
+  {
+    key: 'sla',
+    label: 'SLA Breached',
+    icon: ExclamationTriangleIcon,
+    color: 'text-red-600',
+    filters: { status: ['new', 'in_review', 'pending_approval', 'escalated'], sla_breached: true },
+  },
+  {
+    key: 'dual',
+    label: 'Dual Control',
+    icon: ShieldCheckIcon,
+    color: 'text-purple-600',
+    filters: { status: ['pending_dual_control'] },
+  },
+  {
+    key: 'processed',
+    label: 'Processed',
+    icon: CheckCircleIcon,
+    color: 'text-green-600',
+    filters: { status: ['approved', 'rejected', 'returned'] },
+  },
+];
 
-  items.forEach((item) => {
-    const isPending = ['new', 'in_review', 'pending_approval', 'escalated'].includes(item.status);
-    const isProcessed = ['approved', 'rejected', 'returned'].includes(item.status);
-    const isDualControlPending = item.status === 'pending_dual_control' ||
-      (item.requires_dual_control && item.status === 'pending_approval');
+const SORTS: { value: string; label: string; sort_by: string; sort_order: string }[] = [
+  { value: 'priority_desc', label: 'Priority (high→low)', sort_by: 'priority', sort_order: 'desc' },
+  { value: 'sla_due_at_asc', label: 'SLA due (soonest)', sort_by: 'sla_due_at', sort_order: 'asc' },
+  { value: 'amount_desc', label: 'Amount (high→low)', sort_by: 'amount', sort_order: 'desc' },
+  { value: 'amount_asc', label: 'Amount (low→high)', sort_by: 'amount', sort_order: 'asc' },
+  { value: 'presented_date_desc', label: 'Newest first', sort_by: 'presented_date', sort_order: 'desc' },
+  { value: 'presented_date_asc', label: 'Oldest first', sort_by: 'presented_date', sort_order: 'asc' },
+];
 
-    // SLA Breached takes priority
-    if (item.sla_breached && isPending) {
-      slaBreached.push(item);
-    }
-    // Dual control pending
-    else if (isDualControlPending) {
-      dualControl.push(item);
-    }
-    // Processed today
-    else if (isProcessed && isToday(item.presented_date)) {
-      processedToday.push(item);
-    }
-    // Pending items
-    else if (isPending) {
-      pending.push(item);
-    }
-    // Default: put in processed today if processed, else pending
-    else if (isProcessed) {
-      processedToday.push(item);
-    }
+// Lightweight count for a tab (reads `total` from a 1-row page).
+function useTabCount(tab: TabDef, queueId?: string, riskFilter?: RiskLevel[]) {
+  return useQuery({
+    queryKey: ['checkCount', tab.key, queueId, riskFilter],
+    queryFn: () =>
+      checkApi.getItems({
+        page: 1,
+        page_size: 1,
+        queue_id: queueId,
+        status: tab.filters.status,
+        sla_breached: tab.filters.sla_breached,
+        risk_level: riskFilter && riskFilter.length ? riskFilter : undefined,
+      }) as Promise<PaginatedResponse<CheckItemListItem>>,
+    select: (d) => d.total,
   });
-
-  return [
-    {
-      type: 'pending',
-      title: 'Pending Review',
-      icon: ClockIcon,
-      colorClass: 'text-blue-600',
-      bgClass: 'bg-blue-50',
-      items: pending,
-    },
-    {
-      type: 'sla_breached',
-      title: 'SLA Breached',
-      icon: ExclamationTriangleIcon,
-      colorClass: 'text-red-600',
-      bgClass: 'bg-red-50',
-      items: slaBreached,
-    },
-    {
-      type: 'dual_control',
-      title: 'Dual Control Pending',
-      icon: ShieldCheckIcon,
-      colorClass: 'text-purple-600',
-      bgClass: 'bg-purple-50',
-      items: dualControl,
-    },
-    {
-      type: 'processed_today',
-      title: 'Processed Today',
-      icon: CheckCircleIcon,
-      colorClass: 'text-green-600',
-      bgClass: 'bg-green-50',
-      items: processedToday,
-    },
-  ];
-}
-
-// Collapsible bucket component
-function QueueBucket({
-  bucket,
-  isExpanded,
-  onToggle
-}: {
-  bucket: Bucket;
-  isExpanded: boolean;
-  onToggle: () => void;
-}) {
-  const Icon = bucket.icon;
-
-  if (bucket.items.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="bg-white rounded-lg shadow overflow-hidden mb-4">
-      {/* Bucket Header */}
-      <button
-        onClick={onToggle}
-        className={clsx(
-          'w-full px-4 py-3 flex items-center justify-between',
-          bucket.bgClass,
-          'hover:opacity-90 transition-opacity'
-        )}
-      >
-        <div className="flex items-center space-x-3">
-          <Icon className={clsx('h-5 w-5', bucket.colorClass)} />
-          <span className={clsx('font-semibold', bucket.colorClass)}>
-            {bucket.title}
-          </span>
-          <span className={clsx(
-            'px-2 py-0.5 text-xs font-medium rounded-full',
-            bucket.colorClass,
-            'bg-white'
-          )}>
-            {bucket.items.length}
-          </span>
-        </div>
-        {isExpanded ? (
-          <ChevronDownIcon className={clsx('h-5 w-5', bucket.colorClass)} />
-        ) : (
-          <ChevronRightIcon className={clsx('h-5 w-5', bucket.colorClass)} />
-        )}
-      </button>
-
-      {/* Bucket Content */}
-      {isExpanded && (
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Account / Check
-              </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Amount
-              </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Risk
-              </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                SLA
-              </th>
-              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Action
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {bucket.items.map((item) => (
-              <tr key={item.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">
-                    {item.account_number_masked}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Check #{item.check_number || '-'}
-                  </div>
-                  {item.payee_name && (
-                    <div className="text-xs text-gray-400 truncate max-w-[180px]">
-                      {item.payee_name}
-                    </div>
-                  )}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <div className="text-sm font-semibold text-gray-900">
-                    {formatCurrency(item.amount)}
-                  </div>
-                  {item.requires_dual_control && (
-                    <span className="text-xs text-purple-600">Dual Control</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <StatusBadge status={item.status} />
-                  {item.has_ai_flags && (
-                    <span className="ml-1 text-xs text-orange-600">Flagged</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <RiskBadge level={item.risk_level} />
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <SLABadge dueAt={item.sla_due_at} breached={item.sla_breached} />
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
-                  <Link
-                    to={`/review/${item.id}`}
-                    className="text-primary-600 hover:text-primary-900 font-medium"
-                  >
-                    Review
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
 }
 
 export default function QueuePage() {
   const { queueId } = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<TabKey>('pending');
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState(SORTS[0].value);
+  const [riskFilter, setRiskFilter] = useState<RiskLevel[]>([]);
 
-  const [showFilters, setShowFilters] = useState(false);
+  const tab = TABS.find((t) => t.key === activeTab)!;
+  const sortDef = SORTS.find((s) => s.value === sort)!;
 
-  // Track which buckets are expanded (all expanded by default except processed)
-  const [expandedBuckets, setExpandedBuckets] = useState<Set<BucketType>>(
-    new Set(['pending', 'sla_breached', 'dual_control'])
-  );
-
-  // Get filter values from URL
-  const statusFilter = searchParams.getAll('status') as CheckStatus[];
-  const riskFilter = searchParams.getAll('risk_level') as RiskLevel[];
-  const slaBreached = searchParams.get('sla_breached') === 'true';
-  const dateFrom = searchParams.get('date_from');
-  const dateTo = searchParams.get('date_to');
-
-  // Fetch queue info if queueId provided
   const { data: queue } = useQuery({
     queryKey: ['queue', queueId],
     queryFn: () => queueApi.getQueue(queueId!),
     enabled: !!queueId,
   });
 
-  // Fetch all items - no pagination since we have collapsible sections
-  const { data: itemsData, isLoading, refetch } = useQuery<PaginatedResponse<CheckItemListItem>>({
-    queryKey: ['checkItems', queueId, statusFilter, riskFilter, slaBreached, dateFrom, dateTo],
+  const counts = {
+    pending: useTabCount(TABS[0], queueId, riskFilter),
+    sla: useTabCount(TABS[1], queueId, riskFilter),
+    dual: useTabCount(TABS[2], queueId, riskFilter),
+    processed: useTabCount(TABS[3], queueId, riskFilter),
+  };
+
+  const { data, isLoading, isFetching, refetch } = useQuery<PaginatedResponse<CheckItemListItem>>({
+    queryKey: ['checkItems', queueId, activeTab, page, sort, riskFilter],
     queryFn: () =>
       checkApi.getItems({
-        page: 1,
-        page_size: 500, // Load all items - collapsible sections handle display
+        page,
+        page_size: PAGE_SIZE,
         queue_id: queueId,
-        status: statusFilter.length > 0 ? statusFilter : undefined,
-        risk_level: riskFilter.length > 0 ? riskFilter : undefined,
-        sla_breached: slaBreached || undefined,
-        date_from: dateFrom || undefined,
-        date_to: dateTo || undefined,
+        status: tab.filters.status,
+        sla_breached: tab.filters.sla_breached,
+        risk_level: riskFilter.length ? riskFilter : undefined,
+        sort_by: sortDef.sort_by,
+        sort_order: sortDef.sort_order,
       }),
+    placeholderData: keepPreviousData,
   });
 
-  // Categorize items into buckets
-  const buckets = useMemo(() => {
-    if (!itemsData?.items) return [];
-    return categorizeItems(itemsData.items);
-  }, [itemsData]);
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = data?.total_pages ?? 1;
 
-  const toggleBucket = (type: BucketType) => {
-    setExpandedBuckets((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) {
-        next.delete(type);
-      } else {
-        next.add(type);
-      }
-      return next;
-    });
+  const selectTab = (key: TabKey) => {
+    setActiveTab(key);
+    setPage(1);
   };
 
-  const updateFilter = (key: string, value: string, checked: boolean) => {
-    const params = new URLSearchParams(searchParams);
-    if (checked) {
-      params.append(key, value);
-    } else {
-      const values = params.getAll(key).filter((v) => v !== value);
-      params.delete(key);
-      values.forEach((v) => params.append(key, v));
-    }
-    setSearchParams(params);
+  const toggleRisk = (level: RiskLevel) => {
+    setRiskFilter((prev) =>
+      prev.includes(level) ? prev.filter((l) => l !== level) : [...prev, level]
+    );
+    setPage(1);
   };
-
-  // Calculate total items across buckets
-  const totalInBuckets = buckets.reduce((sum, b) => sum + b.items.length, 0);
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {queue ? queue.name : 'Review Queue'}
-          </h1>
-          {queue?.description && (
-            <p className="text-gray-500">{queue.description}</p>
-          )}
+          <h1 className="text-2xl font-bold text-gray-900">{queue ? queue.name : 'Review Queue'}</h1>
+          {queue?.description && <p className="text-gray-500">{queue.description}</p>}
         </div>
-        <div className="flex space-x-3">
-          <button
-            onClick={() => refetch()}
-            className="flex items-center px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-          >
-            <ArrowPathIcon className="h-5 w-5 mr-1" />
-            Refresh
-          </button>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={clsx(
-              'flex items-center px-3 py-2 rounded-lg border',
-              showFilters
-                ? 'bg-primary-50 border-primary-300 text-primary-700'
-                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-            )}
-          >
-            <FunnelIcon className="h-5 w-5 mr-1" />
-            Filters
-          </button>
-        </div>
+        <button
+          onClick={() => refetch()}
+          className="flex items-center px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+        >
+          <ArrowPathIcon className={clsx('h-5 w-5 mr-1', isFetching && 'animate-spin')} />
+          Refresh
+        </button>
       </div>
 
-      {/* Filters */}
-      {showFilters && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Status Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-              <div className="space-y-2">
-                {[
-                  { value: 'new', label: 'New' },
-                  { value: 'in_review', label: 'In Review' },
-                  { value: 'pending_approval', label: 'Pending Approval' },
-                  { value: 'pending_dual_control', label: 'Pending Dual Control' },
-                  { value: 'escalated', label: 'Escalated' },
-                  { value: 'approved', label: 'Approved' },
-                  { value: 'rejected', label: 'Rejected' },
-                  { value: 'returned', label: 'Returned' },
-                ].map((status) => (
-                  <label key={status.value} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={statusFilter.includes(status.value as CheckStatus)}
-                      onChange={(e) => updateFilter('status', status.value, e.target.checked)}
-                      className="rounded border-gray-300 text-primary-600"
-                    />
-                    <span className="ml-2 text-sm text-gray-600">
-                      {status.label}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Risk Level Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Risk Level</label>
-              <div className="space-y-2">
-                {['low', 'medium', 'high', 'critical'].map((level) => (
-                  <label key={level} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={riskFilter.includes(level as RiskLevel)}
-                      onChange={(e) => updateFilter('risk_level', level, e.target.checked)}
-                      className="rounded border-gray-300 text-primary-600"
-                    />
-                    <span className="ml-2 text-sm text-gray-600 capitalize">{level}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Other Filters */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Other</label>
-              <div className="space-y-2">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={slaBreached}
-                    onChange={(e) => {
-                      const params = new URLSearchParams(searchParams);
-                      if (e.target.checked) {
-                        params.set('sla_breached', 'true');
-                      } else {
-                        params.delete('sla_breached');
-                      }
-                      setSearchParams(params);
-                    }}
-                    className="rounded border-gray-300 text-primary-600"
-                  />
-                  <span className="ml-2 text-sm text-gray-600">SLA Breached Only</span>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Loading State */}
-      {isLoading ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-        </div>
-      ) : !itemsData || totalInBuckets === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-          No items found. Try adjusting your filters.
-        </div>
-      ) : (
-        <>
-          {/* Bucket Summary */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {buckets.map((bucket) => {
-              const Icon = bucket.icon;
-              return (
-                <div
-                  key={bucket.type}
-                  className={clsx(
-                    'rounded-lg p-3 flex items-center space-x-3',
-                    bucket.bgClass
-                  )}
-                >
-                  <Icon className={clsx('h-6 w-6', bucket.colorClass)} />
-                  <div>
-                    <div className={clsx('text-2xl font-bold', bucket.colorClass)}>
-                      {bucket.items.length}
-                    </div>
-                    <div className="text-xs text-gray-600">{bucket.title}</div>
-                  </div>
+      {/* Tabs with live counts */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          const c = counts[t.key].data;
+          const active = t.key === activeTab;
+          return (
+            <button
+              key={t.key}
+              onClick={() => selectTab(t.key)}
+              className={clsx(
+                'rounded-lg p-3 flex items-center gap-3 border text-left transition-colors',
+                active ? 'border-primary-400 bg-primary-50 ring-1 ring-primary-200' : 'border-gray-200 bg-white hover:bg-gray-50'
+              )}
+            >
+              <Icon className={clsx('h-6 w-6', t.color)} />
+              <div>
+                <div className={clsx('text-2xl font-bold', t.color)}>
+                  {c === undefined ? '—' : c}
                 </div>
-              );
-            })}
-          </div>
+                <div className="text-xs text-gray-600">{t.label}</div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
-          {/* Collapsible Buckets */}
-          {buckets.map((bucket) => (
-            <QueueBucket
-              key={bucket.type}
-              bucket={bucket}
-              isExpanded={expandedBuckets.has(bucket.type)}
-              onToggle={() => toggleBucket(bucket.type)}
-            />
+      {/* Toolbar: risk filter chips + sort */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium uppercase text-gray-400">Risk</span>
+          {(['low', 'medium', 'high', 'critical'] as RiskLevel[]).map((level) => (
+            <button
+              key={level}
+              onClick={() => toggleRisk(level)}
+              className={clsx(
+                'rounded-full px-2.5 py-0.5 text-xs font-medium border capitalize',
+                riskFilter.includes(level)
+                  ? 'border-primary-400 bg-primary-50 text-primary-700'
+                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+              )}
+            >
+              {level}
+            </button>
           ))}
-        </>
-      )}
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-600">
+          Sort
+          <select
+            value={sort}
+            onChange={(e) => {
+              setSort(e.target.value);
+              setPage(1);
+            }}
+            className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+          >
+            {SORTS.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {/* List */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        {isLoading ? (
+          <div className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+          </div>
+        ) : items.length === 0 ? (
+          <div className="p-10 text-center text-gray-500">No items in {tab.label}.</div>
+        ) : (
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                {['Account / Check', 'Amount', 'Status', 'Risk', 'SLA', ''].map((h, i) => (
+                  <th
+                    key={h || i}
+                    className={clsx(
+                      'px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider',
+                      i === 5 ? 'text-right' : 'text-left'
+                    )}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {items.map((item) => (
+                <tr key={item.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">{item.account_number_masked}</div>
+                    <div className="text-sm text-gray-500">Check #{item.check_number || '-'}</div>
+                    {item.payee_name && (
+                      <div className="text-xs text-gray-400 truncate max-w-[180px]">{item.payee_name}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="text-sm font-semibold text-gray-900">{formatCurrency(item.amount)}</div>
+                    {item.requires_dual_control && <span className="text-xs text-purple-600">Dual Control</span>}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <StatusBadge status={item.status} />
+                    {item.has_ai_flags && <span className="ml-1 text-xs text-orange-600">Flagged</span>}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <RiskBadge level={item.risk_level} />
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <SLABadge dueAt={item.sla_due_at} breached={item.sla_breached} />
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
+                    <Link to={`/review/${item.id}`} className="text-primary-600 hover:text-primary-900 font-medium">
+                      Review
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {/* Pagination footer */}
+        {total > 0 && (
+          <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 text-sm text-gray-600">
+            <span>
+              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2 py-1 disabled:opacity-40 hover:bg-gray-50"
+              >
+                <ChevronLeftIcon className="h-4 w-4" /> Prev
+              </button>
+              <span className="px-1">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => (p < totalPages ? p + 1 : p))}
+                disabled={page >= totalPages}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2 py-1 disabled:opacity-40 hover:bg-gray-50"
+              >
+                Next <ChevronRightIcon className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

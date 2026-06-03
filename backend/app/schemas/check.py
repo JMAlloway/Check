@@ -177,3 +177,5 @@ class CheckSearchRequest(BaseModel):
     assigned_to: str | None = None
     has_ai_flags: bool | None = None
     sla_breached: bool | None = None
+    sort_by: str | None = None  # sla_due_at | amount | presented_date | priority | risk_level
+    sort_order: str = "desc"  # asc | desc

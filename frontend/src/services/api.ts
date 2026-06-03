@@ -228,6 +228,8 @@ export const checkApi = {
     sla_breached?: boolean;
     date_from?: string;
     date_to?: string;
+    sort_by?: string;
+    sort_order?: string;
   }) => {
     const response = await api.get('/checks', { params });
     return response.data;

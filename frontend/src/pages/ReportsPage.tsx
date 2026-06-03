@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { reportsApi } from '../services/api';
+import { useAuthStore } from '../stores/authStore';
 import {
   BarChart,
   Bar,
@@ -63,6 +64,7 @@ export default function ReportsPage() {
     }
   };
 
+  const canExport = useAuthStore((s) => s.hasPermission('report', 'export'));
   const [exportingCsv, setExportingCsv] = useState(false);
   const handleExportDecisionsCsv = async () => {
     setExportingCsv(true);
@@ -141,14 +143,16 @@ export default function ReportsPage() {
               className="rounded-lg border-gray-300 text-sm"
             />
           </div>
-          <button
-            onClick={handleExportDecisionsCsv}
-            disabled={exportingCsv}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-          >
-            <DocumentArrowDownIcon className="h-4 w-4" aria-hidden="true" />
-            {exportingCsv ? 'Exporting…' : 'Export Decisions (CSV)'}
-          </button>
+          {canExport && (
+            <button
+              onClick={handleExportDecisionsCsv}
+              disabled={exportingCsv}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              <DocumentArrowDownIcon className="h-4 w-4" aria-hidden="true" />
+              {exportingCsv ? 'Exporting…' : 'Export Decisions (CSV)'}
+            </button>
+          )}
         </div>
 
         {/* Report Cards */}

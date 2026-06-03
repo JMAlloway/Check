@@ -39,8 +39,10 @@ async def list_check_items(
     sla_breached: bool | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
+    sort_by: str | None = Query(None),
+    sort_order: str = Query("desc"),
 ):
-    """List check items with filtering and pagination."""
+    """List check items with filtering, sorting and pagination."""
     check_service = CheckService(db)
 
     search = CheckSearchRequest(
@@ -54,6 +56,8 @@ async def list_check_items(
         sla_breached=sla_breached,
         date_from=date_from,
         date_to=date_to,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
 
     items, total = await check_service.search_items(

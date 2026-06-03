@@ -64,12 +64,22 @@ export default function Layout({ children }: LayoutProps) {
     navigate('/login');
   };
 
+  // Show the Admin section only to users who can actually administer or audit
+  // something there (queues/users/policies/image intake/audit log), not to
+  // every role that merely has read access.
+  const canSeeAdmin =
+    hasPermission('user', 'create') ||
+    hasPermission('queue', 'create') ||
+    hasPermission('policy', 'create') ||
+    hasPermission('image_connector', 'view') ||
+    hasPermission('audit', 'view');
+
   const allNavigation = [
     ...navigation.filter((item) => {
       const perm = (item as { permission?: readonly [string, string] }).permission;
       return !perm || hasPermission(perm[0], perm[1]);
     }),
-    ...(hasPermission('user', 'view') ? adminNavigation : []),
+    ...(canSeeAdmin ? adminNavigation : []),
   ];
 
   return (

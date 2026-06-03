@@ -42,6 +42,10 @@ limiter.enabled = False
 user_limiter.enabled = False
 tenant_limiter.enabled = False
 
+# A valid bcrypt hash for the synthesized auth user, so password verification
+# (e.g. change-password) returns False rather than raising UnknownHashError.
+_PLACEHOLDER_PASSWORD_HASH = get_password_hash("conftest-placeholder-password")
+
 # =============================================================================
 # Database Fixtures
 # =============================================================================
@@ -185,7 +189,7 @@ def _synthesize_user_from_claims(payload: dict) -> "User":
         username=username,
         email=f"{username}@example.com",
         full_name=payload.get("full_name", "Test User"),
-        hashed_password="not-a-real-hash",
+        hashed_password=_PLACEHOLDER_PASSWORD_HASH,
         is_active=True,
         is_superuser="*:*" in perms,
         mfa_enabled=False,

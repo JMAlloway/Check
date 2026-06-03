@@ -170,7 +170,7 @@ class TestCreateUser:
                 "email": "newuser@example.com",
                 "username": "newuser",
                 "full_name": "New User",
-                "password": "securepassword123",
+                "password": "SecurePass123!",
                 "department": "Operations",
             },
         )
@@ -204,7 +204,7 @@ class TestCreateUser:
                 "email": "existing@example.com",
                 "username": "newusername",
                 "full_name": "New User",
-                "password": "password123",
+                "password": "SecurePass123!",
             },
         )
 

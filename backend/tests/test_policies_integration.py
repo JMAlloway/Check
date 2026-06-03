@@ -160,7 +160,7 @@ class TestCreatePolicy:
                             "conditions": [
                                 {"field": "amount", "operator": "greater_than", "value": "10000"}
                             ],
-                            "actions": [{"action_type": "flag", "params": {"flag": "high_value"}}],
+                            "actions": [{"action": "flag", "params": {"flag": "high_value"}}],
                             "amount_threshold": 10000,
                         }
                     ],
@@ -269,7 +269,7 @@ class TestUpdatePolicy:
         response = client.put(
             "/api/v1/policies/policy-update-status",
             headers=policy_headers,
-            json={"status": "inactive"},
+            json={"status": "archived"},
         )
 
         assert response.status_code == status.HTTP_200_OK

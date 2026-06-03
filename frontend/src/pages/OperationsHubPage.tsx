@@ -116,7 +116,7 @@ const CAPABILITIES: Capability[] = [
 ];
 
 function CapabilityCard({ capability }: { capability: Capability }) {
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['ops-capability', capability.key],
     queryFn: async () => {
       if (!capability.endpoint) return null;
@@ -127,12 +127,18 @@ function CapabilityCard({ capability }: { capability: Capability }) {
     staleTime: 60_000,
   });
 
+  const isForbidden =
+    (error as { response?: { status?: number } } | undefined)?.response?.status === 403;
+
   let status: string;
   let tone: 'live' | 'preview' = 'preview';
   if (!capability.endpoint) {
     status = capability.summarize ? capability.summarize(null) : 'Preview';
   } else if (isLoading) {
     status = 'Loading…';
+  } else if (isForbidden) {
+    // Feature exists but this role isn't entitled to it.
+    status = 'Requires elevated access';
   } else if (isError) {
     status = 'Preview — UI coming soon';
   } else {

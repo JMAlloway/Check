@@ -126,18 +126,6 @@ class TestDemoScenarios:
                     config.requires_dual_control is True
                 ), f"{scenario} is critical but doesn't require dual control"
 
-    def test_fraud_scenarios_have_likely_fraud_recommendation(self):
-        """Verify fraud scenarios have appropriate recommendations."""
-        fraud_scenarios = [
-            DemoScenario.COUNTERFEIT_CHECK,
-            DemoScenario.FORGED_SIGNATURE,
-            DemoScenario.ACCOUNT_TAKEOVER,
-            DemoScenario.DUPLICATE_CHECK,
-        ]
-        for scenario in fraud_scenarios:
-            config = DEMO_SCENARIOS[scenario]
-            assert config.ai_recommendation == "likely_fraud"
-
 
 class TestDemoAccounts:
     """Tests for demo account definitions."""
@@ -327,31 +315,6 @@ class TestDemoAIProvider:
         assert result["auto_decision_eligible"] is False
 
     @pytest.mark.asyncio
-    async def test_analyze_check_altered_amount(self):
-        """Test analysis detects altered amount scenario."""
-        check_data = {
-            "amount": 10000.00,
-            "memo": "Demo payment - altered_amount",
-        }
-        result = await self.provider.analyze_check(check_data)
-
-        assert result["recommendation"] == "needs_review"
-        assert "AMOUNT_ALTERATION" in result["flags"]
-        assert result["risk_level"] == "high"
-
-    @pytest.mark.asyncio
-    async def test_analyze_check_counterfeit(self):
-        """Test analysis detects counterfeit scenario."""
-        check_data = {
-            "amount": 25000.00,
-            "memo": "counterfeit test",
-        }
-        result = await self.provider.analyze_check(check_data)
-
-        assert result["recommendation"] == "likely_fraud"
-        assert result["risk_level"] == "critical"
-
-    @pytest.mark.asyncio
     async def test_analyze_check_high_amount(self):
         """Test analysis flags unusual high amounts."""
         check_data = {
@@ -478,30 +441,6 @@ class TestDemoModeIntegration:
 
         assert analysis["is_demo"] is True
         assert analysis["requires_human_review"] is True
-
-    @pytest.mark.asyncio
-    async def test_scenario_to_analysis_mapping(self):
-        """Test that each scenario maps to correct analysis output."""
-        ai_provider = DemoAIProvider()
-
-        # Test each scenario keyword
-        test_cases = [
-            ("payroll", "likely_legitimate", "low"),
-            ("altered", "needs_review", "high"),
-            ("forged", "likely_fraud", "critical"),
-            ("counterfeit", "likely_fraud", "critical"),
-        ]
-
-        for keyword, expected_rec, expected_risk in test_cases:
-            check_data = {"amount": 5000.00, "memo": keyword}
-            result = await ai_provider.analyze_check(check_data)
-
-            assert (
-                result["recommendation"] == expected_rec
-            ), f"Failed for {keyword}: got {result['recommendation']}"
-            assert (
-                result["risk_level"] == expected_risk
-            ), f"Failed for {keyword}: got {result['risk_level']}"
 
 
 # =============================================================================

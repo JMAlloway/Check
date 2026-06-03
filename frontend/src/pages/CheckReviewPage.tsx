@@ -6,6 +6,7 @@ import {
   DocumentArrowDownIcon,
   ShieldExclamationIcon,
   ShieldCheckIcon,
+  UserPlusIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   PlayIcon,
@@ -25,6 +26,7 @@ import DecisionPanel from '../components/decision/DecisionPanel';
 import NetworkIntelligencePanel from '../components/fraud/NetworkIntelligencePanel';
 import FraudReportModal from '../components/fraud/FraudReportModal';
 import EvidenceChainModal from '../components/decision/EvidenceChainModal';
+import AssignModal from '../components/check/AssignModal';
 import { StatusBadge, RiskBadge, ItemTypeBadge } from '../components/common/StatusBadge';
 import toast from 'react-hot-toast';
 
@@ -45,7 +47,9 @@ export default function CheckReviewPage() {
   const [showComparison, setShowComparison] = useState(false);
   const [showFraudModal, setShowFraudModal] = useState(false);
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
   const canViewAudit = useAuthStore((s) => s.hasPermission('audit', 'view'));
+  const canAssign = useAuthStore((s) => s.hasPermission('check_item', 'assign'));
 
   const { data: item, isLoading, error } = useQuery<CheckItem>({
     queryKey: ['checkItem', itemId],
@@ -241,6 +245,15 @@ export default function CheckReviewPage() {
             <ShieldExclamationIcon className="h-5 w-5 mr-1" />
             Report Fraud
           </button>
+          {canAssign && (
+            <button
+              onClick={() => setShowAssignModal(true)}
+              className="flex items-center px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              <UserPlusIcon className="h-5 w-5 mr-1" />
+              Assign
+            </button>
+          )}
           {canViewAudit && (
             <button
               onClick={() => setShowEvidenceModal(true)}
@@ -357,6 +370,15 @@ export default function CheckReviewPage() {
           isOpen={showEvidenceModal}
           onClose={() => setShowEvidenceModal(false)}
           itemId={item.id}
+        />
+      )}
+
+      {/* Assign Modal */}
+      {canAssign && (
+        <AssignModal
+          isOpen={showAssignModal}
+          onClose={() => setShowAssignModal(false)}
+          item={item}
         />
       )}
     </div>

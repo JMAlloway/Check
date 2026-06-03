@@ -24,6 +24,7 @@ import clsx from 'clsx';
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
   { name: 'Review Queue', href: '/queue', icon: QueueListIcon },
+  { name: 'Approvals', href: '/approvals', icon: DocumentCheckIcon, permission: ['check_item', 'approve'] as const },
   { name: 'Fraud Trends', href: '/fraud/trends', icon: ShieldExclamationIcon },
   { name: 'Reports', href: '/reports', icon: ChartBarIcon },
   { name: 'Archive', href: '/archive', icon: ArchiveBoxIcon },
@@ -64,7 +65,10 @@ export default function Layout({ children }: LayoutProps) {
   };
 
   const allNavigation = [
-    ...navigation,
+    ...navigation.filter((item) => {
+      const perm = (item as { permission?: readonly [string, string] }).permission;
+      return !perm || hasPermission(perm[0], perm[1]);
+    }),
     ...(hasPermission('user', 'view') ? adminNavigation : []),
   ];
 

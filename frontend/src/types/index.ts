@@ -154,6 +154,24 @@ export interface Decision {
   created_at: string;
 }
 
+// Dual-control approval queue
+export interface PendingApproval {
+  decision_id: string;
+  check_item_id: string;
+  recommended_action: DecisionAction;
+  recommended_by_id: string;
+  recommended_by_username?: string;
+  notes?: string;
+  recommended_at: string;
+  check_number?: string;
+  amount: string;
+  payee_name?: string;
+  account_number_masked?: string;
+  risk_level?: string;
+  dual_control_reason?: string;
+  sla_due_at?: string;
+}
+
 // Queue types
 export interface Queue {
   id: string;

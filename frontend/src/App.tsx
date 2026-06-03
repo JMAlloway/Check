@@ -7,6 +7,7 @@ import Layout from './components/layout/Layout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import QueuePage from './pages/QueuePage';
+import ApprovalsPage from './pages/ApprovalsPage';
 import CheckReviewPage from './pages/CheckReviewPage';
 import AdminPage from './pages/AdminPage';
 import ReportsPage from './pages/ReportsPage';
@@ -92,6 +93,7 @@ function App() {
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/queue" element={<QueuePage />} />
                   <Route path="/queue/:queueId" element={<QueuePage />} />
+                  <Route path="/approvals" element={<ApprovalsPage />} />
                   <Route path="/review/:itemId" element={<CheckReviewPage />} />
                   <Route path="/admin/*" element={<AdminPage />} />
                   <Route path="/reports" element={<ReportsPage />} />

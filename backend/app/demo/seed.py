@@ -59,7 +59,7 @@ from app.models.fraud import (
 )
 from app.models.image_connector import ConnectorStatus, ImageConnector
 from app.models.policy import Policy, PolicyRule, PolicyStatus, PolicyVersion, RuleType
-from app.models.queue import Queue, QueueType
+from app.models.queue import ApprovalEntitlement, ApprovalEntitlementType, Queue, QueueType
 from app.models.user import User
 
 
@@ -87,6 +87,8 @@ class DemoSeeder:
             "check_images": 0,
             "check_history": 0,
             "decisions": 0,
+            "pending_approvals": 0,
+            "approval_entitlements": 0,
             "audit_events": 0,
             "fraud_events": 0,
             "network_alerts": 0,
@@ -119,6 +121,8 @@ class DemoSeeder:
         stats["check_items"], stats["check_images"] = await self._seed_checks()
         stats["check_history"] = await self._seed_check_history()
         stats["decisions"] = await self._seed_decisions()
+        stats["pending_approvals"] = await self._seed_pending_dual_control_decisions()
+        stats["approval_entitlements"] = await self._seed_approval_entitlements()
         stats["audit_events"] = await self._seed_audit_events()
         await self._update_queue_counts()
         await self.db.commit()  # Commit core data
@@ -1694,6 +1698,76 @@ mwIDAQAB
                     )
                     self.db.add(approval_decision)
                     count += 1
+
+        await self.db.flush()
+        return count
+
+    async def _seed_pending_dual_control_decisions(self) -> int:
+        """Create pending review recommendations for items awaiting dual control.
+
+        Items left in PENDING_DUAL_CONTROL status need a first-level review
+        recommendation that a *different* approver can then approve or reject.
+        Without this, the Approvals queue would have nothing to act on.
+        """
+        reviewer = self.demo_users.get("reviewer", self.demo_users.get("system_admin"))
+        if reviewer is None:
+            return 0
+
+        count = 0
+        for idx, check in enumerate(self.demo_checks):
+            if check.status != CheckStatus.PENDING_DUAL_CONTROL:
+                continue
+
+            # Most recommendations are to approve; route a few as "return" so the
+            # approver sees a mix of outcomes to confirm.
+            recommended_action = DecisionAction.RETURN if idx % 4 == 0 else DecisionAction.APPROVE
+
+            decision = Decision(
+                id=str(uuid.uuid4()),
+                tenant_id="DEMO-TENANT-000000000000000000000000",
+                check_item_id=check.id,
+                user_id=reviewer.id,
+                decision_type=DecisionType.REVIEW_RECOMMENDATION,
+                action=recommended_action,
+                notes="Recommended for dual-control approval (demo).",
+                previous_status=CheckStatus.IN_REVIEW.value,
+                new_status=CheckStatus.PENDING_DUAL_CONTROL.value,
+                is_dual_control_required=True,
+                dual_control_approved_at=None,
+                is_demo=True,
+            )
+            self.db.add(decision)
+            await self.db.flush()  # ensure decision.id is available
+            check.pending_dual_control_decision_id = decision.id
+            count += 1
+
+        await self.db.flush()
+        return count
+
+    async def _seed_approval_entitlements(self) -> int:
+        """Grant approve entitlements so demo approver roles can clear dual control.
+
+        system_admin is a superuser and bypasses entitlement checks; the other
+        senior roles need an explicit (unrestricted, demo) APPROVE entitlement.
+        """
+        approver_roles = ["senior_reviewer", "supervisor", "administrator"]
+        now = datetime.now(timezone.utc)
+        count = 0
+        for role in approver_roles:
+            user = self.demo_users.get(role)
+            if user is None:
+                continue
+            entitlement = ApprovalEntitlement(
+                id=str(uuid.uuid4()),
+                user_id=user.id,
+                entitlement_type=ApprovalEntitlementType.APPROVE,
+                tenant_id="DEMO-TENANT-000000000000000000000000",
+                is_active=True,
+                effective_from=now,
+                grant_reason="Demo seed: enable dual-control approvals",
+            )
+            self.db.add(entitlement)
+            count += 1
 
         await self.db.flush()
         return count

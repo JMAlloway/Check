@@ -19,7 +19,7 @@ from decimal import Decimal
 
 logger = logging.getLogger("app.demo.seed")
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -120,6 +120,7 @@ class DemoSeeder:
         stats["check_history"] = await self._seed_check_history()
         stats["decisions"] = await self._seed_decisions()
         stats["audit_events"] = await self._seed_audit_events()
+        await self._update_queue_counts()
         await self.db.commit()  # Commit core data
 
         # Fraud data is optional - don't let it break the whole seeding
@@ -231,6 +232,28 @@ class DemoSeeder:
 
         await self.db.flush()
         return count
+
+    async def _update_queue_counts(self) -> None:
+        """Set each queue's current_item_count to its pending (non-terminal) items.
+
+        The seed assigns checks to queues but the stored counter isn't maintained,
+        so the Queue page would show "0 items" on every queue. This backfills it.
+        """
+        await self.db.execute(
+            text(
+                """
+                UPDATE queues SET current_item_count = COALESCE(sub.cnt, 0)
+                FROM (
+                    SELECT queue_id, COUNT(*) AS cnt
+                    FROM check_items
+                    WHERE queue_id IS NOT NULL
+                      AND status IN ('new', 'in_review', 'escalated', 'pending_dual_control')
+                    GROUP BY queue_id
+                ) AS sub
+                WHERE queues.id = sub.queue_id
+                """
+            )
+        )
 
     async def _seed_queues(self) -> int:
         """Create demo queues."""
@@ -1424,6 +1447,16 @@ mwIDAQAB
             # Randomly assign item type (40% on_us, 60% transit)
             item_type = ItemType.ON_US if random.random() < 0.4 else ItemType.TRANSIT
 
+            # Promote a few very high-value high-risk items to CRITICAL so the
+            # demo showcases the top risk tier (no critical scenarios remain).
+            risk_level = risk_level_map.get(scenario_config.risk_level, RiskLevel.LOW)
+            if (
+                risk_level == RiskLevel.HIGH
+                and amount >= Decimal("60000")
+                and random.random() < 0.7
+            ):
+                risk_level = RiskLevel.CRITICAL
+
             check_item = CheckItem(
                 id=str(uuid.uuid4()),
                 tenant_id="DEMO-TENANT-000000000000000000000000",
@@ -1446,7 +1479,7 @@ mwIDAQAB
                 presented_date=presented_date,
                 check_date=check_date,
                 status=status,
-                risk_level=risk_level_map.get(scenario_config.risk_level, RiskLevel.LOW),
+                risk_level=risk_level,
                 priority=self._calculate_priority(scenario_config, amount),
                 queue_id=queue.id if queue else None,
                 sla_due_at=presented_date + timedelta(hours=settings.DEFAULT_SLA_HOURS),

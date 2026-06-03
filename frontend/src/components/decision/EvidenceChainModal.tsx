@@ -6,6 +6,7 @@ import {
   CheckBadgeIcon,
 } from '@heroicons/react/24/outline';
 import { decisionApi } from '../../services/api';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import type { EvidenceChainResult } from '../../types';
 
 interface EvidenceChainModalProps {
@@ -60,6 +61,8 @@ export default function EvidenceChainModal({ isOpen, onClose, itemId }: Evidence
     enabled: isOpen,
   });
 
+  const trapRef = useFocusTrap<HTMLDivElement>(isOpen, onClose);
+
   if (!isOpen) return null;
 
   return (
@@ -69,7 +72,10 @@ export default function EvidenceChainModal({ isOpen, onClose, itemId }: Evidence
       aria-modal="true"
       aria-label="Evidence chain verification"
     >
-      <div className="max-h-[80vh] w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-xl">
+      <div
+        ref={trapRef}
+        className="max-h-[80vh] w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-xl"
+      >
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
           <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
             <ShieldCheckIcon className="h-5 w-5 text-primary-600" aria-hidden="true" />

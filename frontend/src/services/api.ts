@@ -373,6 +373,30 @@ export const reportsApi = {
     return response.data;
   },
 
+  exportDecisionsCsv: async (dateFrom?: string, dateTo?: string) => {
+    const params: Record<string, string> = {};
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+
+    const response = await api.get('/reports/export/decisions', {
+      params,
+      responseType: 'blob',
+    });
+
+    const blob = new Blob([response.data], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute(
+      'download',
+      `decisions_${dateFrom?.split('T')[0] || new Date().toISOString().split('T')[0]}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
   // PDF Export methods
   exportDailyActivityPdf: async (dateFrom?: string, dateTo?: string) => {
     const params: Record<string, string> = {};

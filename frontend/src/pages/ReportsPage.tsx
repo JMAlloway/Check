@@ -63,6 +63,22 @@ export default function ReportsPage() {
     }
   };
 
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const handleExportDecisionsCsv = async () => {
+    setExportingCsv(true);
+    try {
+      await reportsApi.exportDecisionsCsv(
+        `${reportDateFrom}T00:00:00`,
+        `${reportDateTo}T23:59:59`
+      );
+    } catch (error) {
+      console.error('Error exporting decisions CSV:', error);
+      toast.error('Failed to export decisions. Please try again.');
+    } finally {
+      setExportingCsv(false);
+    }
+  };
+
   const { data: throughput } = useQuery({
     queryKey: ['throughput', timeRange],
     queryFn: () => reportsApi.getThroughput(timeRange),
@@ -125,6 +141,14 @@ export default function ReportsPage() {
               className="rounded-lg border-gray-300 text-sm"
             />
           </div>
+          <button
+            onClick={handleExportDecisionsCsv}
+            disabled={exportingCsv}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            <DocumentArrowDownIcon className="h-4 w-4" aria-hidden="true" />
+            {exportingCsv ? 'Exporting…' : 'Export Decisions (CSV)'}
+          </button>
         </div>
 
         {/* Report Cards */}

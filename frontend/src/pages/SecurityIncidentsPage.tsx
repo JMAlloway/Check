@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { securityApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import type { SecurityIncident } from '../types';
 
 const SEVERITY_TONE: Record<string, string> = {
@@ -243,6 +244,7 @@ function ModalShell({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -250,7 +252,10 @@ function ModalShell({
       aria-modal="true"
       aria-label={title}
     >
-      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5 shadow-xl">
+      <div
+        ref={trapRef}
+        className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5 shadow-xl"
+      >
         <h2 className="mb-4 text-base font-semibold text-gray-900">{title}</h2>
         {children}
         <div className="mt-4 flex justify-end">

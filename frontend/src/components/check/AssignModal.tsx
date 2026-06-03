@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { checkApi, userApi, queueApi } from '../../services/api';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import type { CheckItem, Queue } from '../../types';
 
 interface AssignableUser {
@@ -60,6 +61,8 @@ export default function AssignModal({ isOpen, onClose, item }: AssignModalProps)
     },
   });
 
+  const trapRef = useFocusTrap<HTMLDivElement>(isOpen, onClose);
+
   if (!isOpen) return null;
 
   const changed =
@@ -73,7 +76,7 @@ export default function AssignModal({ isOpen, onClose, item }: AssignModalProps)
       aria-modal="true"
       aria-label="Assign check"
     >
-      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+      <div ref={trapRef} className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-gray-900">Assign check</h2>
           <button

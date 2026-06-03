@@ -18,6 +18,7 @@ from app.api.v1.endpoints import (
     policies,
     queues,
     reports,
+    security,
     system,
     users,
 )
@@ -46,6 +47,7 @@ api_router.include_router(
     prefix="/item-context-connectors",
     tags=["Connector C - Item Context SFTP"],
 )
+api_router.include_router(security.router, prefix="/security", tags=["Security & Incidents"])
 api_router.include_router(system.router, prefix="/system", tags=["System"])
 api_router.include_router(operations.router, prefix="/operations", tags=["Operations"])
 api_router.include_router(monitoring.router, prefix="/monitoring", tags=["Monitoring"])

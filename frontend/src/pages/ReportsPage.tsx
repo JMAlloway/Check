@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { reportsApi } from '../services/api';
 import {
   BarChart,
@@ -56,7 +57,7 @@ export default function ReportsPage() {
       }
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF report. Please try again.');
+      toast.error('Failed to generate PDF report. Please try again.');
     } finally {
       setGeneratingReport(null);
     }

@@ -352,9 +352,10 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
                   className={clsx(
                     'px-4 py-2 text-sm font-medium rounded-lg border transition-colors relative',
                     isSubmitting && 'opacity-50 cursor-not-allowed',
-                    selectedAction === action
-                      ? `bg-${color}-100 border-${color}-500 text-${color}-700`
-                      : 'border-gray-300 text-gray-700 hover:bg-gray-50',
+                    // NOTE: avoid dynamic `bg-${color}-100` classes — Tailwind's
+                    // JIT purges classes it can't see as complete strings. Use the
+                    // explicit per-color classes below instead.
+                    selectedAction !== action && 'border-gray-300 text-gray-700 hover:bg-gray-50',
                     color === 'green' && selectedAction === action && 'bg-green-100 border-green-500 text-green-700',
                     color === 'orange' && selectedAction === action && 'bg-orange-100 border-orange-500 text-orange-700',
                     color === 'red' && selectedAction === action && 'bg-red-100 border-red-500 text-red-700',

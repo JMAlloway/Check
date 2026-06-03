@@ -1421,7 +1421,9 @@ mwIDAQAB
                 check_date = presented_date + timedelta(days=random.randint(5, 30))
 
             # Select queue based on status and scenario
-            queue = self._select_queue_for_status(status, scenario_config.requires_dual_control)
+            queue = self._select_queue_for_status(
+                status, scenario_config.requires_dual_control, amount
+            )
 
             # Determine if dual control is required
             requires_dual_control = (
@@ -2073,14 +2075,31 @@ mwIDAQAB
         return count
 
     def _select_queue_for_status(
-        self, status: CheckStatus, requires_dual_control: bool
+        self,
+        status: CheckStatus,
+        requires_dual_control: bool,
+        amount: Decimal | None = None,
     ) -> Queue | None:
-        """Select appropriate queue based on status."""
+        """Select appropriate queue based on status (and amount for routing).
+
+        High-value pending items are routed to the High Priority queue so it is
+        populated in the demo; everything else pending goes to Standard Review.
+        """
         if status == CheckStatus.PENDING_DUAL_CONTROL:
             return self.demo_queues.get("Demo Dual Control")
         elif status == CheckStatus.ESCALATED:
             return self.demo_queues.get("Demo Escalation")
         elif status in [CheckStatus.NEW, CheckStatus.IN_REVIEW]:
+            # Route the higher-value pending items to the High Priority queue so
+            # it is populated in the demo. Very high-value items have already been
+            # diverted to dual-control/escalation above, so use a lower cutoff
+            # here than HIGH_PRIORITY_THRESHOLD to capture the remaining top tier.
+            if (
+                amount is not None
+                and amount >= Decimal("5000")
+                and "Demo High Priority" in self.demo_queues
+            ):
+                return self.demo_queues.get("Demo High Priority")
             return self.demo_queues.get("Demo Standard Review")
         return None
 

@@ -60,7 +60,7 @@ const CAPABILITIES: Capability[] = [
     description:
       'Inbound SFTP item-context feeds that enrich checks with account tenure, balances and behavior. Configure connectors, map fields and schedule imports.',
     icon: ServerStackIcon,
-    endpoint: '/item_context_connectors',
+    endpoint: '/item-context-connectors',
     summarize: (d) => `${countOf(d)} connector(s)`,
   },
   {

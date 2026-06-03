@@ -9,6 +9,8 @@ import type {
   ContextImport,
   CommitBatchSummary,
   ConnectorDashboard,
+  ItemView,
+  AuditLogEntry,
 } from '../types';
 
 // Use relative path '/api/v1' when VITE_API_URL is not set - this allows Vite's proxy
@@ -520,6 +522,16 @@ export const imageApi = {
 export const auditApi = {
   getItemAuditTrail: async (itemId: string, limit = 100) => {
     const response = await api.get(`/audit/items/${itemId}`, { params: { limit } });
+    return response.data;
+  },
+
+  getItemViews: async (itemId: string): Promise<ItemView[]> => {
+    const response = await api.get(`/audit/items/${itemId}/views`);
+    return response.data;
+  },
+
+  getUserActivity: async (userId: string, limit = 100): Promise<AuditLogEntry[]> => {
+    const response = await api.get(`/audit/users/${userId}`, { params: { limit } });
     return response.data;
   },
 

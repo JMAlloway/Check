@@ -154,6 +154,35 @@ export interface Decision {
   created_at: string;
 }
 
+// Audit drill-down
+export interface ItemView {
+  id: string;
+  check_item_id: string;
+  user_id: string;
+  username?: string;
+  view_started_at: string;
+  view_ended_at?: string;
+  duration_seconds?: number;
+  front_image_viewed: boolean;
+  back_image_viewed: boolean;
+  zoom_used: boolean;
+  magnifier_used: boolean;
+  history_compared: boolean;
+  ai_assists_viewed: boolean;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  user_id?: string;
+  username?: string;
+  ip_address?: string;
+  action: string;
+  resource_type: string;
+  resource_id?: string;
+  description?: string;
+}
+
 // Connector B — outbound commit batches
 export interface CommitBatchSummary {
   id: string;

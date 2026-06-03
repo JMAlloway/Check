@@ -94,6 +94,7 @@ const CAPABILITIES: Capability[] = [
     icon: ClipboardDocumentListIcon,
     endpoint: '/audit/logs?page_size=1',
     summarize: (d) => `${countOf(d)} audit events`,
+    link: '/audit/drill-down',
   },
   {
     key: 'mfa',

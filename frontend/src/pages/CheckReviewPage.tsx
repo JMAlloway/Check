@@ -7,6 +7,7 @@ import {
   ShieldExclamationIcon,
   ShieldCheckIcon,
   UserPlusIcon,
+  EyeIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   PlayIcon,
@@ -27,6 +28,7 @@ import NetworkIntelligencePanel from '../components/fraud/NetworkIntelligencePan
 import FraudReportModal from '../components/fraud/FraudReportModal';
 import EvidenceChainModal from '../components/decision/EvidenceChainModal';
 import AssignModal from '../components/check/AssignModal';
+import ItemViewsModal from '../components/check/ItemViewsModal';
 import { StatusBadge, RiskBadge, ItemTypeBadge } from '../components/common/StatusBadge';
 import toast from 'react-hot-toast';
 
@@ -48,6 +50,7 @@ export default function CheckReviewPage() {
   const [showFraudModal, setShowFraudModal] = useState(false);
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showViewsModal, setShowViewsModal] = useState(false);
   const canViewAudit = useAuthStore((s) => s.hasPermission('audit', 'view'));
   const canAssign = useAuthStore((s) => s.hasPermission('check_item', 'assign'));
 
@@ -256,6 +259,15 @@ export default function CheckReviewPage() {
           )}
           {canViewAudit && (
             <button
+              onClick={() => setShowViewsModal(true)}
+              className="flex items-center px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              <EyeIcon className="h-5 w-5 mr-1" />
+              Views
+            </button>
+          )}
+          {canViewAudit && (
+            <button
               onClick={() => setShowEvidenceModal(true)}
               className="flex items-center px-3 py-2 text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100"
             >
@@ -379,6 +391,15 @@ export default function CheckReviewPage() {
           isOpen={showAssignModal}
           onClose={() => setShowAssignModal(false)}
           item={item}
+        />
+      )}
+
+      {/* Item Views Modal */}
+      {canViewAudit && (
+        <ItemViewsModal
+          isOpen={showViewsModal}
+          onClose={() => setShowViewsModal(false)}
+          itemId={item.id}
         />
       )}
     </div>

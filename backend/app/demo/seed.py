@@ -35,7 +35,7 @@ from app.demo.scenarios import (
     DEMO_SCENARIOS,
     DemoScenario,
 )
-from app.models.audit import AuditAction, AuditLog
+from app.models.audit import AuditAction, AuditLog, ItemView
 from app.models.check import (
     AccountType,
     CheckHistory,
@@ -110,6 +110,7 @@ class DemoSeeder:
             "security_incidents": 0,
             "context_connectors": 0,
             "commit_batches": 0,
+            "item_views": 0,
             "audit_events": 0,
             "fraud_events": 0,
             "network_alerts": 0,
@@ -148,6 +149,7 @@ class DemoSeeder:
         stats["security_incidents"] = await self._seed_security_incidents()
         stats["context_connectors"] = await self._seed_item_context_connectors()
         stats["commit_batches"] = await self._seed_commit_batches()
+        stats["item_views"] = await self._seed_item_views()
         stats["audit_events"] = await self._seed_audit_events()
         await self._update_queue_counts()
         await self.db.commit()  # Commit core data
@@ -1894,6 +1896,48 @@ mwIDAQAB
                         triggered_by="schedule",
                     )
                 )
+
+        await self.db.flush()
+        return count
+
+    async def _seed_item_views(self) -> int:
+        """Seed per-item view trails so the audit drill-down has data."""
+        viewers = [
+            self.demo_users.get("reviewer"),
+            self.demo_users.get("senior_reviewer"),
+            self.demo_users.get("supervisor"),
+        ]
+        viewers = [v for v in viewers if v is not None]
+        if not viewers:
+            return 0
+
+        tenant_id = "DEMO-TENANT-000000000000000000000000"
+        count = 0
+        for check in self.demo_checks[:18]:
+            for _ in range(random.randint(1, 3)):
+                viewer = random.choice(viewers)
+                started = check.presented_date + timedelta(minutes=random.randint(1, 240))
+                duration = random.randint(25, 280)
+                self.db.add(
+                    ItemView(
+                        id=str(uuid.uuid4()),
+                        tenant_id=tenant_id,
+                        check_item_id=check.id,
+                        user_id=viewer.id,
+                        view_started_at=started,
+                        view_ended_at=started + timedelta(seconds=duration),
+                        duration_seconds=duration,
+                        front_image_viewed=True,
+                        back_image_viewed=random.random() < 0.7,
+                        zoom_used=random.random() < 0.6,
+                        magnifier_used=random.random() < 0.4,
+                        history_compared=random.random() < 0.5,
+                        ai_assists_viewed=random.random() < 0.5,
+                        context_panel_viewed=random.random() < 0.8,
+                        is_demo=True,
+                    )
+                )
+                count += 1
 
         await self.db.flush()
         return count

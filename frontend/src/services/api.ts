@@ -5,6 +5,8 @@ import type {
   EvidenceChainVerification,
   SecurityIncident,
   IncidentTimelineEntry,
+  ContextConnector,
+  ContextImport,
 } from '../types';
 
 // Use relative path '/api/v1' when VITE_API_URL is not set - this allows Vite's proxy
@@ -1053,6 +1055,21 @@ export const securityApi = {
 
   getTimeline: async (id: string): Promise<IncidentTimelineEntry[]> => {
     const response = await api.get(`/security/incidents/${id}/timeline`);
+    return response.data;
+  },
+};
+
+// Connector C — item-context SFTP connectors API
+export const contextConnectorApi = {
+  listConnectors: async (): Promise<{ items: ContextConnector[]; total: number }> => {
+    const response = await api.get('/item-context-connectors');
+    return response.data;
+  },
+
+  getImports: async (
+    connectorId: string
+  ): Promise<{ items: ContextImport[]; total: number }> => {
+    const response = await api.get(`/item-context-connectors/${connectorId}/imports`);
     return response.data;
   },
 };

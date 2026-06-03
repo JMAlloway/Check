@@ -65,6 +65,7 @@ const CAPABILITIES: Capability[] = [
     icon: ServerStackIcon,
     endpoint: '/item-context-connectors',
     summarize: (d) => `${countOf(d)} connector(s)`,
+    link: '/connectors/item-context',
   },
   {
     key: 'security',

@@ -154,6 +154,48 @@ export interface Decision {
   created_at: string;
 }
 
+// Connector C — item-context SFTP connectors
+export interface ContextConnector {
+  id: string;
+  name: string;
+  description: string | null;
+  source_system: string;
+  status: string;
+  is_enabled: boolean;
+  sftp_host: string;
+  sftp_port: number;
+  sftp_username: string;
+  sftp_remote_path: string;
+  file_pattern: string;
+  file_format: string;
+  schedule_enabled: boolean;
+  schedule_cron: string | null;
+  last_import_at: string | null;
+  last_import_file: string | null;
+  last_import_records: number | null;
+  consecutive_failures: number;
+  last_error_message: string | null;
+}
+
+export interface ContextImport {
+  id: string;
+  connector_id: string;
+  file_name: string;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  duration_seconds: number | null;
+  total_records: number;
+  matched_records: number;
+  applied_records: number;
+  not_found_records: number;
+  duplicate_records: number;
+  invalid_records: number;
+  error_records: number;
+  triggered_by: string;
+  error_message: string | null;
+}
+
 // Security incidents
 export interface SecurityIncident {
   id: string;

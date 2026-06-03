@@ -21,6 +21,7 @@ const ArchivePage = lazy(() => import('./pages/ArchivePage'));
 const HelpPage = lazy(() => import('./pages/HelpPage'));
 const OperationsHubPage = lazy(() => import('./pages/OperationsHubPage'));
 const SecurityIncidentsPage = lazy(() => import('./pages/SecurityIncidentsPage'));
+const ContextConnectorsPage = lazy(() => import('./pages/ContextConnectorsPage'));
 
 function RouteFallback() {
   return (
@@ -116,6 +117,7 @@ function App() {
                     <Route path="/fraud/trends" element={<FraudTrendsPage />} />
                     <Route path="/operations" element={<OperationsHubPage />} />
                     <Route path="/security/incidents" element={<SecurityIncidentsPage />} />
+                    <Route path="/connectors/item-context" element={<ContextConnectorsPage />} />
                     <Route path="/help" element={<HelpPage />} />
                   </Routes>
                 </Suspense>

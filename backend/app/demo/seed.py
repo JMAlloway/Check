@@ -58,6 +58,13 @@ from app.models.fraud import (
     get_amount_bucket,
 )
 from app.models.image_connector import ConnectorStatus, ImageConnector
+from app.models.item_context_connector import (
+    ContextConnectorStatus,
+    FileFormat,
+    ImportStatus,
+    ItemContextConnector,
+    ItemContextImport,
+)
 from app.models.policy import Policy, PolicyRule, PolicyStatus, PolicyVersion, RuleType
 from app.models.queue import ApprovalEntitlement, ApprovalEntitlementType, Queue, QueueType
 from app.models.user import User
@@ -94,6 +101,7 @@ class DemoSeeder:
             "sealed_evidence": 0,
             "approval_entitlements": 0,
             "security_incidents": 0,
+            "context_connectors": 0,
             "audit_events": 0,
             "fraud_events": 0,
             "network_alerts": 0,
@@ -130,6 +138,7 @@ class DemoSeeder:
         stats["sealed_evidence"] = await self._seal_demo_evidence()
         stats["approval_entitlements"] = await self._seed_approval_entitlements()
         stats["security_incidents"] = await self._seed_security_incidents()
+        stats["context_connectors"] = await self._seed_item_context_connectors()
         stats["audit_events"] = await self._seed_audit_events()
         await self._update_queue_counts()
         await self.db.commit()  # Commit core data
@@ -1787,6 +1796,98 @@ mwIDAQAB
 
         await self.db.flush()
         return sealed
+
+    async def _seed_item_context_connectors(self) -> int:
+        """Seed Connector C (SFTP item-context) connectors and import history."""
+        owner = self.demo_users.get("system_admin", self.demo_users.get("administrator"))
+        if owner is None:
+            return 0
+
+        tenant_id = "DEMO-TENANT-000000000000000000000000"
+        now = datetime.now(timezone.utc)
+        connector_specs = [
+            {
+                "name": "Core Account Tenure Feed",
+                "source_system": "fiserv_premier",
+                "sftp_host": "sftp.core.demo-bank.example",
+                "remote_path": "/outbound/account_context/",
+                "file_pattern": "account_context_*.csv",
+                "cron": "0 */4 * * *",
+            },
+            {
+                "name": "Deposit Behavior Feed",
+                "source_system": "jack_henry_silverlake",
+                "sftp_host": "sftp.dn.demo-bank.example",
+                "remote_path": "/feeds/deposit_behavior/",
+                "file_pattern": "deposit_behavior_*.csv",
+                "cron": "0 2 * * *",
+            },
+        ]
+
+        count = 0
+        for ci, spec in enumerate(connector_specs):
+            last_import_at = now - timedelta(hours=4 * ci + 3)
+            connector = ItemContextConnector(
+                id=str(uuid.uuid4()),
+                tenant_id=tenant_id,
+                name=spec["name"],
+                description="Inbound SFTP feed enriching checks with account context.",
+                source_system=spec["source_system"],
+                status=ContextConnectorStatus.ACTIVE,
+                is_enabled=True,
+                sftp_host=spec["sftp_host"],
+                sftp_port=22,
+                sftp_username="checkreview_svc",
+                sftp_remote_path=spec["remote_path"],
+                file_pattern=spec["file_pattern"],
+                file_format=FileFormat.CSV,
+                has_header_row=True,
+                field_mapping={
+                    "external_item_id": "item_id",
+                    "account_tenure_days": "tenure_days",
+                    "average_balance": "avg_balance",
+                },
+                match_field="external_item_id",
+                schedule_enabled=True,
+                schedule_cron=spec["cron"],
+                last_import_at=last_import_at,
+                last_import_file=spec["file_pattern"].replace("*", "20260603"),
+                last_import_records=random.randint(400, 1200),
+                created_by_user_id=owner.id,
+            )
+            self.db.add(connector)
+            await self.db.flush()
+            count += 1
+
+            # A few historical import runs (most succeed; one is partial).
+            for ri in range(3):
+                started = last_import_at - timedelta(hours=4 * ri)
+                total = random.randint(400, 1200)
+                invalid = random.randint(0, 12) if ri == 1 else 0
+                matched = total - invalid
+                status = ImportStatus.PARTIAL if invalid else ImportStatus.COMPLETED
+                self.db.add(
+                    ItemContextImport(
+                        id=str(uuid.uuid4()),
+                        connector_id=connector.id,
+                        tenant_id=tenant_id,
+                        file_name=spec["file_pattern"].replace("*", started.strftime("%Y%m%d%H")),
+                        file_path=spec["remote_path"]
+                        + spec["file_pattern"].replace("*", started.strftime("%Y%m%d%H")),
+                        status=status,
+                        started_at=started,
+                        completed_at=started + timedelta(minutes=2),
+                        duration_seconds=120,
+                        total_records=total,
+                        matched_records=matched,
+                        applied_records=matched,
+                        invalid_records=invalid,
+                        triggered_by="schedule",
+                    )
+                )
+
+        await self.db.flush()
+        return count
 
     async def _seed_security_incidents(self) -> int:
         """Seed a few security incidents so the incident console is populated."""

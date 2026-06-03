@@ -67,12 +67,12 @@ When `DEMO_MODE=true`, the following users are auto-seeded:
 
 | Username | Password | Role |
 |----------|----------|------|
-| `system_admin_demo` | `DemoSysAdmin123!` | System Admin |
-| `tenant_admin_demo` | `DemoTenantAdmin123!` | Tenant Admin |
-| `supervisor_demo` | `DemoSupervisor123!` | Supervisor |
 | `reviewer_demo` | `DemoReviewer123!` | Reviewer |
+| `senior_reviewer_demo` | `DemoSenior123!` | Senior Reviewer |
+| `supervisor_demo` | `DemoSupervisor123!` | Supervisor |
+| `administrator_demo` | `DemoAdmin123!` | Administrator |
 | `auditor_demo` | `DemoAuditor123!` | Auditor |
-| `readonly_demo` | `DemoReadonly123!` | Read Only |
+| `system_admin_demo` | `DemoSysAdmin123!` | System Admin |
 
 ### Local Development
 

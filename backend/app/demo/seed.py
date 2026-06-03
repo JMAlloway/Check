@@ -1326,19 +1326,14 @@ mwIDAQAB
             DemoScenario.REGULAR_VENDOR_PAYMENT: 15,
             DemoScenario.KNOWN_CUSTOMER_CHECK: 15,
             # Review scenarios
-            DemoScenario.ALTERED_AMOUNT: 5,
-            DemoScenario.SUSPICIOUS_ENDORSEMENT: 5,
-            DemoScenario.MISMATCHED_SIGNATURE: 4,
             DemoScenario.STALE_DATED: 4,
             DemoScenario.POST_DATED: 4,
             DemoScenario.DUPLICATE_CHECK: 3,
             DemoScenario.UNUSUAL_AMOUNT: 5,
             DemoScenario.NEW_ACCOUNT_HIGH_VALUE: 5,
             DemoScenario.VELOCITY_SPIKE: 4,
-            # Fraud scenarios
-            DemoScenario.COUNTERFEIT_CHECK: 3,
-            DemoScenario.FORGED_SIGNATURE: 3,
-            DemoScenario.ACCOUNT_TAKEOVER: 2,
+            DemoScenario.HIGH_RISK_HISTORY: 3,
+            DemoScenario.AMOUNT_EXCEEDS_BALANCE: 3,
         }
 
         # Status distribution for workflow demonstration
@@ -1498,21 +1493,10 @@ mwIDAQAB
                 check_age_days=((presented_date - check_date).days if check_date else None),
                 is_stale_dated=scenario == DemoScenario.STALE_DATED,
                 is_post_dated=scenario == DemoScenario.POST_DATED,
-                has_micr_anomaly=scenario
-                in [DemoScenario.COUNTERFEIT_CHECK, DemoScenario.ALTERED_AMOUNT],
-                micr_confidence_score=(
-                    random.randint(85, 100)
-                    if scenario not in [DemoScenario.COUNTERFEIT_CHECK]
-                    else random.randint(40, 70)
-                ),
-                has_alteration_flag=scenario
-                in [DemoScenario.ALTERED_AMOUNT, DemoScenario.FORGED_SIGNATURE],
-                signature_match_score=(
-                    random.randint(85, 100)
-                    if scenario
-                    not in [DemoScenario.FORGED_SIGNATURE, DemoScenario.MISMATCHED_SIGNATURE]
-                    else random.randint(30, 60)
-                ),
+                has_micr_anomaly=False,
+                micr_confidence_score=random.randint(85, 100),
+                has_alteration_flag=False,
+                signature_match_score=random.randint(85, 100),
                 prior_review_count=random.randint(0, 5),
                 prior_approval_count=random.randint(0, 3),
                 prior_rejection_count=random.randint(0, 1) if account.returned_items > 0 else 0,

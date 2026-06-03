@@ -1,7 +1,7 @@
 """Add previous_hash column to audit_logs for chain integrity.
 
 Revision ID: 013_audit_chain_integrity
-Revises: 012_tenant_unique_user_constraints
+Revises: 012_tenant_unique_users
 Create Date: 2026-01-16
 
 SECURITY: This migration adds blockchain-like chain integrity to audit logs.
@@ -20,7 +20,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "013_audit_chain_integrity"
-down_revision = "012_tenant_unique_user_constraints"
+down_revision = "012_tenant_unique_users"
 branch_labels = None
 depends_on = None
 

@@ -208,6 +208,12 @@ class Settings(BaseSettings):
     # Example: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1"
     METRICS_ALLOWED_IPS: str = ""
 
+    # External monitoring tool URLs surfaced by GET /operations/quick-links.
+    # Empty by default; set per-deployment. (Referenced by operations.py.)
+    GRAFANA_URL: str = ""
+    PROMETHEUS_URL: str = ""
+    ALERTMANAGER_URL: str = ""
+
     @field_validator("METRICS_ALLOWED_IPS", mode="before")
     @classmethod
     def parse_metrics_allowed_ips(cls, v: Any) -> str:

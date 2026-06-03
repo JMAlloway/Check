@@ -446,6 +446,7 @@ class TestQueueAssignments:
             "/api/v1/queues/queue-new-assign/assignments",
             headers=queue_headers,
             json={
+                "queue_id": "queue-new-assign",
                 "user_id": "new-assigned-user",
                 "can_review": True,
                 "can_approve": True,
@@ -502,6 +503,7 @@ class TestQueueAssignments:
             "/api/v1/queues/queue-update-assign/assignments",
             headers=queue_headers,
             json={
+                "queue_id": "queue-update-assign",
                 "user_id": "update-assigned-user",
                 "can_review": True,
                 "can_approve": True,

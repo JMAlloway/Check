@@ -299,6 +299,18 @@ class TestCheckItemAssignment:
             presented_date=datetime.now(timezone.utc),
         )
         db_session.add(item)
+        # The reviewer being assigned must exist (assigned_reviewer_id FK).
+        db_session.add(
+            User(
+                id="reviewer-123",
+                tenant_id=test_tenant_id,
+                username="reviewer123",
+                email="reviewer123@example.com",
+                full_name="Reviewer 123",
+                hashed_password="x",
+                is_active=True,
+            )
+        )
         await db_session.commit()
 
         response = client.post(

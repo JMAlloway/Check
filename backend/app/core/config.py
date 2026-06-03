@@ -95,6 +95,10 @@ class Settings(BaseSettings):
     AUDIT_LOG_RETENTION_YEARS: int = 7
 
     # Integration settings
+    # Core-banking adapter selection: "mock" | "fiserv" | "jackhenry".
+    # "fiserv"/"jackhenry" run the simulated adapters (synthetic data, real
+    # vendor wire-format translation) - safe for demos without credentials.
+    INTEGRATION_ADAPTER: str = "mock"
     INTEGRATION_TIMEOUT_SECONDS: int = 30
     INTEGRATION_RETRY_ATTEMPTS: int = 3
 

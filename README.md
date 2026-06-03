@@ -205,6 +205,7 @@ Interactive API documentation available at `/api/v1/docs` (Swagger UI) or `/api/
 | `REDIS_URL` | Redis connection string | `redis://localhost:6379/0` |
 | `ENVIRONMENT` | `development` or `production` | `development` |
 | `DEMO_MODE` | Enable demo mode with synthetic data | `false` |
+| `INTEGRATION_ADAPTER` | Core-banking adapter: `mock`, `fiserv`, or `jackhenry` (simulated; synthetic data, real vendor wire-format translation) | `mock` |
 | `DEMO_DATA_COUNT` | Number of demo items to seed | `60` |
 | `CORS_ORIGINS` | Allowed CORS origins (JSON array) | `["http://localhost:3000"]` |
 | `DUAL_CONTROL_THRESHOLD` | Amount requiring dual control | `5000.0` |

@@ -22,7 +22,7 @@ import {
   ChartBarSquareIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
-import { userApi, queueAdminApi, policyApi, auditLogApi, imageConnectorApi, systemApi, reportsApi, operationsApi } from '../services/api';
+import { userApi, queueAdminApi, queueApi, policyApi, auditLogApi, imageConnectorApi, systemApi, reportsApi, operationsApi } from '../services/api';
 import { format } from 'date-fns';
 
 const adminNav = [
@@ -2666,6 +2666,11 @@ function SystemMetricsAdmin() {
     queryFn: () => reportsApi.getReviewerPerformance(30),
   });
 
+  const { data: adminQueues } = useQuery({
+    queryKey: ['queues'],
+    queryFn: () => queueApi.getQueues(),
+  });
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'healthy': return 'bg-green-100 text-green-800';
@@ -2809,25 +2814,25 @@ function SystemMetricsAdmin() {
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
             <p className="text-sm text-blue-600">Pending Items</p>
             <p className="text-2xl font-bold text-blue-700">
-              {dashboard?.pending_items || 0}
+              {dashboard?.summary?.pending_items ?? 0}
             </p>
           </div>
           <div className="p-4 bg-green-50 rounded-lg border border-green-100">
-            <p className="text-sm text-green-600">Approved Today</p>
+            <p className="text-sm text-green-600">Processed Today</p>
             <p className="text-2xl font-bold text-green-700">
-              {dashboard?.approved_today || 0}
+              {dashboard?.summary?.processed_today ?? 0}
             </p>
           </div>
           <div className="p-4 bg-red-50 rounded-lg border border-red-100">
-            <p className="text-sm text-red-600">Rejected Today</p>
+            <p className="text-sm text-red-600">SLA Breached</p>
             <p className="text-2xl font-bold text-red-700">
-              {dashboard?.rejected_today || 0}
+              {dashboard?.summary?.sla_breached ?? 0}
             </p>
           </div>
           <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
-            <p className="text-sm text-amber-600">Escalated</p>
+            <p className="text-sm text-amber-600">Dual Control Pending</p>
             <p className="text-2xl font-bold text-amber-700">
-              {dashboard?.escalated_items || 0}
+              {dashboard?.summary?.dual_control_pending ?? 0}
             </p>
           </div>
         </div>
@@ -2837,19 +2842,19 @@ function SystemMetricsAdmin() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">7-Day Throughput</h2>
-          {throughput?.daily_stats ? (
+          {throughput?.daily?.length ? (
             <div className="space-y-3">
-              {throughput.daily_stats.slice(-7).map((day: any, index: number) => (
+              {throughput.daily.slice(-7).map((day: any, index: number) => (
                 <div key={index} className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">{day.date}</span>
                   <div className="flex items-center gap-4">
                     <span className="text-sm font-medium text-gray-900">
-                      {day.total_reviewed || 0} reviewed
+                      {day.processed || 0} processed
                     </span>
                     <div className="w-32 bg-gray-200 rounded-full h-2">
                       <div
                         className="bg-primary-600 h-2 rounded-full"
-                        style={{ width: `${Math.min((day.total_reviewed || 0) / 50 * 100, 100)}%` }}
+                        style={{ width: `${Math.min((day.processed || 0) / 50 * 100, 100)}%` }}
                       />
                     </div>
                   </div>
@@ -2888,24 +2893,22 @@ function SystemMetricsAdmin() {
       {/* Queue Summary */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Queue Summary</h2>
-        {dashboard?.queue_summary ? (
+        {adminQueues?.length ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead>
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Queue</th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Pending</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">In Progress</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Completed Today</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Processed Today</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {dashboard.queue_summary.map((queue: any, index: number) => (
-                  <tr key={index}>
+                {adminQueues.map((queue: any, index: number) => (
+                  <tr key={queue.id ?? index}>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{queue.name}</td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-600">{queue.pending || 0}</td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-600">{queue.in_progress || 0}</td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-600">{queue.completed_today || 0}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-600">{queue.current_item_count ?? 0}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-600">{queue.items_processed_today ?? 0}</td>
                   </tr>
                 ))}
               </tbody>

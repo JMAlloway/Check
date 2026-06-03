@@ -93,8 +93,13 @@ async def async_engine():
 
 
 @pytest_asyncio.fixture(scope="function")
-async def app_engine():
-    """Engine used only by request handlers (the TestClient portal loop)."""
+async def app_engine(async_engine):
+    """Engine used only by request handlers (the TestClient portal loop).
+
+    Depends on async_engine so the schema is (re)created before any request runs
+    -- otherwise a test that uses ``client`` but not ``db_session`` would hit a
+    database with no tables (order-dependent "relation does not exist" errors).
+    """
     engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
     yield engine
     await engine.dispose()

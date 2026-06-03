@@ -253,7 +253,7 @@ class DemoSeeder:
                 email=f"{creds['username']}@demo.example.com",
                 username=creds["username"],
                 hashed_password=get_password_hash(creds["password"]),
-                full_name=f"Demo {role.title()} User",
+                full_name=f"Demo {role.replace('_', ' ').title()} User",
                 is_active=True,
                 is_superuser=(role == "system_admin"),
                 department="Demo Department",
@@ -1498,8 +1498,26 @@ mwIDAQAB
             ):
                 risk_level = RiskLevel.CRITICAL
 
+            # Stamp a realistic last-touched time. Terminal items were
+            # "processed" within the last week (distributed across days, some
+            # today) so the throughput chart is populated and "processed today"
+            # is non-zero, rather than piling everything on the seed date.
+            if status in (
+                CheckStatus.APPROVED,
+                CheckStatus.REJECTED,
+                CheckStatus.RETURNED,
+            ):
+                processed_at = datetime.now(timezone.utc) - timedelta(
+                    days=random.randint(0, 6), hours=random.randint(0, 23)
+                )
+                if processed_at < presented_date:
+                    processed_at = presented_date + timedelta(hours=random.randint(1, 12))
+            else:
+                processed_at = presented_date + timedelta(minutes=random.randint(15, 240))
+
             check_item = CheckItem(
                 id=str(uuid.uuid4()),
+                updated_at=processed_at,
                 tenant_id="DEMO-TENANT-000000000000000000000000",
                 external_item_id=f"DEMO-CHECK-{i+1:04d}-{uuid.uuid4().hex[:8]}",
                 source_system="demo",
@@ -2244,53 +2262,55 @@ mwIDAQAB
         count = 0
 
         # Fraud event configurations - realistic scenarios
+        # Confidence is a 0-100 score; events submitted to the network are
+        # high-confidence findings.
         fraud_scenarios = [
             {
                 "fraud_type": FraudType.COUNTERFEIT_CHECK,
                 "channel": FraudChannel.MOBILE,
-                "confidence": 5,
+                "confidence": 93,
                 "narrative": "Counterfeit check stock detected - magnetic ink anomalies",
             },
             {
                 "fraud_type": FraudType.FORGED_SIGNATURE,
                 "channel": FraudChannel.BRANCH,
-                "confidence": 4,
+                "confidence": 84,
                 "narrative": "Signature does not match known patterns for account holder",
             },
             {
                 "fraud_type": FraudType.ALTERED_CHECK,
                 "channel": FraudChannel.RDC,
-                "confidence": 5,
+                "confidence": 90,
                 "narrative": "Amount field shows evidence of chemical alteration",
             },
             {
                 "fraud_type": FraudType.DUPLICATE_DEPOSIT,
                 "channel": FraudChannel.MOBILE,
-                "confidence": 5,
+                "confidence": 96,
                 "narrative": "Same check deposited at multiple institutions",
             },
             {
                 "fraud_type": FraudType.ACCOUNT_TAKEOVER,
                 "channel": FraudChannel.ONLINE,
-                "confidence": 4,
+                "confidence": 79,
                 "narrative": "Unusual check activity pattern inconsistent with account history",
             },
             {
                 "fraud_type": FraudType.PAYEE_ALTERATION,
                 "channel": FraudChannel.BRANCH,
-                "confidence": 4,
+                "confidence": 87,
                 "narrative": "Payee name shows signs of mechanical erasure and rewriting",
             },
             {
                 "fraud_type": FraudType.AMOUNT_ALTERATION,
                 "channel": FraudChannel.ATM,
-                "confidence": 5,
+                "confidence": 91,
                 "narrative": "Numeric and written amounts inconsistent, alterations visible",
             },
             {
                 "fraud_type": FraudType.CHECK_KITING,
                 "channel": FraudChannel.BRANCH,
-                "confidence": 3,
+                "confidence": 74,
                 "narrative": "Pattern of circular deposits between accounts detected",
             },
         ]

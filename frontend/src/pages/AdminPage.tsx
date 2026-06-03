@@ -31,7 +31,7 @@ const adminNav = [
   { name: 'Users', href: '/admin/users', icon: UsersIcon },
   { name: 'Queues', href: '/admin/queues', icon: QueueListIcon },
   { name: 'Policies', href: '/admin/policies', icon: DocumentTextIcon },
-  { name: 'Image Connectors', href: '/admin/connectors', icon: ServerIcon },
+  { name: 'Image Intake', href: '/admin/connectors', icon: ServerIcon },
   { name: 'Audit Log', href: '/admin/audit', icon: ClipboardDocumentListIcon },
 ];
 
@@ -2075,7 +2075,7 @@ function ImageConnectorsAdmin() {
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Image Connectors</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Image Intake Connectors</h2>
               <p className="text-sm text-gray-500 mt-1">
                 Manage bank-side connectors for secure check image retrieval
               </p>

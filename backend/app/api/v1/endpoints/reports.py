@@ -127,9 +127,10 @@ async def get_throughput_report(
     current_user: Annotated[object, Depends(require_permission("report", "view"))],
     days: int = Query(7, ge=1, le=90),
 ):
-    """Get throughput report for the last N days."""
+    """Get throughput report for the last N days (inclusive of today)."""
     now = datetime.now(timezone.utc)
-    start_date = now - timedelta(days=days)
+    # Include today: a "last N days" window ends on the current day.
+    start_date = now - timedelta(days=days - 1)
 
     # CRITICAL: Filter by tenant_id for multi-tenant security
     tenant_id = current_user.tenant_id

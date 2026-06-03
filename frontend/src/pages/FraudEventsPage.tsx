@@ -10,6 +10,7 @@ import {
 import { fraudApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { humanizeLabel } from '../utils/labels';
 import type { FraudEventListItem } from '../types';
 
 const STATUS_TONE: Record<string, string> = {
@@ -19,7 +20,7 @@ const STATUS_TONE: Record<string, string> = {
 };
 
 function titleCase(s: string): string {
-  return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return humanizeLabel(s);
 }
 
 function currency(v: string): string {

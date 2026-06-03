@@ -193,11 +193,11 @@ export default function ContextConnectorsPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
             <ServerStackIcon className="h-7 w-7 text-primary-600" aria-hidden="true" />
-            Item Context Connectors
+            Account Context Feed
           </h1>
           <p className="mt-1 text-sm text-gray-600">
-            Inbound SFTP feeds (Connector C) that enrich checks with account tenure, balances and
-            behavior. Review configuration and import history.
+            Inbound SFTP feeds that enrich checks with account tenure, balances and behavior. Review
+            connector configuration and import history.
           </p>
         </div>
         <button

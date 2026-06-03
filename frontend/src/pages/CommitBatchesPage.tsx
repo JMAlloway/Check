@@ -76,7 +76,7 @@ export default function CommitBatchesPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
             <ArrowsRightLeftIcon className="h-7 w-7 text-primary-600" aria-hidden="true" />
-            Commit Connector (Connector B)
+            Decision Commit Service
           </h1>
           <p className="mt-1 text-sm text-gray-600">
             Outbound batch commit of decisions to the core: batch creation, dual-control approval,

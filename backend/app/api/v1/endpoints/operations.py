@@ -115,7 +115,7 @@ async def check_database_health(db: AsyncSession) -> ServiceStatus:
 
         return ServiceStatus(
             name="PostgreSQL",
-            status="healthy" if latency < 100 else "degraded",
+            status="healthy" if latency < 250 else "degraded",
             latency_ms=round(latency, 2),
             details={"connections": conn_count},
             last_checked=datetime.now(timezone.utc),
@@ -133,6 +133,19 @@ async def check_database_health(db: AsyncSession) -> ServiceStatus:
 async def check_redis_health() -> ServiceStatus:
     """Check Redis connectivity."""
     start = datetime.now(timezone.utc)
+
+    # Redis is an optional cache. When it isn't configured (e.g. the demo
+    # environment runs without it), report it as disabled rather than
+    # unhealthy so it doesn't drag the overall status down.
+    if not settings.REDIS_URL:
+        return ServiceStatus(
+            name="Redis",
+            status="disabled",
+            latency_ms=None,
+            details={"note": "Cache not configured in this environment"},
+            last_checked=datetime.now(timezone.utc),
+        )
+
     try:
         import redis.asyncio as redis
 
@@ -291,16 +304,17 @@ async def get_system_health(
         check_redis_health(),
     )
 
-    # Determine overall status based on essential services
-    statuses = [s.status for s in services]
-    if all(s == "healthy" for s in statuses):
+    # Determine overall status based on essential services. Disabled (optional,
+    # not-configured) services do not affect the overall status.
+    statuses = [s.status for s in services if s.status != "disabled"]
+    if statuses and all(s == "healthy" for s in statuses):
         overall = "healthy"
     elif any(s == "unhealthy" for s in statuses):
         overall = "unhealthy"
     elif any(s == "degraded" for s in statuses):
         overall = "degraded"
     else:
-        overall = "unknown"
+        overall = "healthy" if statuses else "unknown"
 
     return SystemHealth(
         overall_status=overall, services=list(services), timestamp=datetime.now(timezone.utc)

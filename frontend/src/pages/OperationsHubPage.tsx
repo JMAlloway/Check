@@ -50,7 +50,7 @@ function countOf(data: unknown): number {
 const CAPABILITIES: Capability[] = [
   {
     key: 'connector-b',
-    title: 'Commit Connector (Connector B)',
+    title: 'Decision Commit Service',
     description:
       'Outbound batch return/commit of decisions to the core: batch creation, dual-control approval, transmission, acknowledgement and reconciliation.',
     icon: ArrowsRightLeftIcon,
@@ -60,7 +60,7 @@ const CAPABILITIES: Capability[] = [
   },
   {
     key: 'connector-c',
-    title: 'Item Context Connector (Connector C)',
+    title: 'Account Context Feed',
     description:
       'Inbound SFTP item-context feeds that enrich checks with account tenure, balances and behavior. Configure connectors, map fields and schedule imports.',
     icon: ServerStackIcon,

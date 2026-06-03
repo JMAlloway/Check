@@ -116,7 +116,13 @@ export default function LoginPage() {
           {/* Demo credentials hint */}
           <div className="mt-6 p-4 bg-gray-50 rounded-lg">
             <p className="text-xs text-gray-500 text-center">
-              Demo Mode: Use any credentials to log in
+              Demo account —{' '}
+              <span className="font-mono text-gray-700">system_admin_demo</span> /{' '}
+              <span className="font-mono text-gray-700">DemoSysAdmin123!</span>
+            </p>
+            <p className="mt-1 text-center text-[11px] text-gray-400">
+              Other roles: reviewer_demo, senior_reviewer_demo, supervisor_demo, auditor_demo,
+              administrator_demo (passwords in README)
             </p>
           </div>
         </div>

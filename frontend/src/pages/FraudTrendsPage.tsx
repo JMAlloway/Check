@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { humanizeLabel } from '../utils/labels';
 import {
   ArrowTrendingUpIcon,
   ArrowTrendingDownIcon,
@@ -95,7 +96,7 @@ function formatCurrency(value: number): string {
 }
 
 function formatFraudType(type: string): string {
-  return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return humanizeLabel(type);
 }
 
 function SimpleBarChart({ data, label }: { data: Array<{ name: string; value: number }>; label: string }) {

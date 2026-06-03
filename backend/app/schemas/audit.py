@@ -2,9 +2,10 @@
 
 from datetime import datetime
 
+from pydantic import BaseModel
+
 from app.models.audit import AuditAction
 from app.schemas.common import BaseSchema
-from pydantic import BaseModel
 
 
 class AuditLogResponse(BaseSchema):

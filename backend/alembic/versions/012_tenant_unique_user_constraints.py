@@ -12,6 +12,7 @@ to tenant-scoped. This is critical for proper multi-tenant isolation:
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 # revision identifiers, used by Alembic.

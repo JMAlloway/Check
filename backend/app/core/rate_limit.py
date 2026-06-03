@@ -16,10 +16,11 @@ Rate Limit Categories:
 
 from typing import Optional
 
-from app.core.config import settings
 from fastapi import Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+
+from app.core.config import settings
 
 
 def get_user_identifier(request: Request) -> str:

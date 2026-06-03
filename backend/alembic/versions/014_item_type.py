@@ -13,6 +13,7 @@ have different risk profiles, processing rules, and regulatory requirements.
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 # revision identifiers, used by Alembic.

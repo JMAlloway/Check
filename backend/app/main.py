@@ -13,7 +13,12 @@ from slowapi.errors import RateLimitExceeded
 from app.api.v1 import api_router
 from app.core.client_ip import get_client_ip
 from app.core.config import settings
-from app.core.errors import APIException, api_exception_handler, generic_exception_handler, http_exception_handler
+from app.core.errors import (
+    APIException,
+    api_exception_handler,
+    generic_exception_handler,
+    http_exception_handler,
+)
 from app.core.logging_config import configure_logging
 
 logger = logging.getLogger("app.startup")

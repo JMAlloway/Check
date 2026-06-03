@@ -5,24 +5,19 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-from app.models.audit import AuditAction, AuditLog
-from app.models.check import CheckItem, CheckStatus, RiskLevel
-from app.models.decision import Decision, DecisionAction
-from app.models.user import User
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
-from reportlab.platypus import (
-    Paragraph,
-    SimpleDocTemplate,
-    Spacer,
-    Table,
-    TableStyle,
-)
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.audit import AuditAction, AuditLog
+from app.models.check import CheckItem, CheckStatus, RiskLevel
+from app.models.decision import Decision, DecisionAction
+from app.models.user import User
 
 
 class PDFReportService:

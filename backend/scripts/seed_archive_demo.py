@@ -34,14 +34,7 @@ from sqlalchemy import select
 
 from app.db.session import AsyncSessionLocal
 from app.models.audit import AuditAction, AuditLog
-from app.models.check import (
-    AccountType,
-    CheckImage,
-    CheckItem,
-    CheckStatus,
-    ItemType,
-    RiskLevel,
-)
+from app.models.check import AccountType, CheckImage, CheckItem, CheckStatus, ItemType, RiskLevel
 from app.models.decision import Decision, DecisionAction, DecisionType
 from app.models.user import User
 

@@ -5,22 +5,14 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from app.db.session import Base
-from app.models.base import TimestampMixin, UUIDMixin
-from sqlalchemy import (
-    Boolean,
-    DateTime,
-)
+from sqlalchemy import Boolean, DateTime
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import (
-    ForeignKey,
-    Integer,
-    Numeric,
-    String,
-    Text,
-)
+from sqlalchemy import ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.session import Base
+from app.models.base import TimestampMixin, UUIDMixin
 
 
 class QueueType(str, Enum):

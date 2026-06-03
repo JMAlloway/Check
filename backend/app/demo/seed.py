@@ -19,6 +19,9 @@ from decimal import Decimal
 
 logger = logging.getLogger("app.demo.seed")
 
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.session import AsyncSessionLocal
@@ -57,8 +60,6 @@ from app.models.image_connector import ConnectorStatus, ImageConnector
 from app.models.policy import Policy, PolicyRule, PolicyStatus, PolicyVersion, RuleType
 from app.models.queue import Queue, QueueType
 from app.models.user import User
-from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class DemoSeeder:

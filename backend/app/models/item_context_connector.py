@@ -23,20 +23,9 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from sqlalchemy import (
-    Boolean,
-    DateTime,
-)
+from sqlalchemy import Boolean, DateTime
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import (
-    ForeignKey,
-    Index,
-    Integer,
-    Numeric,
-    String,
-    Text,
-    UniqueConstraint,
-)
+from sqlalchemy import ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

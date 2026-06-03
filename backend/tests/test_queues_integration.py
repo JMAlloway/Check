@@ -12,11 +12,12 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
+from fastapi import status
+
 from app.core.security import create_access_token
 from app.models.check import CheckItem, CheckStatus, ItemType, RiskLevel
 from app.models.queue import Queue, QueueAssignment, QueueType
 from app.models.user import User
-from fastapi import status
 
 
 @pytest.fixture

@@ -14,10 +14,7 @@ from app.models.connector import (
     ErrorCategory,
 )
 from app.models.connector import FileFormat as CommitFileFormat
-from app.models.connector import (
-    HoldReasonCode,
-    ReconciliationReport,
-)
+from app.models.connector import HoldReasonCode, ReconciliationReport
 from app.models.connector import RecordStatus as CommitRecordStatus
 from app.models.decision import Decision, ReasonCode
 from app.models.fraud import (
@@ -38,10 +35,7 @@ from app.models.image_connector import (
     ConnectorStatus,
     ImageConnector,
 )
-from app.models.item_context_connector import (
-    FIELD_MAPPING_TEMPLATES,
-    ContextConnectorStatus,
-)
+from app.models.item_context_connector import FIELD_MAPPING_TEMPLATES, ContextConnectorStatus
 from app.models.item_context_connector import FileFormat as ContextFileFormat
 from app.models.item_context_connector import (
     ImportStatus,

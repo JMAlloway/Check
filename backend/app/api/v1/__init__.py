@@ -1,5 +1,7 @@
 """API v1 routes."""
 
+from fastapi import APIRouter
+
 from app.api.v1.endpoints import (
     archive,
     audit,
@@ -19,7 +21,6 @@ from app.api.v1.endpoints import (
     system,
     users,
 )
-from fastapi import APIRouter
 
 api_router = APIRouter()
 

@@ -9,14 +9,15 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
-from app.api.deps import get_current_active_user
-from app.core.config import settings
-from app.db.session import get_db
-from app.models.user import User
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_current_active_user
+from app.core.config import settings
+from app.db.session import get_db
+from app.models.user import User
 
 router = APIRouter()
 

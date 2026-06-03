@@ -13,11 +13,12 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
+from fastapi import status
+
 from app.core.security import create_access_token
 from app.models.audit import AuditAction, AuditLog, ItemView
 from app.models.check import CheckItem, CheckStatus, ItemType, RiskLevel
 from app.models.user import User
-from fastapi import status
 
 
 @pytest.fixture

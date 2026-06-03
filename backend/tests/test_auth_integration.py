@@ -14,9 +14,10 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
+from fastapi import status
+
 from app.core.security import create_access_token, get_password_hash
 from app.models.user import Permission, Role, User
-from fastapi import status
 
 
 class TestLoginFlow:

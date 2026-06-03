@@ -2,9 +2,10 @@
 
 from datetime import datetime
 
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
 from app.schemas.auth import PASSWORD_MIN_LENGTH, validate_password_complexity
 from app.schemas.common import BaseSchema, TimestampSchema
-from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class PermissionBase(BaseModel):

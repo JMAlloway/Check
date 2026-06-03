@@ -18,11 +18,7 @@ from app.api.deps import get_current_active_superuser, get_db
 from app.core.client_ip import get_client_ip
 from app.models.user import User
 from app.security.breach import BreachNotificationService
-from app.security.models import (
-    IncidentSeverity,
-    IncidentStatus,
-    IncidentType,
-)
+from app.security.models import IncidentSeverity, IncidentStatus, IncidentType
 
 router = APIRouter()
 

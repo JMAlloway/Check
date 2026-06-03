@@ -4,6 +4,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from pydantic import BaseModel, Field, field_validator
+
 from app.models.fraud import (
     AmountBucket,
     FraudChannel,
@@ -12,7 +14,6 @@ from app.models.fraud import (
     MatchSeverity,
     SharingLevel,
 )
-from pydantic import BaseModel, Field, field_validator
 
 # ============================================================================
 # Fraud Event Schemas

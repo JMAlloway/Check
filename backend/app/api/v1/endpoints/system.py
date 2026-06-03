@@ -8,12 +8,13 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-from app.api.deps import get_current_active_superuser, get_db
-from app.core.config import settings
-from app.models.user import User
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_current_active_superuser, get_db
+from app.core.config import settings
+from app.models.user import User
 
 router = APIRouter()
 

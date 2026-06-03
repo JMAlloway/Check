@@ -12,9 +12,10 @@ Tests cover:
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from fastapi import status
+
 from app.core.security import create_access_token
 from app.models.policy import Policy, PolicyRule, PolicyStatus, PolicyVersion
-from fastapi import status
 
 
 @pytest.fixture

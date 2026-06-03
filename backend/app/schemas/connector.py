@@ -12,6 +12,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from pydantic import BaseModel, Field, field_validator
+
 from app.models.connector import (
     AcknowledgementStatus,
     BatchStatus,
@@ -23,7 +25,6 @@ from app.models.connector import (
     RecordStatus,
 )
 from app.schemas.common import BaseSchema, TimestampSchema
-from pydantic import BaseModel, Field, field_validator
 
 # =============================================================================
 # BANK CONFIGURATION SCHEMAS

@@ -23,11 +23,14 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.api.deps import get_current_user, security
+# NOTE: endpoints depend on app.api.deps.get_db (which opens the app's pooled
+# AsyncSessionLocal). That is the dependency that must be overridden so requests
+# use the test engine; overriding app.db.session.get_db would have no effect.
+from app.api.deps import get_current_user, get_db, security
 from app.core.config import settings
 from app.core.security import create_access_token, decode_token, get_password_hash
 from app.db.enums import create_enum_types
-from app.db.session import Base, get_db
+from app.db.session import Base
 from app.main import app
 from app.models.user import Permission, Role, User
 

@@ -26,6 +26,7 @@ from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.session import AsyncSessionLocal
 from app.demo import require_non_production
+from app.demo.rbac import seed_rbac
 from app.demo.scenarios import (
     DEMO_ACCOUNTS,
     DEMO_CREDENTIALS,
@@ -189,8 +190,13 @@ class DemoSeeder:
         await self.db.commit()
 
     async def _seed_users(self) -> int:
-        """Create demo users."""
+        """Create demo users with role-appropriate RBAC."""
         count = 0
+
+        # Seed the role/permission catalog so non-superuser demo users can
+        # actually exercise role-appropriate access (otherwise every endpoint
+        # returns 403). role_map is {role_name: Role}.
+        role_map = await seed_rbac(self.db)
 
         for role, creds in DEMO_CREDENTIALS.items():
             # Check if user exists
@@ -215,6 +221,10 @@ class DemoSeeder:
                 employee_id=f"DEMO-EMP-{role.upper()}",
                 is_demo=True,  # Mark as demo user
             )
+            # Assign the matching role (creds["role"] maps to ROLE_PERMISSIONS).
+            assigned_role = role_map.get(creds["role"])
+            if assigned_role is not None:
+                user.roles = [assigned_role]
             self.db.add(user)
             self.demo_users[role] = user
             count += 1

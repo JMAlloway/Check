@@ -8,7 +8,6 @@ Provides common fixtures for:
 - Common test data
 """
 
-import asyncio
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -17,56 +16,72 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool
 
+from app.api.deps import get_current_user, security
 from app.core.config import settings
-from app.core.security import create_access_token, get_password_hash
+from app.core.security import create_access_token, decode_token, get_password_hash
+from app.db.enums import create_enum_types
 from app.db.session import Base, get_db
 from app.main import app
-
-# =============================================================================
-# Event Loop Configuration
-# =============================================================================
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
+from app.models.user import Permission, Role, User
 
 # =============================================================================
 # Database Fixtures
 # =============================================================================
 
 
-# Use SQLite for tests (faster, no external dependencies)
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+# Tests run against PostgreSQL to match production (the app relies on
+# Postgres-specific column types: JSONB, UUID, ARRAY, INET). The connection
+# string comes from DATABASE_URL (set by CI to the postgres service); the
+# default targets a locally running postgres for developer convenience.
+TEST_DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/test_db",
+)
+
+
+async def _reset_schema(conn) -> None:
+    """Reset to an empty public schema, then build enums + tables.
+
+    A raw DROP SCHEMA ... CASCADE is used instead of Base.metadata.drop_all
+    because check_items and decisions have a circular foreign-key dependency
+    that drop_all cannot topologically sort.
+    """
+    await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+    await conn.execute(text("CREATE SCHEMA public"))
+    await create_enum_types(conn)
+    await conn.run_sync(Base.metadata.create_all)
 
 
 @pytest_asyncio.fixture(scope="function")
 async def async_engine():
-    """Create async test database engine."""
-    engine = create_async_engine(
-        TEST_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    """Engine used only in the pytest event loop (schema setup + db_session).
+
+    A separate engine (app_engine) serves request handlers in the TestClient's
+    portal loop. Keeping them distinct avoids reusing one engine across two
+    event loops, which asyncpg forbids.
+    """
+    engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
 
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await _reset_schema(conn)
 
     yield engine
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
 
+
+@pytest_asyncio.fixture(scope="function")
+async def app_engine():
+    """Engine used only by request handlers (the TestClient portal loop)."""
+    engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
+    yield engine
     await engine.dispose()
 
 
@@ -85,11 +100,19 @@ async def db_session(async_engine) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest.fixture(scope="function")
-def override_get_db(db_session):
-    """Override the get_db dependency for tests."""
+def override_get_db(app_engine):
+    """Override get_db with a fresh session per request.
+
+    The TestClient runs the ASGI app in its own event loop/thread, and asyncpg
+    connections cannot cross event loops. So each request gets its own session
+    from app_engine (used only in the request loop). Tests commit their setup
+    data via db_session, so the request session sees it.
+    """
+    session_factory = async_sessionmaker(app_engine, class_=AsyncSession, expire_on_commit=False)
 
     async def _override():
-        yield db_session
+        async with session_factory() as session:
+            yield session
 
     return _override
 
@@ -99,13 +122,67 @@ def override_get_db(db_session):
 # =============================================================================
 
 
+def _synthesize_user_from_claims(payload: dict) -> "User":
+    """Build a transient User from JWT claims (not persisted).
+
+    The token's ``permissions`` claim (a list of ``"resource:action"`` strings,
+    or ``"*:*"`` for superuser) is materialized into transient Role/Permission
+    objects so that User.has_permission / has_role behave as the test intends.
+    """
+    perms = payload.get("permissions", []) or []
+    role = Role(name=(payload.get("roles") or ["user"])[0])
+    role.permissions = [
+        Permission(name=p, resource=resource, action=action)
+        for p in perms
+        if p != "*:*"
+        for resource, _, action in [p.partition(":")]
+    ]
+    username = payload.get("username", "testuser")
+    user = User(
+        id=payload.get("sub"),
+        tenant_id=payload.get("tenant_id"),
+        username=username,
+        email=f"{username}@example.com",
+        is_active=True,
+        is_superuser="*:*" in perms,
+    )
+    user.roles = [role]
+    return user
+
+
 @pytest.fixture(scope="function")
 def client(override_get_db) -> Generator[TestClient, None, None]:
-    """Create test client with database override."""
+    """Create test client with database and authentication overrides.
+
+    Authentication is resolved by synthesizing a transient user from the bearer
+    token claims (the token's permissions are the effective permissions). This
+    lets token-based integration tests authenticate without seeding a full
+    user/role graph for every case, and avoids a cross-event-loop DB lookup.
+    """
     app.dependency_overrides[get_db] = override_get_db
 
-    with TestClient(app) as c:
-        yield c
+    async def _resolve_current_user(
+        credentials: HTTPAuthorizationCredentials = Depends(security),
+    ) -> User:
+        payload = decode_token(credentials.credentials)
+        if payload is None or payload.get("type") != "access" or not payload.get("sub"):
+            raise HTTPException(
+                status_code=401,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return _synthesize_user_from_claims(payload)
+
+    app.dependency_overrides[get_current_user] = _resolve_current_user
+
+    # Note: TestClient is intentionally NOT used as a context manager so the
+    # app lifespan does not run. The lifespan auto-creates tables on the app's
+    # own pooled engine (whose connections would be reused across each test's
+    # TestClient portal loop, causing cross-event-loop errors) and starts the
+    # background scheduler. Tests own schema setup via the async_engine fixture.
+    client = TestClient(app)
+    yield client
+    client.close()
 
     app.dependency_overrides.clear()
 

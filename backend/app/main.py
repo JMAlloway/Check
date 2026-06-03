@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from sqlalchemy import text
 
 from app.api.v1 import api_router
 from app.core.client_ip import get_client_ip
@@ -83,55 +84,11 @@ async def lifespan(app: FastAPI):
             "Auto-creating database tables (development mode) - use 'alembic upgrade head' in production"
         )
         async with engine.begin() as conn:
-            # Create PostgreSQL enum types before creating tables
-            # These are required by the fraud models which use create_type=False
-            from sqlalchemy import text
+            # Create PostgreSQL enum types before creating tables.
+            # Required by the fraud models, which use create_type=False.
+            from app.db.enums import create_enum_types
 
-            enum_definitions = [
-                (
-                    "fraud_type",
-                    [
-                        "check_kiting",
-                        "counterfeit_check",
-                        "forged_signature",
-                        "altered_check",
-                        "account_takeover",
-                        "identity_theft",
-                        "first_party_fraud",
-                        "synthetic_identity",
-                        "duplicate_deposit",
-                        "unauthorized_endorsement",
-                        "payee_alteration",
-                        "amount_alteration",
-                        "fictitious_payee",
-                        "other",
-                    ],
-                ),
-                ("fraud_channel", ["branch", "atm", "mobile", "rdc", "mail", "online", "other"]),
-                (
-                    "amount_bucket",
-                    [
-                        "under_100",
-                        "100_to_500",
-                        "500_to_1000",
-                        "1000_to_5000",
-                        "5000_to_10000",
-                        "10000_to_50000",
-                        "over_50000",
-                    ],
-                ),
-                ("fraud_event_status", ["draft", "submitted", "withdrawn"]),
-                ("match_severity", ["low", "medium", "high"]),
-            ]
-            for enum_name, enum_values in enum_definitions:
-                values_str = ", ".join(f"'{v}'" for v in enum_values)
-                # Check if type exists, create if not
-                check_sql = text("SELECT 1 FROM pg_type WHERE typname = :name")
-                result = await conn.execute(check_sql, {"name": enum_name})
-                if not result.fetchone():
-                    create_sql = text(f"CREATE TYPE {enum_name} AS ENUM ({values_str})")
-                    await conn.execute(create_sql)
-                    logger.debug("Created enum type: %s", enum_name)
+            await create_enum_types(conn)
 
             await conn.run_sync(Base.metadata.create_all)
 

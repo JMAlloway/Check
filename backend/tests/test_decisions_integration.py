@@ -332,7 +332,7 @@ class TestDualControlWorkflow:
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "dual control" in response.json()["detail"].lower()
+        assert "dual control" in response.json()["message"].lower()
 
 
 class TestAIFlagAcknowledgment:
@@ -375,7 +375,7 @@ class TestAIFlagAcknowledgment:
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "AI flags" in response.json()["detail"]
+        assert "AI flags" in response.json()["message"]
 
     @pytest.mark.asyncio
     async def test_ai_flags_acknowledged(

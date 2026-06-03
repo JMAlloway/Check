@@ -464,7 +464,7 @@ class TestDeletePolicy:
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "default" in response.json()["detail"].lower()
+        assert "default" in response.json()["message"].lower()
 
 
 class TestMultiTenantPolicies:

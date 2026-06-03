@@ -19,8 +19,9 @@ import pytest_asyncio
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import selectinload
 from sqlalchemy.pool import NullPool
 
 # NOTE: endpoints depend on app.api.deps.get_db (which opens the app's pooled
@@ -150,12 +151,29 @@ def _synthesize_user_from_claims(payload: dict) -> "User":
     or ``"*:*"`` for superuser) is materialized into transient Role/Permission
     objects so that User.has_permission / has_role behave as the test intends.
     """
+    now = datetime.now(timezone.utc)
     perms = payload.get("permissions", []) or []
-    role = Role(name=(payload.get("roles") or ["user"])[0])
+    # Transient ORM objects do not receive column defaults (id, created_at, ...)
+    # until flush, but response serializers (e.g. /me) read them, so set them.
+    role = Role(
+        id=str(uuid.uuid4()),
+        name=(payload.get("roles") or ["user"])[0],
+        description=None,
+        is_system=False,
+        created_at=now,
+        updated_at=now,
+    )
     # Permission.name is the action (e.g. "review"); EntitlementService's
     # no-explicit-entitlement fallback checks `permission.name == "review"`.
     role.permissions = [
-        Permission(name=action, resource=resource, action=action)
+        Permission(
+            id=str(uuid.uuid4()),
+            name=action,
+            resource=resource,
+            action=action,
+            created_at=now,
+            updated_at=now,
+        )
         for p in perms
         if p != "*:*"
         for resource, _, action in [p.partition(":")]
@@ -170,6 +188,9 @@ def _synthesize_user_from_claims(payload: dict) -> "User":
         hashed_password="not-a-real-hash",
         is_active=True,
         is_superuser="*:*" in perms,
+        mfa_enabled=False,
+        created_at=now,
+        updated_at=now,
     )
     user.roles = [role]
     return user
@@ -226,6 +247,18 @@ def client(override_get_db) -> Generator[TestClient, None, None]:
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        # Prefer a real user the test created in the token's tenant (so tests that
+        # rely on persisted attributes like mfa_enabled work). Scoping by tenant
+        # avoids matching the sentinel rows _ensure_user_row persists. Otherwise
+        # synthesize from claims and persist a sentinel row for FK references.
+        result = await db.execute(
+            select(User)
+            .options(selectinload(User.roles).selectinload(Role.permissions))
+            .where(User.id == payload["sub"], User.tenant_id == payload.get("tenant_id"))
+        )
+        existing = result.scalar_one_or_none()
+        if existing is not None:
+            return existing
         user = _synthesize_user_from_claims(payload)
         await _ensure_user_row(db, user)
         return user

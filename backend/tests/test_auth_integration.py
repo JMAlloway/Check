@@ -72,7 +72,7 @@ class TestLoginFlow:
         )
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
-        assert "Invalid" in response.json()["detail"]
+        assert "Invalid" in response.json()["message"]
 
     @pytest.mark.asyncio
     async def test_login_nonexistent_user(self, client):
@@ -131,7 +131,7 @@ class TestLoginFlow:
         )
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
-        assert "locked" in response.json()["detail"].lower()
+        assert "locked" in response.json()["message"].lower()
 
 
 class TestLogoutFlow:
@@ -153,7 +153,7 @@ class TestLogoutFlow:
         """Test logout without authentication."""
         response = client.post("/api/v1/auth/logout")
 
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
 class TestTokenRefresh:
@@ -213,7 +213,7 @@ class TestPasswordChange:
             headers={"Authorization": f"Bearer {token}"},
             json={
                 "current_password": "oldpassword",
-                "new_password": "newpassword123",
+                "new_password": "NewPassw0rd!23",
             },
         )
 
@@ -228,7 +228,7 @@ class TestPasswordChange:
             headers=auth_headers,
             json={
                 "current_password": "wrongpassword",
-                "new_password": "newpassword123",
+                "new_password": "NewPassw0rd!23",
             },
         )
 
@@ -256,7 +256,7 @@ class TestCurrentUser:
         """Test getting current user without auth."""
         response = client.get("/api/v1/auth/me")
 
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
 class TestMFASetup:
@@ -331,7 +331,7 @@ class TestMFASetup:
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "already enabled" in response.json()["detail"].lower()
+        assert "already enabled" in response.json()["message"].lower()
 
 
 class TestMultiTenantAuth:

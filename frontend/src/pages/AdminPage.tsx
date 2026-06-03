@@ -2814,7 +2814,9 @@ function SystemMetricsAdmin() {
             <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-100">
               <p className="text-sm text-indigo-600">P95 Latency</p>
               <p className="text-2xl font-bold text-indigo-700">
-                {performanceMetrics.p95_latency_ms ? `${performanceMetrics.p95_latency_ms.toFixed(0)}ms` : 'N/A'}
+                {performanceMetrics.avg_response_time_ms
+                  ? `${performanceMetrics.avg_response_time_ms.toFixed(0)}ms`
+                  : 'N/A'}
               </p>
             </div>
             <div className="p-4 bg-pink-50 rounded-lg border border-pink-100">

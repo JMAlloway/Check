@@ -14,7 +14,9 @@ import {
   QuestionMarkCircleIcon,
   ArchiveBoxIcon,
   ServerStackIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
+import { startProductTour } from '../../tour/productTour';
 import { useAuthStore } from '../../stores/authStore';
 import { useDemoStore } from '../../stores/demoStore';
 import { authApi } from '../../services/api';
@@ -170,6 +172,7 @@ export default function Layout({ children }: LayoutProps) {
                     <li key={item.name}>
                       <Link
                         to={item.href}
+                        data-tour={`nav-${item.name.replace(/\s+/g, '-')}`}
                         className={clsx(
                           location.pathname.startsWith(item.href)
                             ? 'bg-bank-blue text-white'
@@ -219,6 +222,15 @@ export default function Layout({ children }: LayoutProps) {
               {/* Breadcrumb or page title could go here */}
             </div>
             <div className="flex items-center gap-x-4 lg:gap-x-6">
+              {/* Guided tour */}
+              <button
+                onClick={() => startProductTour()}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                title="Take a guided tour"
+              >
+                <SparklesIcon className="h-4 w-4 text-bank-gold" aria-hidden="true" />
+                <span className="hidden sm:inline">Take a tour</span>
+              </button>
               {/* User menu */}
               <Menu as="div" className="relative">
                 <Menu.Button className="-m-1.5 flex items-center p-1.5">

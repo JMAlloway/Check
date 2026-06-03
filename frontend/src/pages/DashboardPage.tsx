@@ -1,14 +1,24 @@
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
+import { maybeAutoStartTour } from '../tour/productTour';
 import {
   ClockIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
   UserGroupIcon,
 } from '@heroicons/react/24/outline';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { reportsApi, queueApi } from '../services/api';
 import { DashboardStats, Queue } from '../types';
 import clsx from 'clsx';
+
+const RISK_HEX: Record<string, string> = {
+  low: '#22c55e',
+  medium: '#eab308',
+  high: '#f97316',
+  critical: '#ef4444',
+};
 
 // Get today's date in ISO format for filtering (America/New_York timezone as default for bank)
 function getTodayDateRange(): { from: string; to: string } {
@@ -66,18 +76,6 @@ function StatCard({
 
 function RiskDistribution({ data, onSegmentClick }: { data: Record<string, number>; onSegmentClick?: (level: string) => void }) {
   const total = Object.values(data).reduce((a, b) => a + b, 0);
-  const colors = {
-    low: 'bg-green-500',
-    medium: 'bg-yellow-500',
-    high: 'bg-orange-500',
-    critical: 'bg-red-500',
-  };
-  const hoverColors = {
-    low: 'hover:bg-green-600',
-    medium: 'hover:bg-yellow-600',
-    high: 'hover:bg-orange-600',
-    critical: 'hover:bg-red-600',
-  };
 
   if (total === 0) {
     return (
@@ -87,43 +85,62 @@ function RiskDistribution({ data, onSegmentClick }: { data: Record<string, numbe
     );
   }
 
+  const order = ['low', 'medium', 'high', 'critical'];
+  const pieData = order
+    .filter((level) => (data[level] ?? 0) > 0)
+    .map((level) => ({ name: level, value: data[level] ?? 0 }));
+
   return (
-    <div>
-      <div className="flex h-4 rounded-full overflow-hidden">
-        {Object.entries(data).map(([level, count]) => {
-          const percentage = (count / total) * 100;
-          if (percentage === 0) return null;
-          return (
-            <div
-              key={level}
-              className={clsx(
-                colors[level as keyof typeof colors],
-                hoverColors[level as keyof typeof hoverColors],
-                'transition-colors cursor-pointer'
-              )}
-              style={{ width: `${percentage}%` }}
-              title={`${level}: ${count} - Click to filter`}
-              onClick={() => onSegmentClick?.(level)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && onSegmentClick?.(level)}
+    <div className="flex flex-col items-center">
+      <div className="relative h-56 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={pieData}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              innerRadius={60}
+              outerRadius={88}
+              paddingAngle={2}
+              onClick={(_, idx) => onSegmentClick?.(pieData[idx].name)}
+            >
+              {pieData.map((d) => (
+                <Cell
+                  key={d.name}
+                  fill={RISK_HEX[d.name]}
+                  className="cursor-pointer focus:outline-none"
+                />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(value: number, name: string) => [`${value} items`, name]}
+              contentStyle={{ textTransform: 'capitalize', fontSize: 12 }}
             />
-          );
-        })}
+          </PieChart>
+        </ResponsiveContainer>
+        {/* Center total */}
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-3xl font-bold text-gray-900">{total}</span>
+          <span className="text-xs text-gray-500">items</span>
+        </div>
       </div>
-      <div className="flex justify-between mt-2 text-xs text-gray-500">
-        {Object.entries(data).map(([level, count]) => (
-          <div
+
+      {/* Clickable legend */}
+      <div className="mt-3 grid w-full grid-cols-2 gap-2 text-sm">
+        {order.map((level) => (
+          <button
             key={level}
-            className="flex items-center cursor-pointer hover:text-gray-700 transition-colors"
             onClick={() => onSegmentClick?.(level)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && onSegmentClick?.(level)}
+            className="flex items-center justify-between rounded-md px-2 py-1 text-left hover:bg-gray-50"
           >
-            <div className={clsx('w-2 h-2 rounded-full mr-1', colors[level as keyof typeof colors])} />
-            <span className="capitalize">{level}: {count}</span>
-          </div>
+            <span className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: RISK_HEX[level] }} />
+              <span className="capitalize text-gray-600">{level}</span>
+            </span>
+            <span className="font-semibold text-gray-900">{data[level] ?? 0}</span>
+          </button>
         ))}
       </div>
     </div>
@@ -141,6 +158,12 @@ export default function DashboardPage() {
     queryKey: ['queues'],
     queryFn: () => queueApi.getQueues(),
   });
+
+  // Auto-start the guided product tour once per browser (offered again via the
+  // "Take a tour" button in the header).
+  useEffect(() => {
+    maybeAutoStartTour();
+  }, []);
 
   // Build link for "Processed Today" with date filter
   const getProcessedTodayLink = (): string => {
@@ -176,7 +199,7 @@ export default function DashboardPage() {
       <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div data-tour="dashboard-kpis" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Pending Items"
           value={stats?.summary.pending_items || 0}
@@ -209,7 +232,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Risk Distribution */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div data-tour="risk-distribution" className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Risk Distribution</h2>
           <RiskDistribution data={stats?.items_by_risk || {}} onSegmentClick={handleRiskSegmentClick} />
         </div>
@@ -246,6 +269,7 @@ export default function DashboardPage() {
         <div className="flex space-x-4">
           <Link
             to="/queue"
+            data-tour="start-reviewing"
             className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
             Start Reviewing

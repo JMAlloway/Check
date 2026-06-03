@@ -13,6 +13,7 @@ import {
   ShieldExclamationIcon,
   QuestionMarkCircleIcon,
   ArchiveBoxIcon,
+  ServerStackIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../stores/authStore';
 import { useDemoStore } from '../../stores/demoStore';
@@ -26,6 +27,7 @@ const navigation = [
   { name: 'Fraud Trends', href: '/fraud/trends', icon: ShieldExclamationIcon },
   { name: 'Reports', href: '/reports', icon: ChartBarIcon },
   { name: 'Archive', href: '/archive', icon: ArchiveBoxIcon },
+  { name: 'Operations', href: '/operations', icon: ServerStackIcon },
   { name: 'Help', href: '/help', icon: QuestionMarkCircleIcon },
 ];
 

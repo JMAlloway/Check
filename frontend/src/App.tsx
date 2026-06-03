@@ -13,6 +13,7 @@ import ReportsPage from './pages/ReportsPage';
 import FraudTrendsPage from './pages/FraudTrendsPage';
 import ArchivePage from './pages/ArchivePage';
 import HelpPage from './pages/HelpPage';
+import OperationsHubPage from './pages/OperationsHubPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -96,6 +97,7 @@ function App() {
                   <Route path="/reports" element={<ReportsPage />} />
                   <Route path="/archive" element={<ArchivePage />} />
                   <Route path="/fraud/trends" element={<FraudTrendsPage />} />
+                  <Route path="/operations" element={<OperationsHubPage />} />
                   <Route path="/help" element={<HelpPage />} />
                 </Routes>
               </Layout>

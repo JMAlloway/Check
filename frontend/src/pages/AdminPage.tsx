@@ -22,6 +22,7 @@ import {
   ChartBarSquareIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
+import toast from 'react-hot-toast';
 import { userApi, queueAdminApi, queueApi, policyApi, auditLogApi, imageConnectorApi, systemApi, reportsApi, operationsApi } from '../services/api';
 import { format } from 'date-fns';
 
@@ -602,27 +603,85 @@ function QueuesAdmin() {
 }
 
 function QueueAssignments({ queueId }: { queueId: string }) {
+  const queryClient = useQueryClient();
   const { data: assignments, isLoading } = useQuery({
     queryKey: ['queue-assignments', queueId],
     queryFn: () => queueAdminApi.getAssignments(queueId),
+  });
+  const { data: usersData } = useQuery({
+    queryKey: ['users', 'queue-assign'],
+    queryFn: () => userApi.getUsers({ page_size: 100, is_active: true }),
+  });
+
+  const [newUserId, setNewUserId] = useState('');
+  const [canApprove, setCanApprove] = useState(false);
+
+  const assignedIds = new Set((assignments ?? []).map((a: any) => a.user_id));
+  const candidates = (usersData?.items ?? []).filter((u: any) => !assignedIds.has(u.id));
+
+  const addMember = useMutation({
+    mutationFn: () =>
+      queueAdminApi.createAssignment(queueId, {
+        user_id: newUserId,
+        can_review: true,
+        can_approve: canApprove,
+      }),
+    onSuccess: () => {
+      toast.success('User assigned to queue');
+      setNewUserId('');
+      setCanApprove(false);
+      queryClient.invalidateQueries({ queryKey: ['queue-assignments', queueId] });
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : 'Failed to assign user');
+    },
   });
 
   if (isLoading) {
     return <div className="mt-4 p-4 text-sm text-gray-500">Loading assignments...</div>;
   }
 
-  if (!assignments || assignments.length === 0) {
-    return (
-      <div className="mt-4 p-4 bg-gray-50 rounded-lg text-sm text-gray-500">
-        No users assigned to this queue.
-      </div>
-    );
-  }
-
   return (
     <div className="mt-4 bg-gray-50 rounded-lg p-4">
       <h4 className="text-sm font-medium text-gray-900 mb-3">Assigned Users</h4>
-      <div className="space-y-2">
+
+      {/* Add member */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-3">
+        <select
+          value={newUserId}
+          onChange={(e) => setNewUserId(e.target.value)}
+          className="rounded-lg border-gray-300 text-sm"
+          aria-label="User to assign"
+        >
+          <option value="">Add a user…</option>
+          {candidates.map((u: any) => (
+            <option key={u.id} value={u.id}>
+              {u.full_name || u.username} ({u.username})
+            </option>
+          ))}
+        </select>
+        <label className="flex items-center gap-1.5 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={canApprove}
+            onChange={(e) => setCanApprove(e.target.checked)}
+          />
+          Can approve
+        </label>
+        <button
+          onClick={() => addMember.mutate()}
+          disabled={!newUserId || addMember.isPending}
+          className="rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+        >
+          {addMember.isPending ? 'Adding…' : 'Assign'}
+        </button>
+      </div>
+
+      {!assignments || assignments.length === 0 ? (
+        <p className="text-sm text-gray-500">No users assigned to this queue.</p>
+      ) : (
+        <div className="space-y-2">
         {assignments.map((assignment: any) => (
           <div key={assignment.id} className="flex items-center justify-between bg-white rounded p-3">
             <div>
@@ -644,7 +703,8 @@ function QueueAssignments({ queueId }: { queueId: string }) {
             </span>
           </div>
         ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

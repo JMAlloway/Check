@@ -761,7 +761,8 @@ export const queueAdminApi = {
     can_approve?: boolean;
     max_concurrent_items?: number;
   }) => {
-    const response = await api.post(`/queues/${queueId}/assignments`, data);
+    // The schema requires queue_id in the body as well as the path.
+    const response = await api.post(`/queues/${queueId}/assignments`, { ...data, queue_id: queueId });
     return response.data;
   },
 };

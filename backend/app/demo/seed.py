@@ -73,7 +73,13 @@ from app.models.item_context_connector import (
     ItemContextImport,
 )
 from app.models.policy import Policy, PolicyRule, PolicyStatus, PolicyVersion, RuleType
-from app.models.queue import ApprovalEntitlement, ApprovalEntitlementType, Queue, QueueType
+from app.models.queue import (
+    ApprovalEntitlement,
+    ApprovalEntitlementType,
+    Queue,
+    QueueAssignment,
+    QueueType,
+)
 from app.models.user import User
 from app.security.breach import BreachNotificationService
 from app.security.models import IncidentSeverity, IncidentType
@@ -111,6 +117,7 @@ class DemoSeeder:
             "context_connectors": 0,
             "commit_batches": 0,
             "item_views": 0,
+            "queue_assignments": 0,
             "audit_events": 0,
             "fraud_events": 0,
             "network_alerts": 0,
@@ -150,6 +157,7 @@ class DemoSeeder:
         stats["context_connectors"] = await self._seed_item_context_connectors()
         stats["commit_batches"] = await self._seed_commit_batches()
         stats["item_views"] = await self._seed_item_views()
+        stats["queue_assignments"] = await self._seed_queue_assignments()
         stats["audit_events"] = await self._seed_audit_events()
         await self._update_queue_counts()
         await self.db.commit()  # Commit core data
@@ -1896,6 +1904,39 @@ mwIDAQAB
                         triggered_by="schedule",
                     )
                 )
+
+        await self.db.flush()
+        return count
+
+    async def _seed_queue_assignments(self) -> int:
+        """Assign demo users to queues so the admin membership view is populated."""
+        plan = [
+            ("Demo Standard Review", "reviewer", True, False),
+            ("Demo Standard Review", "senior_reviewer", True, False),
+            ("Demo Dual Control", "senior_reviewer", True, True),
+            ("Demo Dual Control", "supervisor", False, True),
+            ("Demo Escalation", "supervisor", True, True),
+            ("Demo High Priority", "senior_reviewer", True, False),
+        ]
+        now = datetime.now(timezone.utc)
+        count = 0
+        for queue_name, role, can_review, can_approve in plan:
+            queue = self.demo_queues.get(queue_name)
+            user = self.demo_users.get(role)
+            if queue is None or user is None:
+                continue
+            self.db.add(
+                QueueAssignment(
+                    id=str(uuid.uuid4()),
+                    queue_id=queue.id,
+                    user_id=user.id,
+                    can_review=can_review,
+                    can_approve=can_approve,
+                    is_active=True,
+                    assigned_at=now,
+                )
+            )
+            count += 1
 
         await self.db.flush()
         return count

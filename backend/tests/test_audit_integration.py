@@ -11,6 +11,7 @@ Tests cover:
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import status
@@ -187,7 +188,8 @@ class TestSearchAuditLogs:
         # Query for last 3 days
         date_from = (now - timedelta(days=3)).isoformat()
         response = client.get(
-            f"/api/v1/audit/logs?date_from={date_from}",
+            "/api/v1/audit/logs",
+            params={"date_from": date_from},
             headers=auditor_headers,
         )
 
@@ -408,16 +410,24 @@ class TestAuditPacketGeneration:
         db_session.add(item)
         await db_session.commit()
 
-        response = client.post(
-            "/api/v1/audit/packet",
-            headers=auditor_headers,
-            json={
-                "check_item_id": "item-packet",
-                "format": "pdf",
-                "include_images": True,
-                "include_history": True,
-            },
-        )
+        # Packet storage uses Redis, which is not available in tests; mock the
+        # cache so storage succeeds (this test covers packet generation).
+        mock_cache = AsyncMock()
+        mock_cache.store_audit_packet.return_value = True
+        with patch(
+            "app.api.v1.endpoints.audit.get_cache",
+            AsyncMock(return_value=mock_cache),
+        ):
+            response = client.post(
+                "/api/v1/audit/packet",
+                headers=auditor_headers,
+                json={
+                    "check_item_id": "item-packet",
+                    "format": "pdf",
+                    "include_images": True,
+                    "include_history": True,
+                },
+            )
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()

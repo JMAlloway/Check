@@ -24,6 +24,7 @@ const SecurityIncidentsPage = lazy(() => import('./pages/SecurityIncidentsPage')
 const ContextConnectorsPage = lazy(() => import('./pages/ContextConnectorsPage'));
 const CommitBatchesPage = lazy(() => import('./pages/CommitBatchesPage'));
 const AuditDrillDownPage = lazy(() => import('./pages/AuditDrillDownPage'));
+const FraudEventsPage = lazy(() => import('./pages/FraudEventsPage'));
 
 function RouteFallback() {
   return (
@@ -117,6 +118,7 @@ function App() {
                     <Route path="/reports" element={<ReportsPage />} />
                     <Route path="/archive" element={<ArchivePage />} />
                     <Route path="/fraud/trends" element={<FraudTrendsPage />} />
+                    <Route path="/fraud/events" element={<FraudEventsPage />} />
                     <Route path="/operations" element={<OperationsHubPage />} />
                     <Route path="/security/incidents" element={<SecurityIncidentsPage />} />
                     <Route path="/connectors/item-context" element={<ContextConnectorsPage />} />

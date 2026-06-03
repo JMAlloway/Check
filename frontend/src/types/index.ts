@@ -154,6 +154,21 @@ export interface Decision {
   created_at: string;
 }
 
+// Fraud events (submit / withdraw workflow)
+export interface FraudEventListItem {
+  id: string;
+  check_item_id: string | null;
+  case_id: string | null;
+  event_date: string;
+  amount: string;
+  fraud_type: string;
+  channel: string;
+  confidence: number;
+  sharing_level: number;
+  status: 'draft' | 'submitted' | 'withdrawn';
+  created_at: string;
+}
+
 // Audit drill-down
 export interface ItemView {
   id: string;

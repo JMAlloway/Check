@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowTrendingUpIcon,
@@ -229,6 +230,12 @@ export default function FraudTrendsPage() {
           <p className="text-gray-600 mt-1">
             Aggregated fraud intelligence across participating institutions
           </p>
+          <Link
+            to="/fraud/events"
+            className="mt-1 inline-block text-sm font-medium text-primary-700 hover:underline"
+          >
+            View fraud events (submit / withdraw) →
+          </Link>
         </div>
         <div className="flex items-center space-x-3">
           <select

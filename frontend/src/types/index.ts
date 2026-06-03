@@ -154,6 +154,42 @@ export interface Decision {
   created_at: string;
 }
 
+// Connector B — outbound commit batches
+export interface CommitBatchSummary {
+  id: string;
+  batch_number: string;
+  status: string;
+  total_records: number;
+  total_amount: string;
+  release_count: number;
+  hold_count: number;
+  return_count: number;
+  reject_count: number;
+  escalate_count: number;
+  has_high_risk_items: boolean;
+  high_risk_count: number;
+  created_at: string;
+  approved_at: string | null;
+  transmitted_at: string | null;
+  ack_status: string | null;
+}
+
+export interface ConnectorDashboard {
+  batches_pending_approval: number;
+  batches_awaiting_acknowledgement: number;
+  records_failed_unresolved: number;
+  batches_created_today: number;
+  batches_transmitted_today: number;
+  records_processed_today: number;
+  records_accepted_today: number;
+  records_rejected_today: number;
+  total_amount_today: string;
+  release_amount_today: string;
+  hold_amount_today: string;
+  return_amount_today: string;
+  batches_past_ack_deadline: number;
+}
+
 // Connector C — item-context SFTP connectors
 export interface ContextConnector {
   id: string;

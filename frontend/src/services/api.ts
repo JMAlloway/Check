@@ -7,6 +7,8 @@ import type {
   IncidentTimelineEntry,
   ContextConnector,
   ContextImport,
+  CommitBatchSummary,
+  ConnectorDashboard,
 } from '../types';
 
 // Use relative path '/api/v1' when VITE_API_URL is not set - this allows Vite's proxy
@@ -1116,6 +1118,21 @@ export const contextConnectorApi = {
     connectorId: string
   ): Promise<{ items: ContextImport[]; total: number }> => {
     const response = await api.get(`/item-context-connectors/${connectorId}/imports`);
+    return response.data;
+  },
+};
+
+// Connector B — outbound commit batches API
+export const commitConnectorApi = {
+  getDashboard: async (): Promise<ConnectorDashboard> => {
+    const response = await api.get('/connector/dashboard');
+    return response.data;
+  },
+
+  getBatches: async (status?: string): Promise<CommitBatchSummary[]> => {
+    const response = await api.get('/connector/batches', {
+      params: status ? { status_filter: status } : undefined,
+    });
     return response.data;
   },
 };

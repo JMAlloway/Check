@@ -56,6 +56,7 @@ const CAPABILITIES: Capability[] = [
     icon: ArrowsRightLeftIcon,
     endpoint: '/connector/dashboard',
     summarize: () => 'Backend ready',
+    link: '/connectors/commit',
   },
   {
     key: 'connector-c',

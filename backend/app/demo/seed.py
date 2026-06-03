@@ -45,6 +45,13 @@ from app.models.check import (
     ItemType,
     RiskLevel,
 )
+from app.models.connector import (
+    AcknowledgementStatus,
+    BankConnectorConfig,
+    BatchStatus,
+    CommitBatch,
+    DeliveryMethod,
+)
 from app.models.decision import Decision, DecisionAction, DecisionType, ReasonCode
 from app.models.fraud import (
     FraudChannel,
@@ -102,6 +109,7 @@ class DemoSeeder:
             "approval_entitlements": 0,
             "security_incidents": 0,
             "context_connectors": 0,
+            "commit_batches": 0,
             "audit_events": 0,
             "fraud_events": 0,
             "network_alerts": 0,
@@ -139,6 +147,7 @@ class DemoSeeder:
         stats["approval_entitlements"] = await self._seed_approval_entitlements()
         stats["security_incidents"] = await self._seed_security_incidents()
         stats["context_connectors"] = await self._seed_item_context_connectors()
+        stats["commit_batches"] = await self._seed_commit_batches()
         stats["audit_events"] = await self._seed_audit_events()
         await self._update_queue_counts()
         await self.db.commit()  # Commit core data
@@ -1885,6 +1894,113 @@ mwIDAQAB
                         triggered_by="schedule",
                     )
                 )
+
+        await self.db.flush()
+        return count
+
+    async def _seed_commit_batches(self) -> int:
+        """Seed Connector B (outbound commit) config and a few commit batches."""
+        owner = self.demo_users.get("system_admin", self.demo_users.get("administrator"))
+        if owner is None:
+            return 0
+
+        tenant_id = "DEMO-TENANT-000000000000000000000000"
+        now = datetime.now(timezone.utc)
+        today = now.replace(hour=8, minute=0, second=0, microsecond=0)
+
+        config = BankConnectorConfig(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            bank_id="DEMO-CORE-001",
+            bank_name="Demo Community Bank — Core",
+            field_config={
+                "account_number": "acct",
+                "amount": "amount",
+                "decision": "decision_code",
+            },
+            delivery_config={"host": "sftp.core.demo-bank.example", "path": "/inbound/commits/"},
+            delivery_method=DeliveryMethod.SFTP,
+            created_by_user_id=owner.id,
+        )
+        self.db.add(config)
+        await self.db.flush()
+
+        # Three batches: one pending approval, one transmitted/awaiting ack, one
+        # completed (acknowledged), so the dashboard and list are populated.
+        batch_specs = [
+            {
+                "suffix": "0003",
+                "status": BatchStatus.PENDING,
+                "total_records": 42,
+                "total_amount": Decimal("185420.55"),
+                "release": 30,
+                "hold": 5,
+                "ret": 4,
+                "rej": 3,
+                "created_at": today,
+                "approved_at": None,
+                "transmitted_at": None,
+                "ack_status": None,
+                "records_accepted": None,
+            },
+            {
+                "suffix": "0002",
+                "status": BatchStatus.TRANSMITTED,
+                "total_records": 55,
+                "total_amount": Decimal("243110.10"),
+                "release": 41,
+                "hold": 7,
+                "ret": 4,
+                "rej": 3,
+                "created_at": today - timedelta(hours=3),
+                "approved_at": today - timedelta(hours=2, minutes=30),
+                "transmitted_at": today - timedelta(hours=2),
+                "ack_status": AcknowledgementStatus.PENDING,
+                "records_accepted": None,
+            },
+            {
+                "suffix": "0001",
+                "status": BatchStatus.COMPLETED,
+                "total_records": 60,
+                "total_amount": Decimal("301775.00"),
+                "release": 48,
+                "hold": 6,
+                "ret": 4,
+                "rej": 2,
+                "created_at": today - timedelta(days=1),
+                "approved_at": today - timedelta(days=1) + timedelta(minutes=30),
+                "transmitted_at": today - timedelta(days=1) + timedelta(hours=1),
+                "ack_status": AcknowledgementStatus.ACCEPTED,
+                "records_accepted": 60,
+            },
+        ]
+
+        count = 0
+        for spec in batch_specs:
+            batch = CommitBatch(
+                id=str(uuid.uuid4()),
+                tenant_id=tenant_id,
+                batch_number=f"BATCH-20260603-{spec['suffix']}",
+                bank_config_id=config.id,
+                status=spec["status"],
+                total_records=spec["total_records"],
+                total_amount=spec["total_amount"],
+                release_count=spec["release"],
+                hold_count=spec["hold"],
+                return_count=spec["ret"],
+                reject_count=spec["rej"],
+                has_high_risk_items=True,
+                high_risk_count=random.randint(1, 4),
+                created_by_user_id=owner.id,
+                created_at=spec["created_at"],
+                approved_at=spec["approved_at"],
+                approver_user_id=owner.id if spec["approved_at"] else None,
+                transmitted_at=spec["transmitted_at"],
+                ack_status=spec["ack_status"],
+                records_accepted=spec["records_accepted"],
+            )
+            self.db.add(batch)
+            count += 1
 
         await self.db.flush()
         return count

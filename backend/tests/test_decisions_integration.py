@@ -357,7 +357,7 @@ class TestAIFlagAcknowledgment:
             item_type=ItemType.ON_US,
             presented_date=datetime.now(timezone.utc),
             has_ai_flags=True,
-            ai_flags='["suspicious_signature", "amount_anomaly"]',
+            risk_flags='["suspicious_signature", "amount_anomaly"]',
         )
         db_session.add(item)
         await db_session.commit()
@@ -396,7 +396,7 @@ class TestAIFlagAcknowledgment:
             item_type=ItemType.ON_US,
             presented_date=datetime.now(timezone.utc),
             has_ai_flags=True,
-            ai_flags='["suspicious_signature"]',
+            risk_flags='["suspicious_signature"]',
         )
         db_session.add(item)
         await db_session.commit()

@@ -28,9 +28,9 @@ from sqlalchemy.pool import NullPool
 # use the test engine; overriding app.db.session.get_db would have no effect.
 from app.api.deps import get_current_user, get_db, security
 from app.core.config import settings
+from app.core.rate_limit import limiter, tenant_limiter, user_limiter
 from app.core.security import create_access_token, decode_token, get_password_hash
 from app.db.enums import create_enum_types
-from app.core.rate_limit import limiter, tenant_limiter, user_limiter
 from app.db.session import Base
 from app.main import app
 from app.models.user import Permission, Role, User
@@ -186,12 +186,15 @@ async def _ensure_user_row(db: AsyncSession, user: "User") -> None:
         return
     if await db.get(User, user.id) is not None:
         return
+    # Persist into a sentinel tenant (not the token's tenant) with id-derived
+    # username/email so the row satisfies FK references (audit_logs.user_id etc.)
+    # without polluting tenant-scoped user listings or unique constraints.
     db.add(
         User(
             id=user.id,
-            tenant_id=user.tenant_id,
-            username=user.username,
-            email=user.email,
+            tenant_id="00000000-0000-0000-0000-0000000000ff",
+            username=f"authuser-{user.id}",
+            email=f"{user.id}@auth.test",
             full_name=user.full_name,
             hashed_password=user.hashed_password,
             is_active=True,

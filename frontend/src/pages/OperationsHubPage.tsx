@@ -7,6 +7,7 @@ import {
   DocumentCheckIcon,
   ClipboardDocumentListIcon,
   ChartBarSquareIcon,
+  BoltIcon,
 } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
@@ -48,6 +49,15 @@ function countOf(data: unknown): number {
 }
 
 const CAPABILITIES: Capability[] = [
+  {
+    key: 'automation',
+    title: 'Decision Automation (STP)',
+    description:
+      'Straight-through processing for low-risk items: auto-clear the obvious-good, route only exceptions to reviewers. Tune the policy, validate in shadow mode and see the projected value.',
+    icon: BoltIcon,
+    summarize: () => 'Configure & simulate',
+    link: '/automation',
+  },
   {
     key: 'connector-b',
     title: 'Decision Commit Service',

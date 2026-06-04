@@ -15,6 +15,7 @@ import {
   ArchiveBoxIcon,
   ServerStackIcon,
   SparklesIcon,
+  BoltIcon,
 } from '@heroicons/react/24/outline';
 import { startProductTour } from '../../tour/productTour';
 import { useAuthStore } from '../../stores/authStore';
@@ -29,6 +30,7 @@ const navigation = [
   { name: 'Approvals', href: '/approvals', icon: DocumentCheckIcon, permission: ['check_item', 'approve'] as const },
   { name: 'Fraud Trends', href: '/fraud/trends', icon: ShieldExclamationIcon },
   { name: 'Reports', href: '/reports', icon: ChartBarIcon },
+  { name: 'Automation', href: '/automation', icon: BoltIcon },
   { name: 'Archive', href: '/archive', icon: ArchiveBoxIcon },
   { name: 'Operations', href: '/operations', icon: ServerStackIcon },
   { name: 'Help', href: '/help', icon: QuestionMarkCircleIcon },

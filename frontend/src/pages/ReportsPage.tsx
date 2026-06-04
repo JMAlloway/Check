@@ -19,6 +19,7 @@ import {
   Line,
 } from 'recharts';
 import { humanizeLabel } from '../utils/labels';
+import AutomationRoiPanel from '../components/reports/AutomationRoiPanel';
 import {
   DocumentArrowDownIcon,
   DocumentTextIcon,
@@ -238,6 +239,9 @@ export default function ReportsPage() {
           </div>
         </div>
       </div>
+
+      {/* Automation / STP value */}
+      <AutomationRoiPanel />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Throughput Chart */}

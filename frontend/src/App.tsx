@@ -16,6 +16,7 @@ const ApprovalsPage = lazy(() => import('./pages/ApprovalsPage'));
 const CheckReviewPage = lazy(() => import('./pages/CheckReviewPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
+const AutomationPage = lazy(() => import('./pages/AutomationPage'));
 const FraudTrendsPage = lazy(() => import('./pages/FraudTrendsPage'));
 const ArchivePage = lazy(() => import('./pages/ArchivePage'));
 const HelpPage = lazy(() => import('./pages/HelpPage'));
@@ -116,6 +117,7 @@ function App() {
                     <Route path="/review/:itemId" element={<CheckReviewPage />} />
                     <Route path="/admin/*" element={<AdminPage />} />
                     <Route path="/reports" element={<ReportsPage />} />
+                    <Route path="/automation" element={<AutomationPage />} />
                     <Route path="/archive" element={<ArchivePage />} />
                     <Route path="/fraud/trends" element={<FraudTrendsPage />} />
                     <Route path="/fraud/events" element={<FraudEventsPage />} />

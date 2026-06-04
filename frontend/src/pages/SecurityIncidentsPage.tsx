@@ -10,6 +10,7 @@ import {
 import { securityApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import BackLink from '../components/common/BackLink';
 import type { SecurityIncident } from '../types';
 
 const SEVERITY_TONE: Record<string, string> = {
@@ -98,6 +99,7 @@ export default function SecurityIncidentsPage() {
 
   return (
     <div className="space-y-6">
+      <BackLink to="/operations" label="Back to Operations" />
       <div className="flex items-start justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">

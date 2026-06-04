@@ -8,6 +8,7 @@ import {
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 import { contextConnectorApi } from '../services/api';
+import BackLink from '../components/common/BackLink';
 import type { ContextConnector, ContextImport } from '../types';
 
 const CONNECTOR_STATUS_TONE: Record<string, string> = {
@@ -189,6 +190,7 @@ export default function ContextConnectorsPage() {
 
   return (
     <div className="space-y-6">
+      <BackLink to="/operations" label="Back to Operations" />
       <div className="flex items-start justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">

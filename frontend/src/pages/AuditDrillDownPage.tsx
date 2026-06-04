@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
 import { auditApi, userApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import BackLink from '../components/common/BackLink';
 import type { AuditLogEntry } from '../types';
 
 interface UserOption {
@@ -52,6 +53,7 @@ export default function AuditDrillDownPage() {
 
   return (
     <div className="space-y-6">
+      <BackLink to="/operations" label="Back to Operations" />
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
           <ClipboardDocumentListIcon className="h-7 w-7 text-primary-600" aria-hidden="true" />

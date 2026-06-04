@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArrowsRightLeftIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { commitConnectorApi } from '../services/api';
+import BackLink from '../components/common/BackLink';
 import type { CommitBatchSummary, ConnectorDashboard } from '../types';
 
 const BATCH_STATUS_TONE: Record<string, string> = {
@@ -72,6 +73,7 @@ export default function CommitBatchesPage() {
 
   return (
     <div className="space-y-6">
+      <BackLink to="/operations" label="Back to Operations" />
       <div className="flex items-start justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">

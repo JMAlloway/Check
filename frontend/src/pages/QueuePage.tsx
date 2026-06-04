@@ -13,6 +13,7 @@ import {
 import { checkApi, queueApi } from '../services/api';
 import { CheckItemListItem, CheckStatus, RiskLevel, PaginatedResponse } from '../types';
 import { StatusBadge, RiskBadge, SLABadge } from '../components/common/StatusBadge';
+import BackLink from '../components/common/BackLink';
 import clsx from 'clsx';
 
 function formatCurrency(amount: number): string {
@@ -158,6 +159,9 @@ export default function QueuePage() {
 
   return (
     <div className="space-y-6">
+      {/* When viewing a single queue (e.g. opened from a dashboard tile),
+          offer a way back to the full queue list. */}
+      {queueId && <BackLink to="/queue" label="Back to all queues" />}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

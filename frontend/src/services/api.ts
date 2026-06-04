@@ -891,7 +891,10 @@ export const auditLogApi = {
 // Image Connector API - Admin management of bank-side connectors
 export const imageConnectorApi = {
   getConnectors: async (enabledOnly = false) => {
-    const response = await api.get('/image-connectors', {
+    // Trailing slash matches the backend collection route ("/image-connectors/")
+    // and avoids a 307 redirect that the browser would follow to the backend's
+    // absolute origin, leaving the same-origin proxy and tripping CORS.
+    const response = await api.get('/image-connectors/', {
       params: { enabled_only: enabledOnly },
     });
     return response.data;
@@ -910,7 +913,7 @@ export const imageConnectorApi = {
     public_key_pem: string;
     token_expiry_seconds?: number;
   }) => {
-    const response = await api.post('/image-connectors', data);
+    const response = await api.post('/image-connectors/', data);
     return response.data;
   },
 

@@ -2811,6 +2811,39 @@ function SystemMetricsAdmin() {
     queryFn: () => systemApi.getDemoMode(),
   });
 
+  const reseedQueryClient = useQueryClient();
+  const [reseedResult, setReseedResult] = useState<string | null>(null);
+  const [reseedBusy, setReseedBusy] = useState(false);
+
+  const handleReseed = async () => {
+    if (
+      !window.confirm(
+        'Reseed demo data?\n\nThis recreates the database schema and regenerates a fresh demo dataset. All current demo items, decisions and activity will be replaced. This cannot be undone.'
+      )
+    ) {
+      return;
+    }
+    setReseedResult(null);
+    setReseedBusy(true);
+    try {
+      // The backend recreates the schema in the background (it must run after
+      // this request releases its DB locks), so wait for it to finish before
+      // refreshing cached data.
+      await systemApi.seedDemoData(demoMode?.demo_data_count ?? 200, true);
+      setReseedResult('Reseeding… recreating schema and regenerating demo data (~20s).');
+      await new Promise((resolve) => setTimeout(resolve, 22000));
+      await reseedQueryClient.invalidateQueries();
+      setReseedResult('Demo data reseeded. The dashboard and queues now reflect the fresh dataset.');
+    } catch (err) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        'Reseed failed.';
+      setReseedResult(detail);
+    } finally {
+      setReseedBusy(false);
+    }
+  };
+
   const { data: dashboard, isLoading: dashboardLoading } = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => reportsApi.getDashboard(),
@@ -3095,6 +3128,23 @@ function SystemMetricsAdmin() {
             <p className="text-sm text-amber-700">
               Demo Data Count: <span className="font-semibold">{demoMode.demo_data_count}</span> items
             </p>
+          </div>
+          <div className="mt-4 pt-4 border-t border-amber-200">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleReseed}
+                disabled={reseedBusy}
+                className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {reseedBusy ? 'Reseeding…' : 'Reseed demo data'}
+              </button>
+              <span className="text-xs text-amber-700">
+                Recreates the schema and regenerates a fresh demo dataset.
+              </span>
+            </div>
+            {reseedResult && (
+              <p className="mt-2 text-sm font-medium text-amber-800">{reseedResult}</p>
+            )}
           </div>
         </div>
       )}

@@ -248,7 +248,9 @@ class DemoSeeder:
                 continue
 
             user = User(
-                id=f"DEMO-USER-{role.upper()}-{uuid.uuid4().hex[:8]}",
+                # Deterministic ID (no random suffix) so a logged-in demo user's
+                # token still resolves after a reseed that recreates the schema.
+                id=f"DEMO-USER-{role.upper()}",
                 tenant_id="DEMO-TENANT-000000000000000000000000",
                 email=f"{creds['username']}@demo.example.com",
                 username=creds["username"],
@@ -2689,11 +2691,63 @@ mwIDAQAB
         return min(base_priority, 100)
 
 
+async def reset_demo_schema() -> None:
+    """Drop and recreate the database schema for a clean demo reseed.
+
+    A deletion-based reset is unreliable: the schema has grown circular and
+    RESTRICT foreign keys (e.g. check_items <-> decisions, the audit_logs ->
+    users reference), so clearing rows in dependency order is brittle and, once
+    real audit activity exists, effectively impossible. Recreating the schema
+    sidesteps all of that and reproduces exactly the state of a fresh start-up.
+
+    Demo / non-production only.
+    """
+    require_non_production()
+
+    from app.db.enums import create_enum_types
+    from app.db.session import Base, engine
+
+    # Run on an AUTOCOMMIT connection. Terminate every other connection to this
+    # database first: otherwise another session (e.g. the request that triggered
+    # the reseed, holding an AccessShareLock on users from authentication) would
+    # block DROP SCHEMA's AccessExclusiveLock indefinitely. A short lock_timeout
+    # guards against any residual contention.
+    autocommit_engine = engine.execution_options(isolation_level="AUTOCOMMIT")
+    async with autocommit_engine.connect() as conn:
+        await conn.execute(
+            text(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE datname = current_database() AND pid <> pg_backend_pid()"
+            )
+        )
+        await conn.execute(text("SET lock_timeout = '10s'"))
+        await conn.execute(text("DROP SCHEMA public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
+        # Mirror start-up DB initialisation: PostgreSQL enum types first, then
+        # all tables, then the resource_id column-size fix.
+        await create_enum_types(conn)
+        await conn.run_sync(Base.metadata.create_all)
+        try:
+            await conn.execute(
+                text("ALTER TABLE audit_logs ALTER COLUMN resource_id TYPE VARCHAR(255)")
+            )
+        except Exception:
+            pass
+
+    # Drop pooled connections so no cached statements reference the old schema.
+    await engine.dispose()
+
+
 async def seed_demo_data(reset: bool = False, count: int = 60) -> dict:
     """Main entry point for seeding demo data."""
+    # A reset recreates the schema (see reset_demo_schema) and then seeds the
+    # now-empty database, rather than trying to delete existing rows.
+    if reset:
+        await reset_demo_schema()
+
     async with AsyncSessionLocal() as db:
         seeder = DemoSeeder(db, count)
-        stats = await seeder.seed_all(reset=reset)
+        stats = await seeder.seed_all(reset=False)
         return stats
 
 

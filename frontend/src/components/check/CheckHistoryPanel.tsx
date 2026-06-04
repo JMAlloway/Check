@@ -71,8 +71,8 @@ export default function CheckHistoryPanel({
                     : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                 )}
               >
-                <div className="flex justify-between items-start">
-                  <div>
+                <div className="flex justify-between items-start gap-2">
+                  <div className="min-w-0">
                     <div className="font-medium text-gray-900">
                       {formatCurrency(item.amount)}
                       {isSimilar && (
@@ -90,10 +90,10 @@ export default function CheckHistoryPanel({
                       </div>
                     )}
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <span
                       className={clsx(
-                        'text-xs px-2 py-1 rounded',
+                        'inline-block text-xs px-2 py-1 rounded whitespace-nowrap capitalize',
                         item.status === 'cleared'
                           ? 'bg-green-100 text-green-700'
                           : 'bg-red-100 text-red-700'

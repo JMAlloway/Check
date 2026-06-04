@@ -275,7 +275,7 @@ export default function QueuePage() {
                     <RiskBadge level={item.risk_level} />
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <SLABadge dueAt={item.sla_due_at} breached={item.sla_breached} />
+                    <SLABadge dueAt={item.sla_due_at} breached={item.sla_breached} status={item.status} />
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
                     <Link to={`/review/${item.id}`} className="text-primary-600 hover:text-primary-900 font-medium">

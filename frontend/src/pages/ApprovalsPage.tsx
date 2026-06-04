@@ -11,6 +11,7 @@ import {
 import { decisionApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { RiskBadge } from '../components/common/StatusBadge';
+import { humanizeLabel } from '../utils/labels';
 import type { PendingApproval, RiskLevel, DecisionAction } from '../types';
 
 function formatCurrency(amount: string | number): string {
@@ -191,7 +192,7 @@ export default function ApprovalsPage() {
                       {a.dual_control_reason && (
                         <div className="mt-0.5">
                           Reason:{' '}
-                          <span className="text-gray-900">{a.dual_control_reason}</span>
+                          <span className="text-gray-900">{humanizeLabel(a.dual_control_reason)}</span>
                         </div>
                       )}
                     </dl>

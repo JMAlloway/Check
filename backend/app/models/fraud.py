@@ -5,25 +5,16 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from app.db.session import Base
-from app.models.base import TimestampMixin, UUIDMixin
-from sqlalchemy import (
-    Boolean,
-    DateTime,
-)
+from sqlalchemy import Boolean, DateTime
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import (
-    ForeignKey,
-    Index,
-    Integer,
-    Numeric,
-    String,
-    Text,
-)
+from sqlalchemy import ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.session import Base
+from app.models.base import TimestampMixin, UUIDMixin
 
 # PostgreSQL enum types that match the migration-created types
 # These must use create_type=False since the types already exist in the database

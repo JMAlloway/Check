@@ -17,8 +17,9 @@ to have checks with the same external_item_id from their respective core systems
 """
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy import inspect
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "009_tenant_unique_external_id"

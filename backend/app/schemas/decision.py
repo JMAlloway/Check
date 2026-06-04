@@ -4,9 +4,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from app.models.decision import DecisionAction, DecisionType
 from app.schemas.common import BaseSchema, TimestampSchema
-from pydantic import BaseModel, Field
 
 # =============================================================================
 # EVIDENCE SNAPSHOT SCHEMAS
@@ -191,3 +192,24 @@ class DecisionSummaryResponse(BaseModel):
     username: str
     created_at: datetime
     reason_codes: list[str] = []  # Just codes for summary
+
+
+class PendingApprovalResponse(BaseModel):
+    """A dual-control decision awaiting a second approver, with item context."""
+
+    decision_id: str
+    check_item_id: str
+    recommended_action: DecisionAction
+    recommended_by_id: str
+    recommended_by_username: str | None = None
+    notes: str | None = None
+    recommended_at: datetime
+
+    # Item context for the approver
+    check_number: str | None = None
+    amount: Decimal
+    payee_name: str | None = None
+    account_number_masked: str | None = None
+    risk_level: str | None = None
+    dual_control_reason: str | None = None
+    sla_due_at: datetime | None = None

@@ -658,11 +658,24 @@ class CheckService:
         total_result = await self.db.execute(count_query)
         total = total_result.scalar()
 
-        # Apply pagination and ordering
-        query = query.order_by(
-            CheckItem.priority.desc(),
-            CheckItem.presented_date.desc(),
-        )
+        # Apply ordering. Optional caller-chosen sort, else default triage order
+        # (highest priority, oldest first).
+        sortable = {
+            "amount": CheckItem.amount,
+            "presented_date": CheckItem.presented_date,
+            "priority": CheckItem.priority,
+            "sla_due_at": CheckItem.sla_due_at,
+            "risk_level": CheckItem.risk_level,
+        }
+        sort_col = sortable.get(search.sort_by) if search.sort_by else None
+        if sort_col is not None:
+            direction = sort_col.asc() if search.sort_order == "asc" else sort_col.desc()
+            query = query.order_by(direction, CheckItem.presented_date.desc())
+        else:
+            query = query.order_by(
+                CheckItem.priority.desc(),
+                CheckItem.presented_date.desc(),
+            )
         query = query.offset((page - 1) * page_size).limit(page_size)
 
         result = await self.db.execute(query)

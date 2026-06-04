@@ -333,8 +333,9 @@ class TestTenantIsolationCompliance:
 
     def test_tenant_id_is_indexed(self):
         """tenant_id columns should be indexed for query performance."""
-        from app.models.policy import Policy
         from sqlalchemy import inspect
+
+        from app.models.policy import Policy
 
         mapper = inspect(Policy)
         tenant_column = mapper.columns.get("tenant_id")

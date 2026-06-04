@@ -11,13 +11,15 @@ Tests cover:
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastapi import status
+
 from app.core.security import create_access_token
 from app.models.audit import AuditAction, AuditLog, ItemView
 from app.models.check import CheckItem, CheckStatus, ItemType, RiskLevel
 from app.models.user import User
-from fastapi import status
 
 
 @pytest.fixture
@@ -186,7 +188,8 @@ class TestSearchAuditLogs:
         # Query for last 3 days
         date_from = (now - timedelta(days=3)).isoformat()
         response = client.get(
-            f"/api/v1/audit/logs?date_from={date_from}",
+            "/api/v1/audit/logs",
+            params={"date_from": date_from},
             headers=auditor_headers,
         )
 
@@ -232,6 +235,9 @@ class TestItemAuditTrail:
         """Test getting audit trail for a check item."""
         # Create check item
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="item-audit-trail",
             tenant_id=test_tenant_id,
             external_item_id="EXT-AUDIT",
@@ -283,6 +289,9 @@ class TestItemViews:
         """Test getting view records for an item."""
         # Create item
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="item-views",
             tenant_id=test_tenant_id,
             external_item_id="EXT-VIEWS",
@@ -385,6 +394,9 @@ class TestAuditPacketGeneration:
         """Test generating an audit packet."""
         # Create check item
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="item-packet",
             tenant_id=test_tenant_id,
             external_item_id="EXT-PACKET",
@@ -398,16 +410,24 @@ class TestAuditPacketGeneration:
         db_session.add(item)
         await db_session.commit()
 
-        response = client.post(
-            "/api/v1/audit/packet",
-            headers=auditor_headers,
-            json={
-                "check_item_id": "item-packet",
-                "format": "pdf",
-                "include_images": True,
-                "include_history": True,
-            },
-        )
+        # Packet storage uses Redis, which is not available in tests; mock the
+        # cache so storage succeeds (this test covers packet generation).
+        mock_cache = AsyncMock()
+        mock_cache.store_audit_packet.return_value = True
+        with patch(
+            "app.api.v1.endpoints.audit.get_cache",
+            AsyncMock(return_value=mock_cache),
+        ):
+            response = client.post(
+                "/api/v1/audit/packet",
+                headers=auditor_headers,
+                json={
+                    "check_item_id": "item-packet",
+                    "format": "pdf",
+                    "include_images": True,
+                    "include_history": True,
+                },
+            )
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()

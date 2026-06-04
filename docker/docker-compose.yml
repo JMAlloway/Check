@@ -82,7 +82,11 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - VITE_API_URL=http://localhost:8000
+      # Leave VITE_API_URL unset so the browser calls the API via Vite's
+      # same-origin proxy (/api -> backend:8000). Setting it to
+      # http://localhost:8000 forces direct cross-origin calls that depend on
+      # CORS and surface as a "network error" on login. DOCKER_ENV makes the
+      # proxy target the backend service inside the compose network.
       - DOCKER_ENV=true
     volumes:
       - ../frontend:/app

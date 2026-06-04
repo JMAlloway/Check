@@ -9,7 +9,9 @@ from sqlalchemy import and_, func, select
 from app.api.deps import DBSession, require_permission
 from app.audit.service import AuditService
 from app.core.client_ip import get_client_ip
+from app.core.config import settings
 from app.core.rate_limit import RateLimits, user_limiter
+from app.demo.scenarios import get_daily_volume_context, get_daily_volume_series
 from app.models.audit import AuditAction, AuditLog
 from app.models.check import CheckItem, CheckStatus, RiskLevel
 from app.models.decision import Decision, DecisionAction
@@ -108,7 +110,7 @@ async def get_dashboard_stats(
     )
     dual_control_pending = dual_control_result.scalar() or 0
 
-    return {
+    result = {
         "summary": {
             "pending_items": pending_count,
             "processed_today": processed_today,
@@ -120,6 +122,14 @@ async def get_dashboard_stats(
         "timestamp": now.isoformat(),
     }
 
+    # In demo mode, frame the review queue against whole-bank daily volume. This
+    # is illustrative context (not per-item rows) showing that the queue is the
+    # small exception slice of a much larger straight-through-cleared volume.
+    if settings.DEMO_MODE:
+        result["daily_volume"] = get_daily_volume_context(now.date())
+
+    return result
+
 
 @router.get("/throughput")
 async def get_throughput_report(
@@ -127,9 +137,10 @@ async def get_throughput_report(
     current_user: Annotated[object, Depends(require_permission("report", "view"))],
     days: int = Query(7, ge=1, le=90),
 ):
-    """Get throughput report for the last N days."""
+    """Get throughput report for the last N days (inclusive of today)."""
     now = datetime.now(timezone.utc)
-    start_date = now - timedelta(days=days)
+    # Include today: a "last N days" window ends on the current day.
+    start_date = now - timedelta(days=days - 1)
 
     # CRITICAL: Filter by tenant_id for multi-tenant security
     tenant_id = current_user.tenant_id
@@ -168,6 +179,17 @@ async def get_throughput_report(
                 "received": received_result.scalar() or 0,
             }
         )
+
+    # In demo mode, overlay the whole-bank presented / straight-through volume
+    # so the throughput chart conveys real bank scale rather than just the
+    # exception queue's row counts.
+    if settings.DEMO_MODE:
+        backdrop = {v["date"]: v for v in get_daily_volume_series(days, now.date())}
+        for day in daily_data:
+            ctx = backdrop.get(day["date"])
+            if ctx:
+                day["presented"] = ctx["presented"]
+                day["straight_through_cleared"] = ctx["straight_through_cleared"]
 
     return {
         "period": {"start": start_date.isoformat(), "end": now.isoformat()},

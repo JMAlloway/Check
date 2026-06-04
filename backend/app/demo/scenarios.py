@@ -75,102 +75,208 @@ class DemoCheckScenario:
     requires_dual_control: bool = False
 
 
-# Synthetic account data - NO REAL PII
-DEMO_ACCOUNTS = [
-    DemoAccount(
-        account_id="DEMO-ACCT-001",
-        account_number_masked="****1234",
-        account_type="business",
-        tenure_days=1825,  # 5 years
-        avg_balance=Decimal("125000.00"),
-        avg_check_amount=Decimal("8500.00"),
-        check_frequency=15,
-        returned_items=0,
-        holder_name="DEMO-HOLDER-JOHNSON",
-        business_name="DEMO-BIZ-ACME-CORP",
-    ),
-    DemoAccount(
-        account_id="DEMO-ACCT-002",
-        account_number_masked="****5678",
-        account_type="consumer",
-        tenure_days=365,
-        avg_balance=Decimal("5200.00"),
-        avg_check_amount=Decimal("450.00"),
-        check_frequency=4,
-        returned_items=1,
-        holder_name="DEMO-HOLDER-SMITH",
-    ),
-    DemoAccount(
-        account_id="DEMO-ACCT-003",
-        account_number_masked="****9012",
-        account_type="business",
-        tenure_days=730,  # 2 years
-        avg_balance=Decimal("45000.00"),
-        avg_check_amount=Decimal("3200.00"),
-        check_frequency=8,
-        returned_items=0,
-        holder_name="DEMO-HOLDER-WILLIAMS",
-        business_name="DEMO-BIZ-WILLIAMS-LLC",
-    ),
-    DemoAccount(
-        account_id="DEMO-ACCT-004",
-        account_number_masked="****3456",
-        account_type="consumer",
-        tenure_days=90,  # New account
-        avg_balance=Decimal("2100.00"),
-        avg_check_amount=Decimal("350.00"),
-        check_frequency=2,
-        returned_items=0,
-        holder_name="DEMO-HOLDER-BROWN",
-    ),
-    DemoAccount(
-        account_id="DEMO-ACCT-005",
-        account_number_masked="****7890",
-        account_type="commercial",
-        tenure_days=3650,  # 10 years
-        avg_balance=Decimal("500000.00"),
-        avg_check_amount=Decimal("25000.00"),
-        check_frequency=25,
-        returned_items=0,
-        holder_name="DEMO-HOLDER-DAVIS",
-        business_name="DEMO-BIZ-DAVIS-INDUSTRIES",
-    ),
-    DemoAccount(
-        account_id="DEMO-ACCT-006",
-        account_number_masked="****2468",
-        account_type="business",
-        tenure_days=180,
-        avg_balance=Decimal("15000.00"),
-        avg_check_amount=Decimal("2000.00"),
-        check_frequency=5,
-        returned_items=2,
-        holder_name="DEMO-HOLDER-GARCIA",
-        business_name="DEMO-BIZ-GARCIA-SERVICES",
-    ),
-    DemoAccount(
-        account_id="DEMO-ACCT-007",
-        account_number_masked="****1357",
-        account_type="consumer",
-        tenure_days=1095,  # 3 years
-        avg_balance=Decimal("8500.00"),
-        avg_check_amount=Decimal("750.00"),
-        check_frequency=6,
-        returned_items=0,
-        holder_name="DEMO-HOLDER-MARTINEZ",
-    ),
-    DemoAccount(
-        account_id="DEMO-ACCT-008",
-        account_number_masked="****8642",
-        account_type="non_profit",
-        tenure_days=2555,  # 7 years
-        avg_balance=Decimal("75000.00"),
-        avg_check_amount=Decimal("5500.00"),
-        check_frequency=12,
-        returned_items=0,
-        holder_name="DEMO-HOLDER-NONPROFIT",
-        business_name="DEMO-BIZ-COMMUNITY-FOUNDATION",
-    ),
+# Synthetic account data - NO REAL PII.
+# Generated procedurally to mirror a ~$2B-asset community/retail bank's deposit
+# base: mostly consumer households and small businesses, with a smaller tail of
+# commercial relationships and a few nonprofits/municipal accounts. All names,
+# balances and behavior are fully synthetic. Generation is deterministic (fixed
+# seed) so account IDs are stable across the API and the seeder within a run.
+import random as _random
+
+_FIRST_NAMES = [
+    "James",
+    "Mary",
+    "Robert",
+    "Patricia",
+    "John",
+    "Jennifer",
+    "Michael",
+    "Linda",
+    "David",
+    "Elizabeth",
+    "William",
+    "Barbara",
+    "Richard",
+    "Susan",
+    "Joseph",
+    "Jessica",
+    "Thomas",
+    "Karen",
+    "Christopher",
+    "Sarah",
+    "Daniel",
+    "Nancy",
+    "Matthew",
+    "Lisa",
+    "Anthony",
+    "Margaret",
+    "Mark",
+    "Sandra",
+    "Carlos",
+    "Maria",
+    "Luis",
+    "Elena",
+    "Wei",
+    "Mei",
+    "Aisha",
+    "Omar",
+    "Priya",
+    "Raj",
+    "Sofia",
+    "Diego",
 ]
+_LAST_NAMES = [
+    "Smith",
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Jones",
+    "Garcia",
+    "Miller",
+    "Davis",
+    "Rodriguez",
+    "Martinez",
+    "Hernandez",
+    "Lopez",
+    "Gonzalez",
+    "Wilson",
+    "Anderson",
+    "Thomas",
+    "Taylor",
+    "Moore",
+    "Jackson",
+    "Martin",
+    "Lee",
+    "Perez",
+    "Thompson",
+    "White",
+    "Harris",
+    "Clark",
+    "Nguyen",
+    "Patel",
+    "Kim",
+    "Cohen",
+    "Murphy",
+    "Reed",
+    "Bailey",
+    "Foster",
+    "Hughes",
+]
+_BUSINESS_NAMES = [
+    "Acme Industrial Corp",
+    "Williams Property Management LLC",
+    "Garcia Landscaping Services",
+    "Summit Office Supplies Inc",
+    "BrightWell Cleaning Services",
+    "Apex Contracting LLC",
+    "Northstar Marketing Agency",
+    "Brightline IT Solutions",
+    "Cardinal Shipping & Logistics",
+    "Henderson Legal Group",
+    "Whitaker & Associates CPAs",
+    "Precision Maintenance Co",
+    "Beacon Consulting Group",
+    "Sentry Security Services",
+    "Garden State Catering",
+    "Pinnacle Training Institute",
+    "Lakeside Auto Repair",
+    "Maplewood Family Dental",
+    "Riverbend Hardware Supply",
+    "Copperline Electric Co",
+    "Fairfax Medical Associates",
+    "Oakhurst Veterinary Clinic",
+    "Harbor Point Restaurant Group",
+    "Stonebridge Construction LLC",
+]
+_COMMERCIAL_NAMES = [
+    "Davis Industries Inc",
+    "Meridian Manufacturing Co",
+    "Continental Freight Systems",
+    "Vanguard Distribution LLC",
+    "Ironwood Building Products",
+    "Atlas Food Wholesale Inc",
+]
+_NONPROFIT_NAMES = [
+    "Riverside Community Foundation",
+    "Hope Valley Food Bank",
+    "Lincoln County Youth Center",
+    "St. Augustine Parish",
+]
+
+
+def _person_name(rng):
+    return f"{rng.choice(_FIRST_NAMES)} {rng.choice(_LAST_NAMES)}"
+
+
+def _build_demo_accounts():
+    rng = _random.Random(20240601)
+    accounts = []
+    # Community/retail deposit mix: consumer-heavy with a small-business core.
+    mix = ["consumer"] * 24 + ["business"] * 10 + ["commercial"] * 4 + ["non_profit"] * 2
+    biz_names = _BUSINESS_NAMES.copy()
+    comm_names = _COMMERCIAL_NAMES.copy()
+    np_names = _NONPROFIT_NAMES.copy()
+    rng.shuffle(biz_names)
+    rng.shuffle(comm_names)
+    rng.shuffle(np_names)
+    bi = ci = ni = 0
+
+    for i, acct_type in enumerate(mix, start=1):
+        # ~10% of accounts are newly opened (<90 days) - drives new-account holds.
+        if rng.random() < 0.10:
+            tenure = rng.randint(5, 89)
+        else:
+            tenure = rng.randint(180, 18 * 365)
+
+        if acct_type == "consumer":
+            avg_balance = Decimal(str(round(rng.uniform(400, 18000), 2)))
+            avg_check = Decimal(str(round(rng.uniform(45, 1200), 2)))
+            freq = rng.randint(1, 12)
+            holder = _person_name(rng)
+            business = None
+        elif acct_type == "business":
+            avg_balance = Decimal(str(round(rng.uniform(8000, 160000), 2)))
+            avg_check = Decimal(str(round(rng.uniform(900, 15000), 2)))
+            freq = rng.randint(8, 40)
+            business = biz_names[bi % len(biz_names)]
+            bi += 1
+            holder = _person_name(rng)
+        elif acct_type == "commercial":
+            avg_balance = Decimal(str(round(rng.uniform(120000, 1100000), 2)))
+            avg_check = Decimal(str(round(rng.uniform(10000, 60000), 2)))
+            freq = rng.randint(20, 80)
+            business = comm_names[ci % len(comm_names)]
+            ci += 1
+            holder = _person_name(rng)
+        else:  # non_profit
+            avg_balance = Decimal(str(round(rng.uniform(20000, 220000), 2)))
+            avg_check = Decimal(str(round(rng.uniform(1500, 12000), 2)))
+            freq = rng.randint(4, 25)
+            business = np_names[ni % len(np_names)]
+            ni += 1
+            holder = business
+
+        # A minority of accounts have prior returned items (drives risk history).
+        returned = rng.randint(1, 3) if rng.random() < 0.18 else 0
+
+        accounts.append(
+            DemoAccount(
+                account_id=f"DEMO-ACCT-{i:03d}",
+                account_number_masked=f"****{rng.randint(0, 9999):04d}",
+                account_type=acct_type,
+                tenure_days=tenure,
+                avg_balance=avg_balance,
+                avg_check_amount=avg_check,
+                check_frequency=freq,
+                returned_items=returned,
+                holder_name=holder,
+                business_name=business,
+            )
+        )
+    return accounts
+
+
+DEMO_ACCOUNTS = _build_demo_accounts()
 
 # Scenario configurations - ONLY flags with REAL detection capabilities
 # All flags here can be calculated from account context data
@@ -291,24 +397,60 @@ DEMO_SCENARIOS = {
 
 # Synthetic payee names (no real entities)
 DEMO_PAYEES = [
-    "DEMO-PAYEE-OFFICE-SUPPLIES-INC",
-    "DEMO-PAYEE-CLEANING-SERVICES",
-    "DEMO-PAYEE-EMPLOYEE-JOHN-DOE",
-    "DEMO-PAYEE-EMPLOYEE-JANE-SMITH",
-    "DEMO-PAYEE-UTILITY-COMPANY",
-    "DEMO-PAYEE-INSURANCE-PROVIDER",
-    "DEMO-PAYEE-LANDLORD-PROPERTIES",
-    "DEMO-PAYEE-CONTRACTOR-SERVICES",
-    "DEMO-PAYEE-MARKETING-AGENCY",
-    "DEMO-PAYEE-IT-SOLUTIONS",
-    "DEMO-PAYEE-SHIPPING-LOGISTICS",
-    "DEMO-PAYEE-LEGAL-SERVICES",
-    "DEMO-PAYEE-ACCOUNTING-FIRM",
-    "DEMO-PAYEE-MAINTENANCE-CO",
-    "DEMO-PAYEE-CONSULTING-GROUP",
-    "DEMO-PAYEE-SECURITY-SERVICES",
-    "DEMO-PAYEE-CATERING-COMPANY",
-    "DEMO-PAYEE-TRAINING-INSTITUTE",
+    "Summit Office Supplies Inc",
+    "BrightWell Cleaning Services",
+    "Michael Donovan",
+    "Sarah Chen",
+    "Metro Water & Power",
+    "Liberty Mutual Insurance",
+    "Hawthorne Property Group",
+    "Apex Contracting LLC",
+    "Northstar Marketing Agency",
+    "Brightline IT Solutions",
+    "Cardinal Shipping & Logistics",
+    "Henderson Legal Group",
+    "Whitaker & Associates CPAs",
+    "Precision Maintenance Co",
+    "Beacon Consulting Group",
+    "Sentry Security Services",
+    "Garden State Catering",
+    "Pinnacle Training Institute",
+    # Utilities & telecom
+    "Regional Gas & Electric",
+    "Clearstream Communications",
+    "Citywide Waste Management",
+    "Verizon Business",
+    # Insurance, mortgage & financial
+    "Allstate Insurance Agency",
+    "Heartland Mortgage Servicing",
+    "First Capital Leasing",
+    "Enterprise Fleet Management",
+    # Government & tax
+    "State Department of Revenue",
+    "County Tax Collector",
+    "U.S. Treasury",
+    "Municipal Court Clerk",
+    # Healthcare
+    "Fairfax Medical Associates",
+    "Lakeview Family Pharmacy",
+    "Mercy Regional Hospital",
+    "Brightsmile Dental Care",
+    # Retail, vendors & payroll
+    "Costco Wholesale",
+    "Home Depot Pro",
+    "Staples Business Advantage",
+    "ADP Payroll Services",
+    "Paychex Inc",
+    "Grainger Industrial Supply",
+    # Individuals (consumer payees)
+    "Daniel Kim",
+    "Aisha Hernandez",
+    "Thomas Reed",
+    "Priya Patel",
+    "Carlos Martinez",
+    "Susan Bailey",
+    "Omar Foster",
+    "Jennifer Murphy",
 ]
 
 # Synthetic routing numbers (not real bank codes)
@@ -360,3 +502,50 @@ DEMO_CREDENTIALS = {
         "description": "Full system access including configuration",
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Daily volume backdrop (demo-only, illustrative)
+#
+# A ~$2B-asset community bank presents thousands of deposited items per day,
+# the vast majority of which clear straight through automatically. Only a small
+# exception slice (large-dollar holds, new-account holds, date/velocity flags,
+# suspected fraud) is routed to the human review queue modeled by the seeded
+# check items. These helpers produce a stable, realistic daily-volume context
+# so the dashboard can frame the review queue against whole-bank throughput.
+#
+# The numbers are illustrative and deterministic per calendar date; they are
+# NOT backed by per-item rows and are clearly labeled as context in the UI.
+# ---------------------------------------------------------------------------
+import datetime as _dt
+import random as _rnd
+
+
+def get_daily_volume_context(target_date: _dt.date | None = None) -> dict:
+    """Return an illustrative whole-bank item-volume snapshot for a date."""
+    target_date = target_date or _dt.date.today()
+    rng = _rnd.Random(target_date.toordinal())
+    weekday = target_date.weekday()  # 0=Mon .. 6=Sun
+    # Weekends present far fewer items; Mondays run heavy.
+    weekday_factor = {0: 1.18, 1: 1.05, 2: 1.0, 3: 1.0, 4: 1.08, 5: 0.35, 6: 0.18}[weekday]
+    presented = int(8200 * weekday_factor * rng.uniform(0.9, 1.12))
+    # ~96-98% of presented items clear straight through without a human.
+    stp_rate = round(rng.uniform(0.958, 0.978), 4)
+    straight_through = int(presented * stp_rate)
+    routed_to_review = presented - straight_through
+    return {
+        "date": target_date.isoformat(),
+        "presented": presented,
+        "straight_through_cleared": straight_through,
+        "straight_through_rate": stp_rate,
+        "routed_to_review": routed_to_review,
+    }
+
+
+def get_daily_volume_series(days: int = 7, end_date: _dt.date | None = None) -> list[dict]:
+    """Return the daily volume backdrop for the last ``days`` days (inclusive)."""
+    end_date = end_date or _dt.date.today()
+    return [
+        get_daily_volume_context(end_date - _dt.timedelta(days=offset))
+        for offset in range(days - 1, -1, -1)
+    ]

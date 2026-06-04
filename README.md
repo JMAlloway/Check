@@ -67,12 +67,12 @@ When `DEMO_MODE=true`, the following users are auto-seeded:
 
 | Username | Password | Role |
 |----------|----------|------|
-| `system_admin_demo` | `DemoSysAdmin123!` | System Admin |
-| `tenant_admin_demo` | `DemoTenantAdmin123!` | Tenant Admin |
-| `supervisor_demo` | `DemoSupervisor123!` | Supervisor |
 | `reviewer_demo` | `DemoReviewer123!` | Reviewer |
+| `senior_reviewer_demo` | `DemoSenior123!` | Senior Reviewer |
+| `supervisor_demo` | `DemoSupervisor123!` | Supervisor |
+| `administrator_demo` | `DemoAdmin123!` | Administrator |
 | `auditor_demo` | `DemoAuditor123!` | Auditor |
-| `readonly_demo` | `DemoReadonly123!` | Read Only |
+| `system_admin_demo` | `DemoSysAdmin123!` | System Admin |
 
 ### Local Development
 
@@ -205,6 +205,7 @@ Interactive API documentation available at `/api/v1/docs` (Swagger UI) or `/api/
 | `REDIS_URL` | Redis connection string | `redis://localhost:6379/0` |
 | `ENVIRONMENT` | `development` or `production` | `development` |
 | `DEMO_MODE` | Enable demo mode with synthetic data | `false` |
+| `INTEGRATION_ADAPTER` | Core-banking adapter: `mock`, `fiserv`, or `jackhenry` (simulated; synthetic data, real vendor wire-format translation) | `mock` |
 | `DEMO_DATA_COUNT` | Number of demo items to seed | `60` |
 | `CORS_ORIGINS` | Allowed CORS origins (JSON array) | `["http://localhost:3000"]` |
 | `DUAL_CONTROL_THRESHOLD` | Amount requiring dual control | `5000.0` |

@@ -1,6 +1,6 @@
 """Change user email/username to tenant-scoped uniqueness.
 
-Revision ID: 012_tenant_unique_user_constraints
+Revision ID: 012_tenant_unique_users
 Revises: 011_one_time_image_tokens
 Create Date: 2026-01-15
 
@@ -12,10 +12,11 @@ to tenant-scoped. This is critical for proper multi-tenant isolation:
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "012_tenant_unique_user_constraints"
+revision = "012_tenant_unique_users"
 down_revision = "011_one_time_image_tokens"
 branch_labels = None
 depends_on = None

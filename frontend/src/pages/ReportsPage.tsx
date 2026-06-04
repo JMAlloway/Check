@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { reportsApi } from '../services/api';
+import { useAuthStore } from '../stores/authStore';
 import {
   BarChart,
   Bar,
@@ -8,6 +10,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -15,6 +18,8 @@ import {
   LineChart,
   Line,
 } from 'recharts';
+import { humanizeLabel } from '../utils/labels';
+import AutomationRoiPanel from '../components/reports/AutomationRoiPanel';
 import {
   DocumentArrowDownIcon,
   DocumentTextIcon,
@@ -56,9 +61,26 @@ export default function ReportsPage() {
       }
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF report. Please try again.');
+      toast.error('Failed to generate PDF report. Please try again.');
     } finally {
       setGeneratingReport(null);
+    }
+  };
+
+  const canExport = useAuthStore((s) => s.hasPermission('report', 'export'));
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const handleExportDecisionsCsv = async () => {
+    setExportingCsv(true);
+    try {
+      await reportsApi.exportDecisionsCsv(
+        `${reportDateFrom}T00:00:00`,
+        `${reportDateTo}T23:59:59`
+      );
+    } catch (error) {
+      console.error('Error exporting decisions CSV:', error);
+      toast.error('Failed to export decisions. Please try again.');
+    } finally {
+      setExportingCsv(false);
     }
   };
 
@@ -88,16 +110,19 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-        <select
-          value={timeRange}
-          onChange={(e) => setTimeRange(Number(e.target.value))}
-          className="rounded-lg border-gray-300 text-sm"
-        >
-          <option value={7}>Last 7 days</option>
-          <option value={14}>Last 14 days</option>
-          <option value={30}>Last 30 days</option>
-          <option value={90}>Last 90 days</option>
-        </select>
+        <label className="flex items-center gap-2 text-sm text-gray-600">
+          <span className="whitespace-nowrap">Charts range:</span>
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(Number(e.target.value))}
+            className="rounded-lg border-gray-300 text-sm"
+          >
+            <option value={7}>Last 7 days</option>
+            <option value={14}>Last 14 days</option>
+            <option value={30}>Last 30 days</option>
+            <option value={90}>Last 90 days</option>
+          </select>
+        </label>
       </div>
 
       {/* PDF Report Generation */}
@@ -124,7 +149,20 @@ export default function ReportsPage() {
               className="rounded-lg border-gray-300 text-sm"
             />
           </div>
+          {canExport && (
+            <button
+              onClick={handleExportDecisionsCsv}
+              disabled={exportingCsv}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              <DocumentArrowDownIcon className="h-4 w-4" aria-hidden="true" />
+              {exportingCsv ? 'Exporting…' : 'Export Decisions (CSV)'}
+            </button>
+          )}
         </div>
+        <p className="-mt-3 mb-6 text-xs text-gray-500">
+          The date range above applies to the PDF and CSV exports below.
+        </p>
 
         {/* Report Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -202,6 +240,9 @@ export default function ReportsPage() {
         </div>
       </div>
 
+      {/* Automation / STP value */}
+      <AutomationRoiPanel />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Throughput Chart */}
         <div className="bg-white rounded-lg shadow p-6">
@@ -217,6 +258,7 @@ export default function ReportsPage() {
                   />
                   <YAxis />
                   <Tooltip />
+                  <Legend />
                   <Line type="monotone" dataKey="received" stroke="#3b82f6" name="Received" />
                   <Line type="monotone" dataKey="processed" stroke="#22c55e" name="Processed" />
                 </LineChart>
@@ -273,7 +315,7 @@ export default function ReportsPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={performance.reviewers.slice(0, 10)}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="username" />
+                  <XAxis dataKey="username" tickFormatter={(v) => humanizeLabel(v)} />
                   <YAxis />
                   <Tooltip />
                   <Bar dataKey="total_decisions" fill="#3b82f6" name="Total Decisions" />

@@ -5,6 +5,7 @@ Unit tests for evidence snapshot sealing.
 from datetime import datetime, timezone
 
 import pytest
+
 from app.services.evidence_seal import (
     SEAL_VERSION,
     _canonical_json,

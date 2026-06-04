@@ -3,9 +3,10 @@
 from datetime import datetime
 from decimal import Decimal
 
+from pydantic import BaseModel, Field
+
 from app.models.check import AccountType, CheckStatus, ItemType, RiskLevel
 from app.schemas.common import BaseSchema, TimestampSchema
-from pydantic import BaseModel, Field
 
 
 class CheckImageResponse(BaseSchema):
@@ -176,3 +177,5 @@ class CheckSearchRequest(BaseModel):
     assigned_to: str | None = None
     has_ai_flags: bool | None = None
     sla_breached: bool | None = None
+    sort_by: str | None = None  # sla_due_at | amount | presented_date | priority | risk_level
+    sort_order: str = "desc"  # asc | desc

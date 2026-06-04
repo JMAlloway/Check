@@ -9,6 +9,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+
 from app.services.fraud_hashing import FraudHashingService
 from app.services.pii_detection import PIIDetectionService
 

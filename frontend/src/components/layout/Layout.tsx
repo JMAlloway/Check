@@ -13,7 +13,11 @@ import {
   ShieldExclamationIcon,
   QuestionMarkCircleIcon,
   ArchiveBoxIcon,
+  ServerStackIcon,
+  SparklesIcon,
+  BoltIcon,
 } from '@heroicons/react/24/outline';
+import { startProductTour } from '../../tour/productTour';
 import { useAuthStore } from '../../stores/authStore';
 import { useDemoStore } from '../../stores/demoStore';
 import { authApi } from '../../services/api';
@@ -23,9 +27,12 @@ import clsx from 'clsx';
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
   { name: 'Review Queue', href: '/queue', icon: QueueListIcon },
+  { name: 'Approvals', href: '/approvals', icon: DocumentCheckIcon, permission: ['check_item', 'approve'] as const },
   { name: 'Fraud Trends', href: '/fraud/trends', icon: ShieldExclamationIcon },
   { name: 'Reports', href: '/reports', icon: ChartBarIcon },
+  { name: 'Automation', href: '/automation', icon: BoltIcon },
   { name: 'Archive', href: '/archive', icon: ArchiveBoxIcon },
+  { name: 'Operations', href: '/operations', icon: ServerStackIcon },
   { name: 'Help', href: '/help', icon: QuestionMarkCircleIcon },
 ];
 
@@ -61,9 +68,22 @@ export default function Layout({ children }: LayoutProps) {
     navigate('/login');
   };
 
+  // Show the Admin section only to users who can actually administer or audit
+  // something there (queues/users/policies/image intake/audit log), not to
+  // every role that merely has read access.
+  const canSeeAdmin =
+    hasPermission('user', 'create') ||
+    hasPermission('queue', 'create') ||
+    hasPermission('policy', 'create') ||
+    hasPermission('image_connector', 'view') ||
+    hasPermission('audit', 'view');
+
   const allNavigation = [
-    ...navigation,
-    ...(hasPermission('user', 'view') ? adminNavigation : []),
+    ...navigation.filter((item) => {
+      const perm = (item as { permission?: readonly [string, string] }).permission;
+      return !perm || hasPermission(perm[0], perm[1]);
+    }),
+    ...(canSeeAdmin ? adminNavigation : []),
   ];
 
   return (
@@ -154,6 +174,7 @@ export default function Layout({ children }: LayoutProps) {
                     <li key={item.name}>
                       <Link
                         to={item.href}
+                        data-tour={`nav-${item.name.replace(/\s+/g, '-')}`}
                         className={clsx(
                           location.pathname.startsWith(item.href)
                             ? 'bg-bank-blue text-white'
@@ -203,6 +224,15 @@ export default function Layout({ children }: LayoutProps) {
               {/* Breadcrumb or page title could go here */}
             </div>
             <div className="flex items-center gap-x-4 lg:gap-x-6">
+              {/* Guided tour */}
+              <button
+                onClick={() => startProductTour()}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                title="Take a guided tour"
+              >
+                <SparklesIcon className="h-4 w-4 text-bank-gold" aria-hidden="true" />
+                <span className="hidden sm:inline">Take a tour</span>
+              </button>
               {/* User menu */}
               <Menu as="div" className="relative">
                 <Menu.Button className="-m-1.5 flex items-center p-1.5">
@@ -223,7 +253,7 @@ export default function Layout({ children }: LayoutProps) {
                   leaveTo="transform opacity-0 scale-95"
                 >
                   <Menu.Items className="absolute right-0 z-10 mt-2.5 w-48 origin-top-right rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
-                    <div className="px-4 py-2 text-sm text-gray-500 border-b">
+                    <div className="px-4 py-2 text-sm text-gray-500 border-b truncate" title={user?.email}>
                       {user?.email}
                     </div>
                     <Menu.Item>

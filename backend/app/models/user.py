@@ -2,8 +2,6 @@
 
 from datetime import datetime
 
-from app.db.session import Base
-from app.models.base import TimestampMixin, UUIDMixin
 from sqlalchemy import (
     Boolean,
     Column,
@@ -18,6 +16,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.session import Base
+from app.models.base import TimestampMixin, UUIDMixin
 
 # Association tables for many-to-many relationships
 user_roles = Table(

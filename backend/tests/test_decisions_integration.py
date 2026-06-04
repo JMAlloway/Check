@@ -10,15 +10,29 @@ Tests cover:
 - Decision history
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
+from fastapi import status
+
 from app.core.security import create_access_token
 from app.models.check import CheckItem, CheckStatus, ItemType, RiskLevel
 from app.models.decision import Decision, DecisionAction, DecisionType, ReasonCode
+from app.models.queue import ApprovalEntitlement, ApprovalEntitlementType
 from app.models.user import User
-from fastapi import status
+
+
+def _approve_entitlement(user_id: str, tenant_id: str) -> ApprovalEntitlement:
+    """An unrestricted APPROVE entitlement so dual-control approval is allowed."""
+    return ApprovalEntitlement(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        entitlement_type=ApprovalEntitlementType.APPROVE,
+        is_active=True,
+        effective_from=datetime.now(timezone.utc) - timedelta(days=1),
+        max_amount=Decimal("100000000"),
+    )
 
 
 @pytest.fixture
@@ -68,6 +82,9 @@ class TestCreateDecision:
     async def test_approve_decision(self, client, db_session, test_tenant_id, reviewer_headers):
         """Test creating an approve decision."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-approve-1",
             tenant_id=test_tenant_id,
             external_item_id="EXT-APP-1",
@@ -101,6 +118,9 @@ class TestCreateDecision:
     async def test_reject_decision(self, client, db_session, test_tenant_id, reviewer_headers):
         """Test creating a reject decision."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-reject-1",
             tenant_id=test_tenant_id,
             external_item_id="EXT-REJ-1",
@@ -133,6 +153,9 @@ class TestCreateDecision:
     async def test_escalate_decision(self, client, db_session, test_tenant_id, reviewer_headers):
         """Test creating an escalate decision."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-escalate-1",
             tenant_id=test_tenant_id,
             external_item_id="EXT-ESC-1",
@@ -187,6 +210,9 @@ class TestDualControlWorkflow:
         """Test that dual control is triggered for high-value items."""
         # Create high-value item that requires dual control
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-dual-1",
             tenant_id=test_tenant_id,
             external_item_id="EXT-DUAL-1",
@@ -221,6 +247,9 @@ class TestDualControlWorkflow:
         """Test approving a dual control decision."""
         # Create item in pending dual control state
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-dc-approve",
             tenant_id=test_tenant_id,
             external_item_id="EXT-DC-A",
@@ -246,6 +275,7 @@ class TestDualControlWorkflow:
         db_session.add(decision)
 
         item.pending_dual_control_decision_id = decision.id
+        db_session.add(_approve_entitlement("different-approver", test_tenant_id))
         await db_session.commit()
 
         # Approve as different user
@@ -277,6 +307,9 @@ class TestDualControlWorkflow:
     ):
         """Test that users cannot approve their own decisions."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-self-approve",
             tenant_id=test_tenant_id,
             external_item_id="EXT-SELF",
@@ -301,11 +334,24 @@ class TestDualControlWorkflow:
         db_session.add(decision)
 
         item.pending_dual_control_decision_id = decision.id
+        db_session.add(_approve_entitlement(test_user_id, test_tenant_id))
         await db_session.commit()
+
+        # Same user, but with approve permission + entitlement so the request
+        # reaches the self-approval guard (rather than being denied earlier).
+        approver_token = create_access_token(
+            subject=test_user_id,
+            additional_claims={
+                "username": "selfapprover",
+                "roles": ["supervisor"],
+                "permissions": ["check_item:view", "check_item:review", "check_item:approve"],
+                "tenant_id": test_tenant_id,
+            },
+        )
 
         response = client.post(
             "/api/v1/decisions/dual-control",
-            headers=reviewer_headers,  # Same user
+            headers={"Authorization": f"Bearer {approver_token}"},  # Same user
             json={
                 "decision_id": "decision-self-1",
                 "approve": True,
@@ -313,7 +359,7 @@ class TestDualControlWorkflow:
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "dual control" in response.json()["detail"].lower()
+        assert "dual control" in response.json()["message"].lower()
 
 
 class TestAIFlagAcknowledgment:
@@ -325,6 +371,9 @@ class TestAIFlagAcknowledgment:
     ):
         """Test that AI flags must be acknowledged before decision."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-ai-flags",
             tenant_id=test_tenant_id,
             external_item_id="EXT-AI",
@@ -335,7 +384,7 @@ class TestAIFlagAcknowledgment:
             item_type=ItemType.ON_US,
             presented_date=datetime.now(timezone.utc),
             has_ai_flags=True,
-            ai_flags='["suspicious_signature", "amount_anomaly"]',
+            risk_flags='["suspicious_signature", "amount_anomaly"]',
         )
         db_session.add(item)
         await db_session.commit()
@@ -353,7 +402,7 @@ class TestAIFlagAcknowledgment:
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "AI flags" in response.json()["detail"]
+        assert "AI flags" in response.json()["message"]
 
     @pytest.mark.asyncio
     async def test_ai_flags_acknowledged(
@@ -361,6 +410,9 @@ class TestAIFlagAcknowledgment:
     ):
         """Test decision with AI flags properly acknowledged."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-ai-ack",
             tenant_id=test_tenant_id,
             external_item_id="EXT-AI-ACK",
@@ -371,7 +423,7 @@ class TestAIFlagAcknowledgment:
             item_type=ItemType.ON_US,
             presented_date=datetime.now(timezone.utc),
             has_ai_flags=True,
-            ai_flags='["suspicious_signature"]',
+            risk_flags='["suspicious_signature"]',
         )
         db_session.add(item)
         await db_session.commit()
@@ -401,6 +453,9 @@ class TestDecisionHistory:
     ):
         """Test getting decision history for an item."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-history",
             tenant_id=test_tenant_id,
             external_item_id="EXT-HIST",
@@ -496,6 +551,9 @@ class TestEvidenceChainVerification:
     async def test_verify_evidence_chain(self, client, db_session, test_tenant_id, test_user_id):
         """Test evidence chain verification endpoint."""
         item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
             id="check-evidence",
             tenant_id=test_tenant_id,
             external_item_id="EXT-EVI",

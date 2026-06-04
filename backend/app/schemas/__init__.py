@@ -11,11 +11,7 @@ from app.schemas.check import (
     CheckItemUpdate,
 )
 from app.schemas.common import MessageResponse, PaginatedResponse
-from app.schemas.decision import (
-    DecisionCreate,
-    DecisionResponse,
-    ReasonCodeResponse,
-)
+from app.schemas.decision import DecisionCreate, DecisionResponse, ReasonCodeResponse
 from app.schemas.policy import (
     PolicyCreate,
     PolicyResponse,

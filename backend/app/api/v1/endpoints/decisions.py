@@ -29,6 +29,7 @@ from app.schemas.decision import (
     DualControlApprovalRequest,
     EvidenceSnapshot,
     ImageReference,
+    PendingApprovalResponse,
     PolicyEvaluationSnapshot,
     ReasonCodeResponse,
 )
@@ -570,6 +571,59 @@ async def create_decision(
         created_at=decision.created_at,
         updated_at=decision.updated_at,
     )
+
+
+@router.get("/pending-approvals", response_model=list[PendingApprovalResponse])
+async def list_pending_approvals(
+    db: DBSession,
+    current_user: RequireCheckApprove,
+):
+    """List dual-control decisions awaiting a second approver.
+
+    Returns first-level review recommendations whose items are still in
+    PENDING_DUAL_CONTROL status and have not yet been approved. Requires the
+    check_item:approve permission. The caller's own recommendations are
+    excluded, since a user cannot approve their own decision.
+    """
+    result = await db.execute(
+        select(Decision)
+        .options(selectinload(Decision.check_item), selectinload(Decision.user))
+        .join(CheckItem, Decision.check_item_id == CheckItem.id)
+        .where(
+            Decision.tenant_id == current_user.tenant_id,
+            Decision.is_dual_control_required.is_(True),
+            Decision.dual_control_approved_at.is_(None),
+            Decision.user_id != current_user.id,
+            CheckItem.status == CheckStatus.PENDING_DUAL_CONTROL,
+        )
+        .order_by(CheckItem.sla_due_at.asc().nullslast())
+    )
+    decisions = result.scalars().all()
+
+    pending: list[PendingApprovalResponse] = []
+    for decision in decisions:
+        item = decision.check_item
+        if item is None:
+            continue
+        pending.append(
+            PendingApprovalResponse(
+                decision_id=decision.id,
+                check_item_id=decision.check_item_id,
+                recommended_action=decision.action,
+                recommended_by_id=decision.user_id,
+                recommended_by_username=(decision.user.username if decision.user else None),
+                notes=decision.notes,
+                recommended_at=decision.created_at,
+                check_number=item.check_number,
+                amount=item.amount,
+                payee_name=item.payee_name,
+                account_number_masked=item.account_number_masked,
+                risk_level=item.risk_level.value if item.risk_level else None,
+                dual_control_reason=item.dual_control_reason,
+                sla_due_at=item.sla_due_at,
+            )
+        )
+    return pending
 
 
 @router.post("/dual-control", response_model=DecisionResponse)

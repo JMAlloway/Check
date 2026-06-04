@@ -19,6 +19,7 @@ for demonstrations without requiring real PII or external integrations.
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 # revision identifiers, used by Alembic.

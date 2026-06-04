@@ -21,9 +21,9 @@ function formatNumber(num: number | undefined): string {
 
 function ContextRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className={clsx('flex justify-between py-1', highlight && 'bg-yellow-50')}>
-      <span className="text-gray-500 text-sm">{label}</span>
-      <span className={clsx('font-medium text-sm', highlight ? 'text-yellow-700' : 'text-gray-900')}>
+    <div className={clsx('flex justify-between gap-3 py-1', highlight && 'bg-yellow-50')}>
+      <span className="text-gray-500 text-sm shrink-0">{label}</span>
+      <span className={clsx('font-medium text-sm text-right break-words', highlight ? 'text-yellow-700' : 'text-gray-900')}>
         {value}
       </span>
     </div>

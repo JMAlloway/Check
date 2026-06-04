@@ -352,9 +352,10 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
                   className={clsx(
                     'px-4 py-2 text-sm font-medium rounded-lg border transition-colors relative',
                     isSubmitting && 'opacity-50 cursor-not-allowed',
-                    selectedAction === action
-                      ? `bg-${color}-100 border-${color}-500 text-${color}-700`
-                      : 'border-gray-300 text-gray-700 hover:bg-gray-50',
+                    // NOTE: avoid dynamic `bg-${color}-100` classes — Tailwind's
+                    // JIT purges classes it can't see as complete strings. Use the
+                    // explicit per-color classes below instead.
+                    selectedAction !== action && 'border-gray-300 text-gray-700 hover:bg-gray-50',
                     color === 'green' && selectedAction === action && 'bg-green-100 border-green-500 text-green-700',
                     color === 'orange' && selectedAction === action && 'bg-orange-100 border-orange-500 text-orange-700',
                     color === 'red' && selectedAction === action && 'bg-red-100 border-red-500 text-red-700',
@@ -463,6 +464,9 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
           </div>
         )}
 
+        {/* Submit + shortcuts are pinned to the bottom of the (scrollable) panel
+            so the primary action stays reachable no matter how tall the form is. */}
+        <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-4 rounded-b-lg border-t border-gray-100 bg-white px-4 pb-4 pt-3">
         {/* Submit Button */}
         <button
           onClick={handleSubmitClick}
@@ -504,8 +508,8 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
         </button>
 
         {/* Keyboard Shortcuts Legend */}
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <div className="flex items-center text-xs text-gray-400">
+        <div className="mt-3">
+          <div className="flex flex-wrap items-center text-xs text-gray-400">
             <KeyIcon className="h-3 w-3 mr-1" />
             <span>Shortcuts: </span>
             <span className="ml-1 font-mono">A</span><span className="mx-0.5">Approve</span>
@@ -513,6 +517,7 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
             <span className="ml-2 font-mono">J</span><span className="mx-0.5">Reject</span>
             <span className="ml-2 font-mono">E</span><span className="mx-0.5">Escalate</span>
           </div>
+        </div>
         </div>
       </div>
 

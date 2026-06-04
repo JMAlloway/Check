@@ -46,13 +46,24 @@ class AdapterFactory:
 
             return MockAdapter()
 
+        elif adapter_type == "fiserv":
+            # Simulated Fiserv adapter: exercises the real Fiserv Director / DNA
+            # wire-format translation against synthetic data. Swap the synthetic
+            # source for a real client to go live.
+            from app.integrations.adapters.simulated.fiserv import FiservAdapter
+
+            return FiservAdapter()
+
+        elif adapter_type == "jackhenry":
+            # Simulated Jack Henry adapter: exercises the jXchange / SilverLake
+            # wire-format translation against synthetic data.
+            from app.integrations.adapters.simulated.jackhenry import JackHenryAdapter
+
+            return JackHenryAdapter()
+
         elif adapter_type == "q2":
             # Q2 adapter would be implemented here
             raise NotImplementedError("Q2 adapter not yet implemented")
-
-        elif adapter_type == "fiserv":
-            # Fiserv adapter would be implemented here
-            raise NotImplementedError("Fiserv adapter not yet implemented")
 
         else:
             raise ValueError(f"Unknown adapter type: {adapter_type}")

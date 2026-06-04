@@ -428,8 +428,9 @@ export default function CheckImageViewer({
                 }}
               />
 
-              {/* ROI overlays - positioned relative to the image */}
-              {showROI && imageLoaded && roiRegions.map((roi) => (
+              {/* ROI overlays - front-side regions (amount box, legal line,
+                  signature, MICR, payee) only apply to the front of the check. */}
+              {showROI && imageLoaded && activeImage === 'front' && roiRegions.map((roi) => (
                 <div
                   key={roi.id}
                   className="absolute border-2 pointer-events-none"

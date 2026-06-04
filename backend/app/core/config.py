@@ -39,7 +39,11 @@ class Settings(BaseSettings):
                 return False
         return v
 
-    DEMO_DATA_COUNT: int = 60  # Number of demo check items to seed
+    # Number of demo review-queue items to seed. Sized to a realistic daily
+    # exception queue for a ~$2B-asset community bank (the bulk of presented
+    # volume clears straight through and is represented by the daily-volume
+    # backdrop rather than per-item rows).
+    DEMO_DATA_COUNT: int = 200
 
     # API
     API_V1_PREFIX: str = "/api/v1"
@@ -95,6 +99,10 @@ class Settings(BaseSettings):
     AUDIT_LOG_RETENTION_YEARS: int = 7
 
     # Integration settings
+    # Core-banking adapter selection: "mock" | "fiserv" | "jackhenry".
+    # "fiserv"/"jackhenry" run the simulated adapters (synthetic data, real
+    # vendor wire-format translation) - safe for demos without credentials.
+    INTEGRATION_ADAPTER: str = "mock"
     INTEGRATION_TIMEOUT_SECONDS: int = 30
     INTEGRATION_RETRY_ATTEMPTS: int = 3
 
@@ -203,6 +211,12 @@ class Settings(BaseSettings):
     # IP allowlist for metrics endpoint (comma-separated, empty = allow all when exposed)
     # Example: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1"
     METRICS_ALLOWED_IPS: str = ""
+
+    # External monitoring tool URLs surfaced by GET /operations/quick-links.
+    # Empty by default; set per-deployment. (Referenced by operations.py.)
+    GRAFANA_URL: str = ""
+    PROMETHEUS_URL: str = ""
+    ALERTMANAGER_URL: str = ""
 
     @field_validator("METRICS_ALLOWED_IPS", mode="before")
     @classmethod

@@ -8,14 +8,23 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-from app.api.deps import get_current_active_superuser, get_db
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from pydantic import BaseModel
+
+from app.api.deps import get_current_active_superuser
 from app.core.config import settings
 from app.models.user import User
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
+
+
+async def _run_reseed(count: int) -> None:
+    """Recreate the schema and reseed. Runs as a background task so the
+    triggering request's DB session is torn down first, freeing the locks that
+    DROP SCHEMA needs."""
+    from app.demo.seed import seed_demo_data as _seed
+
+    await _seed(reset=True, count=count)
 
 
 class SystemStatusResponse(BaseModel):
@@ -43,7 +52,7 @@ class DemoModeResponse(BaseModel):
 class DemoSeedRequest(BaseModel):
     """Request to seed demo data."""
 
-    count: int = 60
+    count: int = 200
     reset_existing: bool = False
 
 
@@ -119,7 +128,7 @@ async def get_demo_mode_status() -> DemoModeResponse:
 @router.post("/demo/seed", response_model=DemoSeedResponse)
 async def seed_demo_data(
     request: DemoSeedRequest,
-    db: AsyncSession = Depends(get_db),
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_superuser),
 ) -> DemoSeedResponse:
     """
@@ -146,30 +155,36 @@ async def seed_demo_data(
         )
 
     try:
-        from app.demo.seed import DemoSeeder
+        from app.demo.seed import seed_demo_data as _seed
 
-        seeder = DemoSeeder(db)
-        warnings = []
-
-        # Reset if requested
+        # A reset recreates the schema, which must run *after* this request's DB
+        # session is released (DROP SCHEMA needs an exclusive lock). Schedule it
+        # as a background task and return immediately.
         if request.reset_existing:
-            await seeder.clear_demo_data()
-            warnings.append("Existing demo data was cleared")
+            background_tasks.add_task(_run_reseed, request.count)
+            return DemoSeedResponse(
+                success=True,
+                message=(
+                    "Reseed started: recreating the schema and regenerating demo data. "
+                    "This takes ~15-20 seconds; the page will refresh when it is ready."
+                ),
+                items_created={},
+                warnings=["Reseed runs in the background."],
+            )
 
-        # Seed data
-        await seeder.seed_all(count=request.count)
-
+        # Non-reset seed is idempotent and fast; run inline.
+        stats = await _seed(reset=False, count=request.count)
         return DemoSeedResponse(
             success=True,
-            message=f"Successfully seeded {request.count} demo check items",
+            message=f"Seeded demo data ({stats.get('check_items', 0)} check items)",
             items_created={
-                "users": 3,  # reviewer, approver, admin
-                "queues": 4,
-                "check_items": request.count,
-                "decisions": request.count // 3,  # ~1/3 have decisions
-                "audit_events": request.count * 2,  # ~2 per item
+                "users": stats.get("users", 0),
+                "queues": stats.get("queues", 0),
+                "check_items": stats.get("check_items", 0),
+                "decisions": stats.get("decisions", 0),
+                "audit_events": stats.get("audit_events", 0),
             },
-            warnings=warnings,
+            warnings=[],
         )
     except Exception as e:
         raise HTTPException(
@@ -180,15 +195,16 @@ async def seed_demo_data(
 
 @router.post("/demo/reset")
 async def reset_demo_data(
-    db: AsyncSession = Depends(get_db),
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_superuser),
 ) -> dict[str, Any]:
     """
-    Clear all demo data from the database.
+    Reset the demo environment to a clean, freshly-seeded state.
 
-    This endpoint is only available when DEMO_MODE is enabled and
-    requires superuser authentication. It removes all records marked
-    with is_demo=True.
+    This endpoint is only available when DEMO_MODE is enabled and requires
+    superuser authentication. It recreates the database schema and reseeds the
+    default demo dataset (rather than leaving an empty database, which would
+    lock everyone out).
     """
     # Safety check: only allow in demo mode
     if not settings.DEMO_MODE:
@@ -205,14 +221,13 @@ async def reset_demo_data(
         )
 
     try:
-        from app.demo.seed import DemoSeeder
-
-        seeder = DemoSeeder(db)
-        await seeder.clear_demo_data()
+        background_tasks.add_task(_run_reseed, settings.DEMO_DATA_COUNT)
 
         return {
             "success": True,
-            "message": "All demo data has been cleared",
+            "message": (
+                "Reseed started: recreating the schema and regenerating demo data (~15-20s)."
+            ),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:

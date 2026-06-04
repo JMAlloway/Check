@@ -4,12 +4,13 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from app.models.check import CheckItem
-from app.models.policy import Policy, PolicyRule, PolicyStatus, PolicyVersion, RuleConditionOperator
-from app.schemas.policy import PolicyEvaluationResult, RuleAction, RuleCondition
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
+from app.models.check import CheckItem
+from app.models.policy import Policy, PolicyRule, PolicyStatus, PolicyVersion, RuleConditionOperator
+from app.schemas.policy import PolicyEvaluationResult, RuleAction, RuleCondition
 
 
 class PolicyEngine:

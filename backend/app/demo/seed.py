@@ -19,10 +19,14 @@ from decimal import Decimal
 
 logger = logging.getLogger("app.demo.seed")
 
+from sqlalchemy import delete, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.session import AsyncSessionLocal
 from app.demo import require_non_production
+from app.demo.rbac import seed_rbac
 from app.demo.scenarios import (
     DEMO_ACCOUNTS,
     DEMO_CREDENTIALS,
@@ -31,7 +35,7 @@ from app.demo.scenarios import (
     DEMO_SCENARIOS,
     DemoScenario,
 )
-from app.models.audit import AuditAction, AuditLog
+from app.models.audit import AuditAction, AuditLog, ItemView
 from app.models.check import (
     AccountType,
     CheckHistory,
@@ -40,6 +44,13 @@ from app.models.check import (
     CheckStatus,
     ItemType,
     RiskLevel,
+)
+from app.models.connector import (
+    AcknowledgementStatus,
+    BankConnectorConfig,
+    BatchStatus,
+    CommitBatch,
+    DeliveryMethod,
 )
 from app.models.decision import Decision, DecisionAction, DecisionType, ReasonCode
 from app.models.fraud import (
@@ -54,11 +65,25 @@ from app.models.fraud import (
     get_amount_bucket,
 )
 from app.models.image_connector import ConnectorStatus, ImageConnector
+from app.models.item_context_connector import (
+    ContextConnectorStatus,
+    FileFormat,
+    ImportStatus,
+    ItemContextConnector,
+    ItemContextImport,
+)
 from app.models.policy import Policy, PolicyRule, PolicyStatus, PolicyVersion, RuleType
-from app.models.queue import Queue, QueueType
+from app.models.queue import (
+    ApprovalEntitlement,
+    ApprovalEntitlementType,
+    Queue,
+    QueueAssignment,
+    QueueType,
+)
 from app.models.user import User
-from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.security.breach import BreachNotificationService
+from app.security.models import IncidentSeverity, IncidentType
+from app.services.evidence_seal import seal_evidence_snapshot
 
 
 class DemoSeeder:
@@ -85,6 +110,14 @@ class DemoSeeder:
             "check_images": 0,
             "check_history": 0,
             "decisions": 0,
+            "pending_approvals": 0,
+            "sealed_evidence": 0,
+            "approval_entitlements": 0,
+            "security_incidents": 0,
+            "context_connectors": 0,
+            "commit_batches": 0,
+            "item_views": 0,
+            "queue_assignments": 0,
             "audit_events": 0,
             "fraud_events": 0,
             "network_alerts": 0,
@@ -117,7 +150,16 @@ class DemoSeeder:
         stats["check_items"], stats["check_images"] = await self._seed_checks()
         stats["check_history"] = await self._seed_check_history()
         stats["decisions"] = await self._seed_decisions()
+        stats["pending_approvals"] = await self._seed_pending_dual_control_decisions()
+        stats["sealed_evidence"] = await self._seal_demo_evidence()
+        stats["approval_entitlements"] = await self._seed_approval_entitlements()
+        stats["security_incidents"] = await self._seed_security_incidents()
+        stats["context_connectors"] = await self._seed_item_context_connectors()
+        stats["commit_batches"] = await self._seed_commit_batches()
+        stats["item_views"] = await self._seed_item_views()
+        stats["queue_assignments"] = await self._seed_queue_assignments()
         stats["audit_events"] = await self._seed_audit_events()
+        await self._update_queue_counts()
         await self.db.commit()  # Commit core data
 
         # Fraud data is optional - don't let it break the whole seeding
@@ -188,8 +230,13 @@ class DemoSeeder:
         await self.db.commit()
 
     async def _seed_users(self) -> int:
-        """Create demo users."""
+        """Create demo users with role-appropriate RBAC."""
         count = 0
+
+        # Seed the role/permission catalog so non-superuser demo users can
+        # actually exercise role-appropriate access (otherwise every endpoint
+        # returns 403). role_map is {role_name: Role}.
+        role_map = await seed_rbac(self.db)
 
         for role, creds in DEMO_CREDENTIALS.items():
             # Check if user exists
@@ -201,12 +248,14 @@ class DemoSeeder:
                 continue
 
             user = User(
-                id=f"DEMO-USER-{role.upper()}-{uuid.uuid4().hex[:8]}",
+                # Deterministic ID (no random suffix) so a logged-in demo user's
+                # token still resolves after a reseed that recreates the schema.
+                id=f"DEMO-USER-{role.upper()}",
                 tenant_id="DEMO-TENANT-000000000000000000000000",
                 email=f"{creds['username']}@demo.example.com",
                 username=creds["username"],
                 hashed_password=get_password_hash(creds["password"]),
-                full_name=f"Demo {role.title()} User",
+                full_name=f"Demo {role.replace('_', ' ').title()} User",
                 is_active=True,
                 is_superuser=(role == "system_admin"),
                 department="Demo Department",
@@ -214,12 +263,38 @@ class DemoSeeder:
                 employee_id=f"DEMO-EMP-{role.upper()}",
                 is_demo=True,  # Mark as demo user
             )
+            # Assign the matching role (creds["role"] maps to ROLE_PERMISSIONS).
+            assigned_role = role_map.get(creds["role"])
+            if assigned_role is not None:
+                user.roles = [assigned_role]
             self.db.add(user)
             self.demo_users[role] = user
             count += 1
 
         await self.db.flush()
         return count
+
+    async def _update_queue_counts(self) -> None:
+        """Set each queue's current_item_count to its pending (non-terminal) items.
+
+        The seed assigns checks to queues but the stored counter isn't maintained,
+        so the Queue page would show "0 items" on every queue. This backfills it.
+        """
+        await self.db.execute(
+            text(
+                """
+                UPDATE queues SET current_item_count = COALESCE(sub.cnt, 0)
+                FROM (
+                    SELECT queue_id, COUNT(*) AS cnt
+                    FROM check_items
+                    WHERE queue_id IS NOT NULL
+                      AND status IN ('new', 'in_review', 'escalated', 'pending_dual_control')
+                    GROUP BY queue_id
+                ) AS sub
+                WHERE queues.id = sub.queue_id
+                """
+            )
+        )
 
     async def _seed_queues(self) -> int:
         """Create demo queues."""
@@ -1319,25 +1394,28 @@ mwIDAQAB
 
         # Distribute scenarios
         scenarios = list(DemoScenario)
+        # Weights reflect a real community-bank review queue: the queue is the
+        # small exception slice of a much larger presented volume, and even
+        # within it most items are routine, low-risk holds (large-dollar /
+        # threshold / new-account) that a human can clear quickly. Suspected
+        # fraud (duplicate, unusual amount, high-risk history) is a minority,
+        # and critical items are rare. This mix keeps the demo authentic and is
+        # what drives a realistic straight-through-processing opportunity.
         scenario_weights = {
-            # Normal scenarios get higher weight
-            DemoScenario.ROUTINE_PAYROLL: 15,
-            DemoScenario.REGULAR_VENDOR_PAYMENT: 15,
-            DemoScenario.KNOWN_CUSTOMER_CHECK: 15,
-            # Review scenarios
-            DemoScenario.ALTERED_AMOUNT: 5,
-            DemoScenario.SUSPICIOUS_ENDORSEMENT: 5,
-            DemoScenario.MISMATCHED_SIGNATURE: 4,
-            DemoScenario.STALE_DATED: 4,
+            # Routine, low-risk items dominate the queue
+            DemoScenario.KNOWN_CUSTOMER_CHECK: 28,
+            DemoScenario.ROUTINE_PAYROLL: 20,
+            DemoScenario.REGULAR_VENDOR_PAYMENT: 20,
+            # Medium-risk operational exceptions (date / velocity)
+            DemoScenario.STALE_DATED: 6,
             DemoScenario.POST_DATED: 4,
+            DemoScenario.VELOCITY_SPIKE: 5,
+            DemoScenario.AMOUNT_EXCEEDS_BALANCE: 4,
+            # Higher-risk / suspected-fraud items are a minority
+            DemoScenario.NEW_ACCOUNT_HIGH_VALUE: 4,
+            DemoScenario.UNUSUAL_AMOUNT: 3,
             DemoScenario.DUPLICATE_CHECK: 3,
-            DemoScenario.UNUSUAL_AMOUNT: 5,
-            DemoScenario.NEW_ACCOUNT_HIGH_VALUE: 5,
-            DemoScenario.VELOCITY_SPIKE: 4,
-            # Fraud scenarios
-            DemoScenario.COUNTERFEIT_CHECK: 3,
-            DemoScenario.FORGED_SIGNATURE: 3,
-            DemoScenario.ACCOUNT_TAKEOVER: 2,
+            DemoScenario.HIGH_RISK_HISTORY: 3,
         }
 
         # Status distribution for workflow demonstration
@@ -1349,6 +1427,19 @@ mwIDAQAB
             CheckStatus.APPROVED: 25,
             CheckStatus.REJECTED: 10,
             CheckStatus.RETURNED: 10,
+        }
+
+        # Once an item is decided, the outcome correlates with its risk. Real
+        # reviewers approve the overwhelming majority of low-risk items and
+        # concentrate returns/rejects on genuine exceptions. Weights are for
+        # (APPROVED, RETURNED, REJECTED). This keeps the decided/open split from
+        # status_distribution but makes the historical record realistic - which
+        # is also what lets shadow-mode automation score a believable accuracy.
+        decision_outcome_by_risk = {
+            RiskLevel.LOW: (94, 4, 2),
+            RiskLevel.MEDIUM: (82, 12, 6),
+            RiskLevel.HIGH: (45, 30, 25),
+            RiskLevel.CRITICAL: (8, 27, 65),
         }
 
         for i in range(self.count):
@@ -1368,15 +1459,29 @@ mwIDAQAB
                 weights=list(status_distribution.values()),
             )[0]
 
-            # Generate amount within scenario range
-            amount = Decimal(
-                str(
-                    random.uniform(
-                        float(scenario_config.amount_range[0]),
-                        float(scenario_config.amount_range[1]),
+            # Generate amount. For routine items, derive it from the account's
+            # own average check size with a right-skewed (log-normal) spread so
+            # consumer checks stay small and commercial checks run large -
+            # exactly the long-tailed distribution a real bank sees. Exception
+            # scenarios keep their defined ranges (those flags are amount-driven).
+            routine_scenarios = (
+                DemoScenario.ROUTINE_PAYROLL,
+                DemoScenario.REGULAR_VENDOR_PAYMENT,
+                DemoScenario.KNOWN_CUSTOMER_CHECK,
+            )
+            if scenario in routine_scenarios:
+                base = float(account.avg_check_amount)
+                raw = base * random.lognormvariate(0.0, 0.45)
+                amount = Decimal(str(max(15.0, raw))).quantize(Decimal("0.01"))
+            else:
+                amount = Decimal(
+                    str(
+                        random.uniform(
+                            float(scenario_config.amount_range[0]),
+                            float(scenario_config.amount_range[1]),
+                        )
                     )
-                )
-            ).quantize(Decimal("0.01"))
+                ).quantize(Decimal("0.01"))
 
             # Generate dates
             presented_date = datetime.now(timezone.utc) - timedelta(
@@ -1392,7 +1497,9 @@ mwIDAQAB
                 check_date = presented_date + timedelta(days=random.randint(5, 30))
 
             # Select queue based on status and scenario
-            queue = self._select_queue_for_status(status, scenario_config.requires_dual_control)
+            queue = self._select_queue_for_status(
+                status, scenario_config.requires_dual_control, amount
+            )
 
             # Determine if dual control is required
             requires_dual_control = (
@@ -1418,8 +1525,49 @@ mwIDAQAB
             # Randomly assign item type (40% on_us, 60% transit)
             item_type = ItemType.ON_US if random.random() < 0.4 else ItemType.TRANSIT
 
+            # Promote a few very high-value high-risk items to CRITICAL so the
+            # demo showcases the top risk tier (no critical scenarios remain).
+            risk_level = risk_level_map.get(scenario_config.risk_level, RiskLevel.LOW)
+            if (
+                risk_level == RiskLevel.HIGH
+                and amount >= Decimal("60000")
+                and random.random() < 0.7
+            ):
+                risk_level = RiskLevel.CRITICAL
+
+            # For decided items, pick the specific outcome from the risk-aware
+            # distribution so low-risk items are mostly approved and exceptions
+            # drive the returns/rejects (set before the status is used below).
+            if status in (
+                CheckStatus.APPROVED,
+                CheckStatus.REJECTED,
+                CheckStatus.RETURNED,
+            ):
+                status = random.choices(
+                    [CheckStatus.APPROVED, CheckStatus.RETURNED, CheckStatus.REJECTED],
+                    weights=decision_outcome_by_risk[risk_level],
+                )[0]
+
+            # Stamp a realistic last-touched time. Terminal items were
+            # "processed" within the last week (distributed across days, some
+            # today) so the throughput chart is populated and "processed today"
+            # is non-zero, rather than piling everything on the seed date.
+            if status in (
+                CheckStatus.APPROVED,
+                CheckStatus.REJECTED,
+                CheckStatus.RETURNED,
+            ):
+                processed_at = datetime.now(timezone.utc) - timedelta(
+                    days=random.randint(0, 6), hours=random.randint(0, 23)
+                )
+                if processed_at < presented_date:
+                    processed_at = presented_date + timedelta(hours=random.randint(1, 12))
+            else:
+                processed_at = presented_date + timedelta(minutes=random.randint(15, 240))
+
             check_item = CheckItem(
                 id=str(uuid.uuid4()),
+                updated_at=processed_at,
                 tenant_id="DEMO-TENANT-000000000000000000000000",
                 external_item_id=f"DEMO-CHECK-{i+1:04d}-{uuid.uuid4().hex[:8]}",
                 source_system="demo",
@@ -1440,7 +1588,7 @@ mwIDAQAB
                 presented_date=presented_date,
                 check_date=check_date,
                 status=status,
-                risk_level=risk_level_map.get(scenario_config.risk_level, RiskLevel.LOW),
+                risk_level=risk_level,
                 priority=self._calculate_priority(scenario_config, amount),
                 queue_id=queue.id if queue else None,
                 sla_due_at=presented_date + timedelta(hours=settings.DEFAULT_SLA_HOURS),
@@ -1497,21 +1645,10 @@ mwIDAQAB
                 check_age_days=((presented_date - check_date).days if check_date else None),
                 is_stale_dated=scenario == DemoScenario.STALE_DATED,
                 is_post_dated=scenario == DemoScenario.POST_DATED,
-                has_micr_anomaly=scenario
-                in [DemoScenario.COUNTERFEIT_CHECK, DemoScenario.ALTERED_AMOUNT],
-                micr_confidence_score=(
-                    random.randint(85, 100)
-                    if scenario not in [DemoScenario.COUNTERFEIT_CHECK]
-                    else random.randint(40, 70)
-                ),
-                has_alteration_flag=scenario
-                in [DemoScenario.ALTERED_AMOUNT, DemoScenario.FORGED_SIGNATURE],
-                signature_match_score=(
-                    random.randint(85, 100)
-                    if scenario
-                    not in [DemoScenario.FORGED_SIGNATURE, DemoScenario.MISMATCHED_SIGNATURE]
-                    else random.randint(30, 60)
-                ),
+                has_micr_anomaly=False,
+                micr_confidence_score=random.randint(85, 100),
+                has_alteration_flag=False,
+                signature_match_score=random.randint(85, 100),
                 prior_review_count=random.randint(0, 5),
                 prior_approval_count=random.randint(0, 3),
                 prior_rejection_count=random.randint(0, 1) if account.returned_items > 0 else 0,
@@ -1638,6 +1775,7 @@ mwIDAQAB
                     previous_status=CheckStatus.IN_REVIEW.value,
                     new_status=check.status.value,
                     is_dual_control_required=check.requires_dual_control,
+                    created_at=check.presented_date + timedelta(hours=1),
                     is_demo=True,  # Mark as demo data
                 )
                 self.db.add(decision)
@@ -1660,10 +1798,475 @@ mwIDAQAB
                         new_status=check.status.value,
                         dual_control_approver_id=approver.id,
                         dual_control_approved_at=datetime.now(timezone.utc),
+                        created_at=check.presented_date + timedelta(hours=2),
                         is_demo=True,  # Mark as demo data
                     )
                     self.db.add(approval_decision)
                     count += 1
+
+        await self.db.flush()
+        return count
+
+    async def _seed_pending_dual_control_decisions(self) -> int:
+        """Create pending review recommendations for items awaiting dual control.
+
+        Items left in PENDING_DUAL_CONTROL status need a first-level review
+        recommendation that a *different* approver can then approve or reject.
+        Without this, the Approvals queue would have nothing to act on.
+        """
+        reviewer = self.demo_users.get("reviewer", self.demo_users.get("system_admin"))
+        if reviewer is None:
+            return 0
+
+        count = 0
+        for idx, check in enumerate(self.demo_checks):
+            if check.status != CheckStatus.PENDING_DUAL_CONTROL:
+                continue
+
+            # Most recommendations are to approve; route a few as "return" so the
+            # approver sees a mix of outcomes to confirm.
+            recommended_action = DecisionAction.RETURN if idx % 4 == 0 else DecisionAction.APPROVE
+
+            decision = Decision(
+                id=str(uuid.uuid4()),
+                tenant_id="DEMO-TENANT-000000000000000000000000",
+                check_item_id=check.id,
+                user_id=reviewer.id,
+                decision_type=DecisionType.REVIEW_RECOMMENDATION,
+                action=recommended_action,
+                notes="Recommended for dual-control approval (demo).",
+                previous_status=CheckStatus.IN_REVIEW.value,
+                new_status=CheckStatus.PENDING_DUAL_CONTROL.value,
+                is_dual_control_required=True,
+                dual_control_approved_at=None,
+                created_at=check.presented_date + timedelta(hours=1),
+                is_demo=True,
+            )
+            self.db.add(decision)
+            await self.db.flush()  # ensure decision.id is available
+            check.pending_dual_control_decision_id = decision.id
+            count += 1
+
+        await self.db.flush()
+        return count
+
+    async def _seal_demo_evidence(self) -> int:
+        """Cryptographically seal evidence snapshots for all demo decisions.
+
+        Each check item's decisions are hash-chained in created_at order (the
+        same order the verifier uses), so the per-decision "Verify Evidence
+        Chain" action returns a valid, tamper-evident chain in the demo.
+        """
+        sealed = 0
+        for check in self.demo_checks:
+            result = await self.db.execute(
+                select(Decision)
+                .where(Decision.check_item_id == check.id)
+                .order_by(Decision.created_at.asc())
+            )
+            decisions = result.scalars().all()
+            previous_hash: str | None = None
+            for decision in decisions:
+                snapshot = {
+                    "decision_id": decision.id,
+                    "check_item_id": decision.check_item_id,
+                    "user_id": decision.user_id,
+                    "decision_type": decision.decision_type.value,
+                    "action": decision.action.value,
+                    "previous_status": decision.previous_status,
+                    "new_status": decision.new_status,
+                    "amount": str(check.amount),
+                }
+                decision.evidence_snapshot = seal_evidence_snapshot(snapshot, previous_hash)
+                previous_hash = decision.evidence_snapshot["evidence_hash"]
+                sealed += 1
+
+        await self.db.flush()
+        return sealed
+
+    async def _seed_item_context_connectors(self) -> int:
+        """Seed Connector C (SFTP item-context) connectors and import history."""
+        owner = self.demo_users.get("system_admin", self.demo_users.get("administrator"))
+        if owner is None:
+            return 0
+
+        tenant_id = "DEMO-TENANT-000000000000000000000000"
+        now = datetime.now(timezone.utc)
+        connector_specs = [
+            {
+                "name": "Core Account Tenure Feed",
+                "source_system": "fiserv_premier",
+                "sftp_host": "sftp.core.demo-bank.example",
+                "remote_path": "/outbound/account_context/",
+                "file_pattern": "account_context_*.csv",
+                "cron": "0 */4 * * *",
+            },
+            {
+                "name": "Deposit Behavior Feed",
+                "source_system": "jack_henry_silverlake",
+                "sftp_host": "sftp.dn.demo-bank.example",
+                "remote_path": "/feeds/deposit_behavior/",
+                "file_pattern": "deposit_behavior_*.csv",
+                "cron": "0 2 * * *",
+            },
+        ]
+
+        count = 0
+        for ci, spec in enumerate(connector_specs):
+            last_import_at = now - timedelta(hours=4 * ci + 3)
+            connector = ItemContextConnector(
+                id=str(uuid.uuid4()),
+                tenant_id=tenant_id,
+                name=spec["name"],
+                description="Inbound SFTP feed enriching checks with account context.",
+                source_system=spec["source_system"],
+                status=ContextConnectorStatus.ACTIVE,
+                is_enabled=True,
+                sftp_host=spec["sftp_host"],
+                sftp_port=22,
+                sftp_username="checkreview_svc",
+                sftp_remote_path=spec["remote_path"],
+                file_pattern=spec["file_pattern"],
+                file_format=FileFormat.CSV,
+                has_header_row=True,
+                field_mapping={
+                    "external_item_id": "item_id",
+                    "account_tenure_days": "tenure_days",
+                    "average_balance": "avg_balance",
+                },
+                match_field="external_item_id",
+                schedule_enabled=True,
+                schedule_cron=spec["cron"],
+                last_import_at=last_import_at,
+                last_import_file=spec["file_pattern"].replace("*", "20260603"),
+                last_import_records=random.randint(400, 1200),
+                created_by_user_id=owner.id,
+            )
+            self.db.add(connector)
+            await self.db.flush()
+            count += 1
+
+            # A few historical import runs (most succeed; one is partial).
+            for ri in range(3):
+                started = last_import_at - timedelta(hours=4 * ri)
+                total = random.randint(400, 1200)
+                invalid = random.randint(0, 12) if ri == 1 else 0
+                matched = total - invalid
+                status = ImportStatus.PARTIAL if invalid else ImportStatus.COMPLETED
+                self.db.add(
+                    ItemContextImport(
+                        id=str(uuid.uuid4()),
+                        connector_id=connector.id,
+                        tenant_id=tenant_id,
+                        file_name=spec["file_pattern"].replace("*", started.strftime("%Y%m%d%H")),
+                        file_path=spec["remote_path"]
+                        + spec["file_pattern"].replace("*", started.strftime("%Y%m%d%H")),
+                        status=status,
+                        started_at=started,
+                        completed_at=started + timedelta(minutes=2),
+                        duration_seconds=120,
+                        total_records=total,
+                        matched_records=matched,
+                        applied_records=matched,
+                        invalid_records=invalid,
+                        triggered_by="schedule",
+                    )
+                )
+
+        await self.db.flush()
+        return count
+
+    async def _seed_queue_assignments(self) -> int:
+        """Assign demo users to queues so the admin membership view is populated."""
+        plan = [
+            ("Demo Standard Review", "reviewer", True, False),
+            ("Demo Standard Review", "senior_reviewer", True, False),
+            ("Demo Dual Control", "senior_reviewer", True, True),
+            ("Demo Dual Control", "supervisor", False, True),
+            ("Demo Escalation", "supervisor", True, True),
+            ("Demo High Priority", "senior_reviewer", True, False),
+        ]
+        now = datetime.now(timezone.utc)
+        count = 0
+        for queue_name, role, can_review, can_approve in plan:
+            queue = self.demo_queues.get(queue_name)
+            user = self.demo_users.get(role)
+            if queue is None or user is None:
+                continue
+            self.db.add(
+                QueueAssignment(
+                    id=str(uuid.uuid4()),
+                    queue_id=queue.id,
+                    user_id=user.id,
+                    can_review=can_review,
+                    can_approve=can_approve,
+                    is_active=True,
+                    assigned_at=now,
+                )
+            )
+            count += 1
+
+        await self.db.flush()
+        return count
+
+    async def _seed_item_views(self) -> int:
+        """Seed per-item view trails so the audit drill-down has data."""
+        viewers = [
+            self.demo_users.get("reviewer"),
+            self.demo_users.get("senior_reviewer"),
+            self.demo_users.get("supervisor"),
+        ]
+        viewers = [v for v in viewers if v is not None]
+        if not viewers:
+            return 0
+
+        tenant_id = "DEMO-TENANT-000000000000000000000000"
+        count = 0
+        for check in self.demo_checks[:18]:
+            for _ in range(random.randint(1, 3)):
+                viewer = random.choice(viewers)
+                started = check.presented_date + timedelta(minutes=random.randint(1, 240))
+                duration = random.randint(25, 280)
+                self.db.add(
+                    ItemView(
+                        id=str(uuid.uuid4()),
+                        tenant_id=tenant_id,
+                        check_item_id=check.id,
+                        user_id=viewer.id,
+                        view_started_at=started,
+                        view_ended_at=started + timedelta(seconds=duration),
+                        duration_seconds=duration,
+                        front_image_viewed=True,
+                        back_image_viewed=random.random() < 0.7,
+                        zoom_used=random.random() < 0.6,
+                        magnifier_used=random.random() < 0.4,
+                        history_compared=random.random() < 0.5,
+                        ai_assists_viewed=random.random() < 0.5,
+                        context_panel_viewed=random.random() < 0.8,
+                        is_demo=True,
+                    )
+                )
+                count += 1
+
+        await self.db.flush()
+        return count
+
+    async def _seed_commit_batches(self) -> int:
+        """Seed Connector B (outbound commit) config and a few commit batches."""
+        owner = self.demo_users.get("system_admin", self.demo_users.get("administrator"))
+        if owner is None:
+            return 0
+
+        tenant_id = "DEMO-TENANT-000000000000000000000000"
+        now = datetime.now(timezone.utc)
+        today = now.replace(hour=8, minute=0, second=0, microsecond=0)
+
+        config = BankConnectorConfig(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            bank_id="DEMO-CORE-001",
+            bank_name="Demo Community Bank — Core",
+            field_config={
+                "account_number": "acct",
+                "amount": "amount",
+                "decision": "decision_code",
+            },
+            delivery_config={"host": "sftp.core.demo-bank.example", "path": "/inbound/commits/"},
+            delivery_method=DeliveryMethod.SFTP,
+            created_by_user_id=owner.id,
+        )
+        self.db.add(config)
+        await self.db.flush()
+
+        # Three batches: one pending approval, one transmitted/awaiting ack, one
+        # completed (acknowledged), so the dashboard and list are populated.
+        batch_specs = [
+            {
+                "suffix": "0003",
+                "status": BatchStatus.PENDING,
+                "total_records": 42,
+                "total_amount": Decimal("185420.55"),
+                "release": 30,
+                "hold": 5,
+                "ret": 4,
+                "rej": 3,
+                "created_at": today,
+                "approved_at": None,
+                "transmitted_at": None,
+                "ack_status": None,
+                "records_accepted": None,
+            },
+            {
+                "suffix": "0002",
+                "status": BatchStatus.TRANSMITTED,
+                "total_records": 55,
+                "total_amount": Decimal("243110.10"),
+                "release": 41,
+                "hold": 7,
+                "ret": 4,
+                "rej": 3,
+                "created_at": today - timedelta(hours=3),
+                "approved_at": today - timedelta(hours=2, minutes=30),
+                "transmitted_at": today - timedelta(hours=2),
+                "ack_status": AcknowledgementStatus.PENDING,
+                "records_accepted": None,
+            },
+            {
+                "suffix": "0001",
+                "status": BatchStatus.COMPLETED,
+                "total_records": 60,
+                "total_amount": Decimal("301775.00"),
+                "release": 48,
+                "hold": 6,
+                "ret": 4,
+                "rej": 2,
+                "created_at": today - timedelta(days=1),
+                "approved_at": today - timedelta(days=1) + timedelta(minutes=30),
+                "transmitted_at": today - timedelta(days=1) + timedelta(hours=1),
+                "ack_status": AcknowledgementStatus.ACCEPTED,
+                "records_accepted": 60,
+            },
+        ]
+
+        count = 0
+        for spec in batch_specs:
+            batch = CommitBatch(
+                id=str(uuid.uuid4()),
+                tenant_id=tenant_id,
+                batch_number=f"BATCH-20260603-{spec['suffix']}",
+                bank_config_id=config.id,
+                status=spec["status"],
+                total_records=spec["total_records"],
+                total_amount=spec["total_amount"],
+                release_count=spec["release"],
+                hold_count=spec["hold"],
+                return_count=spec["ret"],
+                reject_count=spec["rej"],
+                has_high_risk_items=True,
+                high_risk_count=random.randint(1, 4),
+                created_by_user_id=owner.id,
+                created_at=spec["created_at"],
+                approved_at=spec["approved_at"],
+                approver_user_id=owner.id if spec["approved_at"] else None,
+                transmitted_at=spec["transmitted_at"],
+                ack_status=spec["ack_status"],
+                records_accepted=spec["records_accepted"],
+            )
+            self.db.add(batch)
+            count += 1
+
+        await self.db.flush()
+        return count
+
+    async def _seed_security_incidents(self) -> int:
+        """Seed a few security incidents so the incident console is populated."""
+        reporter = self.demo_users.get("system_admin")
+        if reporter is None:
+            return 0
+
+        service = BreachNotificationService(self.db)
+        now = datetime.now(timezone.utc)
+        specs = [
+            {
+                "incident_type": IncidentType.SUSPICIOUS_ACTIVITY,
+                "severity": IncidentSeverity.MEDIUM,
+                "title": "Unusual login pattern from new geography",
+                "description": (
+                    "Several reviewer accounts authenticated from an unfamiliar "
+                    "region within a short window. Under investigation."
+                ),
+                "affected_users_count": 3,
+                "data_types_exposed": None,
+                "confirm": False,
+            },
+            {
+                "incident_type": IncidentType.PHISHING,
+                "severity": IncidentSeverity.HIGH,
+                "title": "Targeted phishing campaign against operations staff",
+                "description": (
+                    "Crafted emails impersonating the core banking vendor "
+                    "attempted to harvest credentials from operations staff."
+                ),
+                "affected_users_count": 8,
+                "data_types_exposed": ["email"],
+                "confirm": True,
+            },
+            {
+                "incident_type": IncidentType.UNAUTHORIZED_ACCESS,
+                "severity": IncidentSeverity.CRITICAL,
+                "title": "Possible unauthorized access to archived check images",
+                "description": (
+                    "Anomalous bulk access to archived check images detected by "
+                    "monitoring. Potential exposure of account information."
+                ),
+                "affected_records_count": 1200,
+                "data_types_exposed": ["account_number", "name"],
+                "confirm": True,
+            },
+        ]
+
+        count = 0
+        for i, spec in enumerate(specs):
+            incident = await service.create_incident(
+                tenant_id=reporter.tenant_id,
+                incident_type=spec["incident_type"],
+                severity=spec["severity"],
+                title=spec["title"],
+                description=spec["description"],
+                discovered_at=now - timedelta(days=i + 1),
+                reported_by_id=reporter.id,
+                reported_by_username=reporter.username,
+                occurred_at=now - timedelta(days=i + 2),
+                affected_users_count=spec.get("affected_users_count"),
+                affected_records_count=spec.get("affected_records_count"),
+                data_types_exposed=spec.get("data_types_exposed"),
+            )
+            count += 1
+            if spec["confirm"]:
+                await service.confirm_incident(
+                    incident_id=str(incident.id),
+                    user_id=reporter.id,
+                    username=reporter.username,
+                    root_cause="Identified during demo seed",
+                )
+
+        await self.db.flush()
+        return count
+
+    async def _seed_approval_entitlements(self) -> int:
+        """Grant review/approve entitlements so demo users can actually decide.
+
+        Recording a review recommendation requires a REVIEW entitlement, and
+        clearing dual control requires an APPROVE entitlement (both on top of
+        the RBAC permission). system_admin is a superuser and bypasses these
+        checks; every other working role needs an explicit (unrestricted, demo)
+        entitlement or they get a 403 at decision time.
+        """
+        # role -> entitlement types to grant
+        grants = {
+            "reviewer": [ApprovalEntitlementType.REVIEW],
+            "senior_reviewer": [ApprovalEntitlementType.REVIEW, ApprovalEntitlementType.APPROVE],
+            "supervisor": [ApprovalEntitlementType.REVIEW, ApprovalEntitlementType.APPROVE],
+            "administrator": [ApprovalEntitlementType.REVIEW, ApprovalEntitlementType.APPROVE],
+        }
+        now = datetime.now(timezone.utc)
+        count = 0
+        for role, types in grants.items():
+            user = self.demo_users.get(role)
+            if user is None:
+                continue
+            for etype in types:
+                entitlement = ApprovalEntitlement(
+                    id=str(uuid.uuid4()),
+                    user_id=user.id,
+                    entitlement_type=etype,
+                    tenant_id="DEMO-TENANT-000000000000000000000000",
+                    is_active=True,
+                    effective_from=now,
+                    grant_reason="Demo seed: enable review/approval decisions",
+                )
+                self.db.add(entitlement)
+                count += 1
 
         await self.db.flush()
         return count
@@ -1719,53 +2322,55 @@ mwIDAQAB
         count = 0
 
         # Fraud event configurations - realistic scenarios
+        # Confidence is a 0-100 score; events submitted to the network are
+        # high-confidence findings.
         fraud_scenarios = [
             {
                 "fraud_type": FraudType.COUNTERFEIT_CHECK,
                 "channel": FraudChannel.MOBILE,
-                "confidence": 5,
+                "confidence": 93,
                 "narrative": "Counterfeit check stock detected - magnetic ink anomalies",
             },
             {
                 "fraud_type": FraudType.FORGED_SIGNATURE,
                 "channel": FraudChannel.BRANCH,
-                "confidence": 4,
+                "confidence": 84,
                 "narrative": "Signature does not match known patterns for account holder",
             },
             {
                 "fraud_type": FraudType.ALTERED_CHECK,
                 "channel": FraudChannel.RDC,
-                "confidence": 5,
+                "confidence": 90,
                 "narrative": "Amount field shows evidence of chemical alteration",
             },
             {
                 "fraud_type": FraudType.DUPLICATE_DEPOSIT,
                 "channel": FraudChannel.MOBILE,
-                "confidence": 5,
+                "confidence": 96,
                 "narrative": "Same check deposited at multiple institutions",
             },
             {
                 "fraud_type": FraudType.ACCOUNT_TAKEOVER,
                 "channel": FraudChannel.ONLINE,
-                "confidence": 4,
+                "confidence": 79,
                 "narrative": "Unusual check activity pattern inconsistent with account history",
             },
             {
                 "fraud_type": FraudType.PAYEE_ALTERATION,
                 "channel": FraudChannel.BRANCH,
-                "confidence": 4,
+                "confidence": 87,
                 "narrative": "Payee name shows signs of mechanical erasure and rewriting",
             },
             {
                 "fraud_type": FraudType.AMOUNT_ALTERATION,
                 "channel": FraudChannel.ATM,
-                "confidence": 5,
+                "confidence": 91,
                 "narrative": "Numeric and written amounts inconsistent, alterations visible",
             },
             {
                 "fraud_type": FraudType.CHECK_KITING,
                 "channel": FraudChannel.BRANCH,
-                "confidence": 3,
+                "confidence": 74,
                 "narrative": "Pattern of circular deposits between accounts detected",
             },
         ]
@@ -2045,14 +2650,31 @@ mwIDAQAB
         return count
 
     def _select_queue_for_status(
-        self, status: CheckStatus, requires_dual_control: bool
+        self,
+        status: CheckStatus,
+        requires_dual_control: bool,
+        amount: Decimal | None = None,
     ) -> Queue | None:
-        """Select appropriate queue based on status."""
+        """Select appropriate queue based on status (and amount for routing).
+
+        High-value pending items are routed to the High Priority queue so it is
+        populated in the demo; everything else pending goes to Standard Review.
+        """
         if status == CheckStatus.PENDING_DUAL_CONTROL:
             return self.demo_queues.get("Demo Dual Control")
         elif status == CheckStatus.ESCALATED:
             return self.demo_queues.get("Demo Escalation")
         elif status in [CheckStatus.NEW, CheckStatus.IN_REVIEW]:
+            # Route the higher-value pending items to the High Priority queue so
+            # it is populated in the demo. Very high-value items have already been
+            # diverted to dual-control/escalation above, so use a lower cutoff
+            # here than HIGH_PRIORITY_THRESHOLD to capture the remaining top tier.
+            if (
+                amount is not None
+                and amount >= Decimal("5000")
+                and "Demo High Priority" in self.demo_queues
+            ):
+                return self.demo_queues.get("Demo High Priority")
             return self.demo_queues.get("Demo Standard Review")
         return None
 
@@ -2069,11 +2691,63 @@ mwIDAQAB
         return min(base_priority, 100)
 
 
+async def reset_demo_schema() -> None:
+    """Drop and recreate the database schema for a clean demo reseed.
+
+    A deletion-based reset is unreliable: the schema has grown circular and
+    RESTRICT foreign keys (e.g. check_items <-> decisions, the audit_logs ->
+    users reference), so clearing rows in dependency order is brittle and, once
+    real audit activity exists, effectively impossible. Recreating the schema
+    sidesteps all of that and reproduces exactly the state of a fresh start-up.
+
+    Demo / non-production only.
+    """
+    require_non_production()
+
+    from app.db.enums import create_enum_types
+    from app.db.session import Base, engine
+
+    # Run on an AUTOCOMMIT connection. Terminate every other connection to this
+    # database first: otherwise another session (e.g. the request that triggered
+    # the reseed, holding an AccessShareLock on users from authentication) would
+    # block DROP SCHEMA's AccessExclusiveLock indefinitely. A short lock_timeout
+    # guards against any residual contention.
+    autocommit_engine = engine.execution_options(isolation_level="AUTOCOMMIT")
+    async with autocommit_engine.connect() as conn:
+        await conn.execute(
+            text(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE datname = current_database() AND pid <> pg_backend_pid()"
+            )
+        )
+        await conn.execute(text("SET lock_timeout = '10s'"))
+        await conn.execute(text("DROP SCHEMA public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
+        # Mirror start-up DB initialisation: PostgreSQL enum types first, then
+        # all tables, then the resource_id column-size fix.
+        await create_enum_types(conn)
+        await conn.run_sync(Base.metadata.create_all)
+        try:
+            await conn.execute(
+                text("ALTER TABLE audit_logs ALTER COLUMN resource_id TYPE VARCHAR(255)")
+            )
+        except Exception:
+            pass
+
+    # Drop pooled connections so no cached statements reference the old schema.
+    await engine.dispose()
+
+
 async def seed_demo_data(reset: bool = False, count: int = 60) -> dict:
     """Main entry point for seeding demo data."""
+    # A reset recreates the schema (see reset_demo_schema) and then seeds the
+    # now-empty database, rather than trying to delete existing rows.
+    if reset:
+        await reset_demo_schema()
+
     async with AsyncSessionLocal() as db:
         seeder = DemoSeeder(db, count)
-        stats = await seeder.seed_all(reset=reset)
+        stats = await seeder.seed_all(reset=False)
         return stats
 
 

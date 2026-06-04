@@ -17,6 +17,9 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.audit.service import AuditService
 from app.models.audit import AuditAction
 from app.security.models import (
@@ -28,8 +31,6 @@ from app.security.models import (
     NotificationStatus,
     SecurityIncident,
 )
-from sqlalchemy import and_, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger("security.breach")
 

@@ -12,11 +12,12 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
+from fastapi import status
+
 from app.core.security import create_access_token
 from app.models.check import CheckItem, CheckStatus, ItemType, RiskLevel
 from app.models.queue import Queue, QueueAssignment, QueueType
 from app.models.user import User
-from fastapi import status
 
 
 @pytest.fixture
@@ -318,6 +319,9 @@ class TestQueueStats:
         # Create check items in this queue
         for i in range(5):
             item = CheckItem(
+                source_system="test_core",
+                account_number_masked="****0000",
+                account_type="consumer",
                 id=f"check-stats-{i}",
                 tenant_id=test_tenant_id,
                 external_item_id=f"EXT-STATS-{i}",
@@ -442,6 +446,7 @@ class TestQueueAssignments:
             "/api/v1/queues/queue-new-assign/assignments",
             headers=queue_headers,
             json={
+                "queue_id": "queue-new-assign",
                 "user_id": "new-assigned-user",
                 "can_review": True,
                 "can_approve": True,
@@ -498,6 +503,7 @@ class TestQueueAssignments:
             "/api/v1/queues/queue-update-assign/assignments",
             headers=queue_headers,
             json={
+                "queue_id": "queue-update-assign",
                 "user_id": "update-assigned-user",
                 "can_review": True,
                 "can_approve": True,

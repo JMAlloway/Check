@@ -1,5 +1,17 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore, getCsrfToken } from '../stores/authStore';
+import type {
+  PendingApproval,
+  EvidenceChainVerification,
+  SecurityIncident,
+  IncidentTimelineEntry,
+  ContextConnector,
+  ContextImport,
+  CommitBatchSummary,
+  ConnectorDashboard,
+  ItemView,
+  AuditLogEntry,
+} from '../types';
 
 // Use relative path '/api/v1' when VITE_API_URL is not set - this allows Vite's proxy
 // to handle requests, enabling Cloudflare Tunnel and other reverse proxy setups
@@ -148,6 +160,28 @@ api.interceptors.response.use(
       }
     }
 
+    // Transient-failure retry with exponential backoff for safe (idempotent)
+    // requests: network errors, 429, and 5xx. Auth (401) is handled above and
+    // is intentionally excluded here.
+    const retryable =
+      !error.response ||
+      error.response.status === 429 ||
+      error.response.status >= 500;
+    const method = (originalRequest?.method ?? 'get').toLowerCase();
+    const isSafe = method === 'get' || method === 'head';
+    const cfg = originalRequest as InternalAxiosRequestConfig & { _retryCount?: number };
+
+    if (retryable && isSafe && cfg) {
+      cfg._retryCount = (cfg._retryCount ?? 0) + 1;
+      const MAX_RETRIES = 3;
+      if (cfg._retryCount <= MAX_RETRIES) {
+        const base = 300 * 2 ** (cfg._retryCount - 1); // 300, 600, 1200ms
+        const delay = base + Math.random() * 200; // jitter
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return api(cfg);
+      }
+    }
+
     return Promise.reject(error);
   }
 );
@@ -194,6 +228,8 @@ export const checkApi = {
     sla_breached?: boolean;
     date_from?: string;
     date_to?: string;
+    sort_by?: string;
+    sort_order?: string;
   }) => {
     const response = await api.get('/checks', { params });
     return response.data;
@@ -208,6 +244,21 @@ export const checkApi = {
 
   getItem: async (itemId: string) => {
     const response = await api.get(`/checks/${itemId}`);
+    return response.data;
+  },
+
+  pullNextItem: async () => {
+    const response = await api.post('/checks/worklist/pull-next');
+    return response.data;
+  },
+
+  getWorklistLocks: async () => {
+    const response = await api.get('/checks/worklist/locks');
+    return response.data as { locks: { item_id: string; username: string; user_id: string }[] };
+  },
+
+  releaseItem: async (itemId: string) => {
+    const response = await api.post(`/checks/${itemId}/release`);
     return response.data;
   },
 
@@ -285,6 +336,16 @@ export const decisionApi = {
     return response.data;
   },
 
+  getPendingApprovals: async (): Promise<PendingApproval[]> => {
+    const response = await api.get('/decisions/pending-approvals');
+    return response.data;
+  },
+
+  verifyEvidenceChain: async (itemId: string): Promise<EvidenceChainVerification> => {
+    const response = await api.get(`/decisions/${itemId}/verify-evidence-chain`);
+    return response.data;
+  },
+
   getDecisionHistory: async (itemId: string) => {
     const response = await api.get(`/decisions/${itemId}/history`);
     return response.data;
@@ -331,6 +392,30 @@ export const reportsApi = {
   getReviewerPerformance: async (days = 30) => {
     const response = await api.get('/reports/reviewer-performance', { params: { days } });
     return response.data;
+  },
+
+  exportDecisionsCsv: async (dateFrom?: string, dateTo?: string) => {
+    const params: Record<string, string> = {};
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+
+    const response = await api.get('/reports/export/decisions', {
+      params,
+      responseType: 'blob',
+    });
+
+    const blob = new Blob([response.data], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute(
+      'download',
+      `decisions_${dateFrom?.split('T')[0] || new Date().toISOString().split('T')[0]}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   },
 
   // PDF Export methods
@@ -454,6 +539,16 @@ export const imageApi = {
 export const auditApi = {
   getItemAuditTrail: async (itemId: string, limit = 100) => {
     const response = await api.get(`/audit/items/${itemId}`, { params: { limit } });
+    return response.data;
+  },
+
+  getItemViews: async (itemId: string): Promise<ItemView[]> => {
+    const response = await api.get(`/audit/items/${itemId}/views`);
+    return response.data;
+  },
+
+  getUserActivity: async (userId: string, limit = 100): Promise<AuditLogEntry[]> => {
+    const response = await api.get(`/audit/users/${userId}`, { params: { limit } });
     return response.data;
   },
 
@@ -683,7 +778,8 @@ export const queueAdminApi = {
     can_approve?: boolean;
     max_concurrent_items?: number;
   }) => {
-    const response = await api.post(`/queues/${queueId}/assignments`, data);
+    // The schema requires queue_id in the body as well as the path.
+    const response = await api.post(`/queues/${queueId}/assignments`, { ...data, queue_id: queueId });
     return response.data;
   },
 };
@@ -810,7 +906,10 @@ export const auditLogApi = {
 // Image Connector API - Admin management of bank-side connectors
 export const imageConnectorApi = {
   getConnectors: async (enabledOnly = false) => {
-    const response = await api.get('/image-connectors', {
+    // Trailing slash matches the backend collection route ("/image-connectors/")
+    // and avoids a 307 redirect that the browser would follow to the backend's
+    // absolute origin, leaving the same-origin proxy and tripping CORS.
+    const response = await api.get('/image-connectors/', {
       params: { enabled_only: enabledOnly },
     });
     return response.data;
@@ -829,7 +928,7 @@ export const imageConnectorApi = {
     public_key_pem: string;
     token_expiry_seconds?: number;
   }) => {
-    const response = await api.post('/image-connectors', data);
+    const response = await api.post('/image-connectors/', data);
     return response.data;
   },
 
@@ -988,5 +1087,85 @@ export const archiveApi = {
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
+  },
+};
+
+// Security incidents API (superuser only)
+export const securityApi = {
+  listIncidents: async (): Promise<SecurityIncident[]> => {
+    const response = await api.get('/security/incidents');
+    return response.data;
+  },
+
+  createIncident: async (data: {
+    incident_type: string;
+    severity: string;
+    title: string;
+    description: string;
+    discovered_at: string;
+    occurred_at?: string;
+    affected_users_count?: number;
+    affected_records_count?: number;
+    data_types_exposed?: string[];
+  }): Promise<SecurityIncident> => {
+    const response = await api.post('/security/incidents', data);
+    return response.data;
+  },
+
+  confirmIncident: async (id: string, root_cause?: string): Promise<SecurityIncident> => {
+    const response = await api.post(`/security/incidents/${id}/confirm`, { root_cause });
+    return response.data;
+  },
+
+  containIncident: async (id: string, containment_actions: string): Promise<SecurityIncident> => {
+    const response = await api.post(`/security/incidents/${id}/contain`, { containment_actions });
+    return response.data;
+  },
+
+  resolveIncident: async (
+    id: string,
+    remediation_steps: string,
+    lessons_learned?: string
+  ): Promise<SecurityIncident> => {
+    const response = await api.post(`/security/incidents/${id}/resolve`, {
+      remediation_steps,
+      lessons_learned,
+    });
+    return response.data;
+  },
+
+  getTimeline: async (id: string): Promise<IncidentTimelineEntry[]> => {
+    const response = await api.get(`/security/incidents/${id}/timeline`);
+    return response.data;
+  },
+};
+
+// Connector C — item-context SFTP connectors API
+export const contextConnectorApi = {
+  listConnectors: async (): Promise<{ items: ContextConnector[]; total: number }> => {
+    const response = await api.get('/item-context-connectors');
+    return response.data;
+  },
+
+  getImports: async (
+    connectorId: string
+  ): Promise<{ items: ContextImport[]; total: number }> => {
+    const response = await api.get(`/item-context-connectors/${connectorId}/imports`);
+    return response.data;
+  },
+};
+
+// Connector B — outbound commit batches API
+export const commitConnectorApi = {
+  getDashboard: async (): Promise<ConnectorDashboard> => {
+    const response = await api.get('/connector/dashboard');
+    return response.data;
+  },
+
+  getBatches: async (status?: string): Promise<CommitBatchSummary[]> => {
+    const response = await api.get('/connector/batches', {
+      params: status ? { status_filter: status } : undefined,
+    });
+    return response.data;
   },
 };

@@ -1,5 +1,6 @@
 import { ExclamationTriangleIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 type ActionType = 'approve' | 'reject' | 'return' | 'escalate' | 'default';
 
@@ -59,6 +60,11 @@ export default function ConfirmationModal({
   isPending = false,
   details,
 }: ConfirmationModalProps) {
+  // Closing is suppressed while a confirm is in flight, matching the backdrop guard.
+  const trapRef = useFocusTrap<HTMLDivElement>(isOpen, () => {
+    if (!isPending) onClose();
+  });
+
   if (!isOpen) return null;
 
   const style = ACTION_STYLES[actionType];
@@ -84,7 +90,10 @@ export default function ConfirmationModal({
       aria-modal="true"
       aria-labelledby="confirmation-title"
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
+      <div
+        ref={trapRef}
+        className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden"
+      >
         {/* Header */}
         <div className="flex items-center space-x-3 px-6 py-4 border-b border-gray-200">
           <Icon className={clsx('h-6 w-6', style.color)} />

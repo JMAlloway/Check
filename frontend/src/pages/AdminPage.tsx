@@ -22,15 +22,18 @@ import {
   ChartBarSquareIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
-import { userApi, queueAdminApi, policyApi, auditLogApi, imageConnectorApi, systemApi, reportsApi, operationsApi } from '../services/api';
+import toast from 'react-hot-toast';
+import { userApi, queueAdminApi, queueApi, policyApi, auditLogApi, imageConnectorApi, systemApi, reportsApi, operationsApi } from '../services/api';
 import { format } from 'date-fns';
+import { useFocusTrap } from '../hooks/useFocusTrap';
+import { humanizeLabel } from '../utils/labels';
 
 const adminNav = [
   { name: 'System Metrics', href: '/admin/metrics', icon: ChartBarSquareIcon },
   { name: 'Users', href: '/admin/users', icon: UsersIcon },
   { name: 'Queues', href: '/admin/queues', icon: QueueListIcon },
   { name: 'Policies', href: '/admin/policies', icon: DocumentTextIcon },
-  { name: 'Image Connectors', href: '/admin/connectors', icon: ServerIcon },
+  { name: 'Image Intake', href: '/admin/connectors', icon: ServerIcon },
   { name: 'Audit Log', href: '/admin/audit', icon: ClipboardDocumentListIcon },
 ];
 
@@ -186,7 +189,7 @@ function UsersAdmin() {
                             key={role}
                             className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
                           >
-                            {role}
+                            {humanizeLabel(role)}
                           </span>
                         ))}
                       </div>
@@ -321,9 +324,22 @@ function UserFormModal({
     onSubmit(submitData);
   };
 
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={user ? 'Edit user' : 'Create user'}
+    >
+      <div
+        ref={trapRef}
+        className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
+      >
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">
             {user ? 'Edit User' : 'Create User'}
@@ -333,30 +349,38 @@ function UserFormModal({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {!user && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Username <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 required
                 value={formData.username}
                 onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                placeholder="e.g., jsmith"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               />
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email <span className="text-red-500">*</span>
+            </label>
             <input
               type="email"
               required
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              placeholder="name@example.com"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Full Name <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               required
@@ -368,7 +392,9 @@ function UserFormModal({
 
           {!user && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Password <span className="text-red-500">*</span>
+              </label>
               <input
                 type="password"
                 required
@@ -376,6 +402,9 @@ function UserFormModal({
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               />
+              <p className="mt-1 text-xs text-gray-500">
+                Min 12 characters, with upper &amp; lower case, a number and a symbol.
+              </p>
             </div>
           )}
 
@@ -406,7 +435,7 @@ function UserFormModal({
                     }}
                     className="rounded border-gray-300 text-primary-600"
                   />
-                  <span className="text-sm text-gray-700">{role.name}</span>
+                  <span className="text-sm text-gray-700">{humanizeLabel(role.name)}</span>
                   {role.is_system && (
                     <span className="text-xs text-gray-500">(system)</span>
                   )}
@@ -531,7 +560,7 @@ function QueuesAdmin() {
                         {queue.is_active ? 'Active' : 'Inactive'}
                       </span>
                       <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-xs">
-                        {queue.queue_type}
+                        {humanizeLabel(queue.queue_type)}
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-gray-500">{queue.description || 'No description'}</p>
@@ -602,27 +631,85 @@ function QueuesAdmin() {
 }
 
 function QueueAssignments({ queueId }: { queueId: string }) {
+  const queryClient = useQueryClient();
   const { data: assignments, isLoading } = useQuery({
     queryKey: ['queue-assignments', queueId],
     queryFn: () => queueAdminApi.getAssignments(queueId),
+  });
+  const { data: usersData } = useQuery({
+    queryKey: ['users', 'queue-assign'],
+    queryFn: () => userApi.getUsers({ page_size: 100, is_active: true }),
+  });
+
+  const [newUserId, setNewUserId] = useState('');
+  const [canApprove, setCanApprove] = useState(false);
+
+  const assignedIds = new Set((assignments ?? []).map((a: any) => a.user_id));
+  const candidates = (usersData?.items ?? []).filter((u: any) => !assignedIds.has(u.id));
+
+  const addMember = useMutation({
+    mutationFn: () =>
+      queueAdminApi.createAssignment(queueId, {
+        user_id: newUserId,
+        can_review: true,
+        can_approve: canApprove,
+      }),
+    onSuccess: () => {
+      toast.success('User assigned to queue');
+      setNewUserId('');
+      setCanApprove(false);
+      queryClient.invalidateQueries({ queryKey: ['queue-assignments', queueId] });
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : 'Failed to assign user');
+    },
   });
 
   if (isLoading) {
     return <div className="mt-4 p-4 text-sm text-gray-500">Loading assignments...</div>;
   }
 
-  if (!assignments || assignments.length === 0) {
-    return (
-      <div className="mt-4 p-4 bg-gray-50 rounded-lg text-sm text-gray-500">
-        No users assigned to this queue.
-      </div>
-    );
-  }
-
   return (
     <div className="mt-4 bg-gray-50 rounded-lg p-4">
       <h4 className="text-sm font-medium text-gray-900 mb-3">Assigned Users</h4>
-      <div className="space-y-2">
+
+      {/* Add member */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-3">
+        <select
+          value={newUserId}
+          onChange={(e) => setNewUserId(e.target.value)}
+          className="rounded-lg border-gray-300 text-sm"
+          aria-label="User to assign"
+        >
+          <option value="">Add a user…</option>
+          {candidates.map((u: any) => (
+            <option key={u.id} value={u.id}>
+              {u.full_name || u.username} ({u.username})
+            </option>
+          ))}
+        </select>
+        <label className="flex items-center gap-1.5 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={canApprove}
+            onChange={(e) => setCanApprove(e.target.checked)}
+          />
+          Can approve
+        </label>
+        <button
+          onClick={() => addMember.mutate()}
+          disabled={!newUserId || addMember.isPending}
+          className="rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+        >
+          {addMember.isPending ? 'Adding…' : 'Assign'}
+        </button>
+      </div>
+
+      {!assignments || assignments.length === 0 ? (
+        <p className="text-sm text-gray-500">No users assigned to this queue.</p>
+      ) : (
+        <div className="space-y-2">
         {assignments.map((assignment: any) => (
           <div key={assignment.id} className="flex items-center justify-between bg-white rounded p-3">
             <div>
@@ -644,7 +731,8 @@ function QueueAssignments({ queueId }: { queueId: string }) {
             </span>
           </div>
         ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -675,9 +763,19 @@ function QueueFormModal({
     onSubmit(formData);
   };
 
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={queue ? 'Edit queue' : 'Create queue'}
+    >
+      <div ref={trapRef} className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">
             {queue ? 'Edit Queue' : 'Create Queue'}
@@ -686,12 +784,15 @@ function QueueFormModal({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Name <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="e.g., High Value Review"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
             />
           </div>
@@ -785,6 +886,9 @@ function PoliciesAdmin() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState<Policy | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Policy | null>(null);
+  const deleteTrapRef = useFocusTrap<HTMLDivElement>(!!deleteConfirm, () =>
+    setDeleteConfirm(null)
+  );
 
   const { data: policies, isLoading } = useQuery({
     queryKey: ['policies'],
@@ -994,8 +1098,16 @@ function PoliciesAdmin() {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDeleteConfirm(null);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Delete policy"
+        >
+          <div ref={deleteTrapRef} className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
             <div className="flex items-center gap-3 text-red-600 mb-4">
               <ExclamationTriangleIcon className="h-6 w-6" />
               <h3 className="text-lg font-semibold">Delete Policy</h3>
@@ -1129,9 +1241,19 @@ function PolicyEditModal({
     });
   };
 
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Edit policy"
+    >
+      <div ref={trapRef} className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">Edit Policy</h3>
         </div>
@@ -1314,9 +1436,22 @@ function PolicyFormModal({
     onSubmit(policyData);
   };
 
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Create policy"
+    >
+      <div
+        ref={trapRef}
+        className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+      >
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">Create Policy</h3>
         </div>
@@ -2015,7 +2150,7 @@ function ImageConnectorsAdmin() {
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Image Connectors</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Image Intake Connectors</h2>
               <p className="text-sm text-gray-500 mt-1">
                 Manage bank-side connectors for secure check image retrieval
               </p>
@@ -2271,9 +2406,22 @@ function ConnectorFormModal({
     }
   };
 
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={connector ? 'Edit connector' : 'Add connector'}
+    >
+      <div
+        ref={trapRef}
+        className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+      >
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">
             {connector ? 'Edit Connector' : 'Add Image Connector'}
@@ -2467,9 +2615,22 @@ function KeyManagementModal({
     rotateMutation.mutate({ new_public_key_pem: newPublicKey, overlap_hours: overlapHours });
   };
 
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Key management"
+    >
+      <div
+        ref={trapRef}
+        className="bg-white rounded-lg shadow-xl max-w-xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+      >
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">Key Management</h3>
           <p className="text-sm text-gray-500">{connector.name}</p>
@@ -2650,6 +2811,39 @@ function SystemMetricsAdmin() {
     queryFn: () => systemApi.getDemoMode(),
   });
 
+  const reseedQueryClient = useQueryClient();
+  const [reseedResult, setReseedResult] = useState<string | null>(null);
+  const [reseedBusy, setReseedBusy] = useState(false);
+
+  const handleReseed = async () => {
+    if (
+      !window.confirm(
+        'Reseed demo data?\n\nThis recreates the database schema and regenerates a fresh demo dataset. All current demo items, decisions and activity will be replaced. This cannot be undone.'
+      )
+    ) {
+      return;
+    }
+    setReseedResult(null);
+    setReseedBusy(true);
+    try {
+      // The backend recreates the schema in the background (it must run after
+      // this request releases its DB locks), so wait for it to finish before
+      // refreshing cached data.
+      await systemApi.seedDemoData(demoMode?.demo_data_count ?? 200, true);
+      setReseedResult('Reseeding… recreating schema and regenerating demo data (~20s).');
+      await new Promise((resolve) => setTimeout(resolve, 22000));
+      await reseedQueryClient.invalidateQueries();
+      setReseedResult('Demo data reseeded. The dashboard and queues now reflect the fresh dataset.');
+    } catch (err) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        'Reseed failed.';
+      setReseedResult(detail);
+    } finally {
+      setReseedBusy(false);
+    }
+  };
+
   const { data: dashboard, isLoading: dashboardLoading } = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => reportsApi.getDashboard(),
@@ -2664,6 +2858,11 @@ function SystemMetricsAdmin() {
   const { data: reviewerPerformance } = useQuery({
     queryKey: ['reviewer-performance', 30],
     queryFn: () => reportsApi.getReviewerPerformance(30),
+  });
+
+  const { data: adminQueues } = useQuery({
+    queryKey: ['queues'],
+    queryFn: () => queueApi.getQueues(),
   });
 
   const getStatusColor = (status: string) => {
@@ -2749,7 +2948,9 @@ function SystemMetricsAdmin() {
             <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-100">
               <p className="text-sm text-indigo-600">P95 Latency</p>
               <p className="text-2xl font-bold text-indigo-700">
-                {performanceMetrics.p95_latency_ms ? `${performanceMetrics.p95_latency_ms.toFixed(0)}ms` : 'N/A'}
+                {performanceMetrics.avg_response_time_ms
+                  ? `${performanceMetrics.avg_response_time_ms.toFixed(0)}ms`
+                  : 'N/A'}
               </p>
             </div>
             <div className="p-4 bg-pink-50 rounded-lg border border-pink-100">
@@ -2809,25 +3010,25 @@ function SystemMetricsAdmin() {
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
             <p className="text-sm text-blue-600">Pending Items</p>
             <p className="text-2xl font-bold text-blue-700">
-              {dashboard?.pending_items || 0}
+              {dashboard?.summary?.pending_items ?? 0}
             </p>
           </div>
           <div className="p-4 bg-green-50 rounded-lg border border-green-100">
-            <p className="text-sm text-green-600">Approved Today</p>
+            <p className="text-sm text-green-600">Processed Today</p>
             <p className="text-2xl font-bold text-green-700">
-              {dashboard?.approved_today || 0}
+              {dashboard?.summary?.processed_today ?? 0}
             </p>
           </div>
           <div className="p-4 bg-red-50 rounded-lg border border-red-100">
-            <p className="text-sm text-red-600">Rejected Today</p>
+            <p className="text-sm text-red-600">SLA Breached</p>
             <p className="text-2xl font-bold text-red-700">
-              {dashboard?.rejected_today || 0}
+              {dashboard?.summary?.sla_breached ?? 0}
             </p>
           </div>
           <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
-            <p className="text-sm text-amber-600">Escalated</p>
+            <p className="text-sm text-amber-600">Dual Control Pending</p>
             <p className="text-2xl font-bold text-amber-700">
-              {dashboard?.escalated_items || 0}
+              {dashboard?.summary?.dual_control_pending ?? 0}
             </p>
           </div>
         </div>
@@ -2837,19 +3038,19 @@ function SystemMetricsAdmin() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">7-Day Throughput</h2>
-          {throughput?.daily_stats ? (
+          {throughput?.daily?.length ? (
             <div className="space-y-3">
-              {throughput.daily_stats.slice(-7).map((day: any, index: number) => (
+              {throughput.daily.slice(-7).map((day: any, index: number) => (
                 <div key={index} className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">{day.date}</span>
                   <div className="flex items-center gap-4">
                     <span className="text-sm font-medium text-gray-900">
-                      {day.total_reviewed || 0} reviewed
+                      {day.processed || 0} processed
                     </span>
                     <div className="w-32 bg-gray-200 rounded-full h-2">
                       <div
                         className="bg-primary-600 h-2 rounded-full"
-                        style={{ width: `${Math.min((day.total_reviewed || 0) / 50 * 100, 100)}%` }}
+                        style={{ width: `${Math.min((day.processed || 0) / 50 * 100, 100)}%` }}
                       />
                     </div>
                   </div>
@@ -2888,24 +3089,22 @@ function SystemMetricsAdmin() {
       {/* Queue Summary */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Queue Summary</h2>
-        {dashboard?.queue_summary ? (
+        {adminQueues?.length ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead>
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Queue</th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Pending</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">In Progress</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Completed Today</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Processed Today</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {dashboard.queue_summary.map((queue: any, index: number) => (
-                  <tr key={index}>
+                {adminQueues.map((queue: any, index: number) => (
+                  <tr key={queue.id ?? index}>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{queue.name}</td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-600">{queue.pending || 0}</td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-600">{queue.in_progress || 0}</td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-600">{queue.completed_today || 0}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-600">{queue.current_item_count ?? 0}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-600">{queue.items_processed_today ?? 0}</td>
                   </tr>
                 ))}
               </tbody>
@@ -2929,6 +3128,23 @@ function SystemMetricsAdmin() {
             <p className="text-sm text-amber-700">
               Demo Data Count: <span className="font-semibold">{demoMode.demo_data_count}</span> items
             </p>
+          </div>
+          <div className="mt-4 pt-4 border-t border-amber-200">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleReseed}
+                disabled={reseedBusy}
+                className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {reseedBusy ? 'Reseeding…' : 'Reseed demo data'}
+              </button>
+              <span className="text-xs text-amber-700">
+                Recreates the schema and regenerates a fresh demo dataset.
+              </span>
+            </div>
+            {reseedResult && (
+              <p className="mt-2 text-sm font-medium text-amber-800">{reseedResult}</p>
+            )}
           </div>
         </div>
       )}

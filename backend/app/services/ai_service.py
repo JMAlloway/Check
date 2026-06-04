@@ -15,8 +15,9 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from app.audit.service import AuditService
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.audit.service import AuditService
 
 
 class AIRecommendation(str, Enum):

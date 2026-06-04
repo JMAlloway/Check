@@ -9,9 +9,10 @@ Tests cover:
 """
 
 import pytest
+from fastapi import status
+
 from app.core.security import create_access_token, get_password_hash
 from app.models.user import Permission, Role, User
-from fastapi import status
 
 
 @pytest.fixture
@@ -169,7 +170,7 @@ class TestCreateUser:
                 "email": "newuser@example.com",
                 "username": "newuser",
                 "full_name": "New User",
-                "password": "securepassword123",
+                "password": "SecurePass123!",
                 "department": "Operations",
             },
         )
@@ -203,7 +204,7 @@ class TestCreateUser:
                 "email": "existing@example.com",
                 "username": "newusername",
                 "full_name": "New User",
-                "password": "password123",
+                "password": "SecurePass123!",
             },
         )
 

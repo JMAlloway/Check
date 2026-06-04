@@ -4,6 +4,7 @@ import { XMarkIcon, ExclamationTriangleIcon, ShieldCheckIcon } from '@heroicons/
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { fraudApi } from '../../services/api';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import {
   CheckItem,
   FraudType,
@@ -54,6 +55,7 @@ const SHARING_LEVELS: { value: SharingLevel; label: string; description: string 
 
 export default function FraudReportModal({ isOpen, onClose, item }: FraudReportModalProps) {
   const queryClient = useQueryClient();
+  const trapRef = useFocusTrap<HTMLDivElement>(isOpen, onClose);
 
   // Form state
   const [fraudType, setFraudType] = useState<FraudType>('other');
@@ -150,8 +152,19 @@ export default function FraudReportModal({ isOpen, onClose, item }: FraudReportM
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Report fraud event"
+    >
+      <div
+        ref={trapRef}
+        className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div className="flex items-center space-x-2">

@@ -88,13 +88,26 @@ export function RiskBadge({ level }: RiskBadgeProps) {
   );
 }
 
+// Once an item has reached a decision the SLA clock is moot, so we show a
+// neutral met/missed indicator rather than a live "Due Soon" / "Breached" badge.
+const TERMINAL_STATUSES = ['approved', 'rejected', 'returned', 'completed'];
+
 interface SLABadgeProps {
   dueAt: string | null | undefined;
   breached: boolean;
+  status?: string;
 }
 
-export function SLABadge({ dueAt, breached }: SLABadgeProps) {
+export function SLABadge({ dueAt, breached, status }: SLABadgeProps) {
   if (!dueAt) return null;
+
+  if (status && TERMINAL_STATUSES.includes(status)) {
+    return (
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+        {breached ? 'SLA missed' : 'SLA met'}
+      </span>
+    );
+  }
 
   const dueDate = new Date(dueAt);
   const now = new Date();

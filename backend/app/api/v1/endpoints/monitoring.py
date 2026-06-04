@@ -18,10 +18,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.client_ip import get_client_ip
-from app.core.metrics import (
-    security_events_total,
-    track_security_event,
-)
+from app.core.metrics import security_events_total, track_security_event
 from app.core.rate_limit import limiter
 
 router = APIRouter()

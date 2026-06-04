@@ -154,6 +154,201 @@ export interface Decision {
   created_at: string;
 }
 
+// Fraud events (submit / withdraw workflow)
+export interface FraudEventListItem {
+  id: string;
+  check_item_id: string | null;
+  case_id: string | null;
+  event_date: string;
+  amount: string;
+  fraud_type: string;
+  channel: string;
+  confidence: number;
+  sharing_level: number;
+  status: 'draft' | 'submitted' | 'withdrawn';
+  created_at: string;
+}
+
+// Audit drill-down
+export interface ItemView {
+  id: string;
+  check_item_id: string;
+  user_id: string;
+  username?: string;
+  view_started_at: string;
+  view_ended_at?: string;
+  duration_seconds?: number;
+  front_image_viewed: boolean;
+  back_image_viewed: boolean;
+  zoom_used: boolean;
+  magnifier_used: boolean;
+  history_compared: boolean;
+  ai_assists_viewed: boolean;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  user_id?: string;
+  username?: string;
+  ip_address?: string;
+  action: string;
+  resource_type: string;
+  resource_id?: string;
+  description?: string;
+}
+
+// Connector B — outbound commit batches
+export interface CommitBatchSummary {
+  id: string;
+  batch_number: string;
+  status: string;
+  total_records: number;
+  total_amount: string;
+  release_count: number;
+  hold_count: number;
+  return_count: number;
+  reject_count: number;
+  escalate_count: number;
+  has_high_risk_items: boolean;
+  high_risk_count: number;
+  created_at: string;
+  approved_at: string | null;
+  transmitted_at: string | null;
+  ack_status: string | null;
+}
+
+export interface ConnectorDashboard {
+  batches_pending_approval: number;
+  batches_awaiting_acknowledgement: number;
+  records_failed_unresolved: number;
+  batches_created_today: number;
+  batches_transmitted_today: number;
+  records_processed_today: number;
+  records_accepted_today: number;
+  records_rejected_today: number;
+  total_amount_today: string;
+  release_amount_today: string;
+  hold_amount_today: string;
+  return_amount_today: string;
+  batches_past_ack_deadline: number;
+}
+
+// Connector C — item-context SFTP connectors
+export interface ContextConnector {
+  id: string;
+  name: string;
+  description: string | null;
+  source_system: string;
+  status: string;
+  is_enabled: boolean;
+  sftp_host: string;
+  sftp_port: number;
+  sftp_username: string;
+  sftp_remote_path: string;
+  file_pattern: string;
+  file_format: string;
+  schedule_enabled: boolean;
+  schedule_cron: string | null;
+  last_import_at: string | null;
+  last_import_file: string | null;
+  last_import_records: number | null;
+  consecutive_failures: number;
+  last_error_message: string | null;
+}
+
+export interface ContextImport {
+  id: string;
+  connector_id: string;
+  file_name: string;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  duration_seconds: number | null;
+  total_records: number;
+  matched_records: number;
+  applied_records: number;
+  not_found_records: number;
+  duplicate_records: number;
+  invalid_records: number;
+  error_records: number;
+  triggered_by: string;
+  error_message: string | null;
+}
+
+// Security incidents
+export interface SecurityIncident {
+  id: string;
+  tenant_id: string;
+  incident_type: string;
+  severity: string;
+  status: string;
+  title: string;
+  description: string;
+  discovered_at: string;
+  occurred_at: string | null;
+  contained_at: string | null;
+  resolved_at: string | null;
+  affected_users_count: number | null;
+  affected_records_count: number | null;
+  data_types_exposed: string[] | null;
+  pii_exposed: boolean;
+  financial_data_exposed: boolean;
+  requires_regulator_notification: boolean;
+  requires_customer_notification: boolean;
+  notification_deadline: string | null;
+  root_cause: string | null;
+  remediation_steps: string | null;
+  lessons_learned: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface IncidentTimelineEntry {
+  id: string;
+  type: string;
+  content: string;
+  user_id: string;
+  previous_value: string | null;
+  new_value: string | null;
+  created_at: string;
+}
+
+// Evidence-chain verification
+export interface EvidenceChainResult {
+  decision_id: string;
+  created_at: string | null;
+  has_evidence: boolean;
+  hash_valid: boolean | null;
+  chain_valid: boolean | null;
+  error: string | null;
+}
+
+export interface EvidenceChainVerification {
+  check_item_id: string;
+  chain_valid: boolean;
+  total_decisions: number;
+  verification_results: EvidenceChainResult[];
+}
+
+// Dual-control approval queue
+export interface PendingApproval {
+  decision_id: string;
+  check_item_id: string;
+  recommended_action: DecisionAction;
+  recommended_by_id: string;
+  recommended_by_username?: string;
+  notes?: string;
+  recommended_at: string;
+  check_number?: string;
+  amount: string;
+  payee_name?: string;
+  account_number_masked?: string;
+  risk_level?: string;
+  dual_control_reason?: string;
+  sla_due_at?: string;
+}
+
 // Queue types
 export interface Queue {
   id: string;
@@ -241,6 +436,14 @@ export interface DashboardStats {
   };
   items_by_risk: Record<string, number>;
   items_by_status: Record<string, number>;
+  // Demo-only: illustrative whole-bank daily volume context (not per-item rows).
+  daily_volume?: {
+    date: string;
+    presented: number;
+    straight_through_cleared: number;
+    straight_through_rate: number;
+    routed_to_review: number;
+  };
 }
 
 // Fraud Intelligence types

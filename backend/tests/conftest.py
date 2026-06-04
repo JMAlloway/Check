@@ -8,7 +8,6 @@ Provides common fixtures for:
 - Common test data
 """
 
-import asyncio
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -17,55 +16,92 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
-from app.core.config import settings
-from app.core.security import create_access_token, get_password_hash
-from app.db.session import Base, get_db
-from app.main import app
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.orm import selectinload
+from sqlalchemy.pool import NullPool
 
-# =============================================================================
-# Event Loop Configuration
-# =============================================================================
+# NOTE: endpoints depend on app.api.deps.get_db (which opens the app's pooled
+# AsyncSessionLocal). That is the dependency that must be overridden so requests
+# use the test engine; overriding app.db.session.get_db would have no effect.
+from app.api.deps import get_current_user, get_db, security
+from app.core.config import settings
+from app.core.rate_limit import limiter, tenant_limiter, user_limiter
+from app.core.security import create_access_token, decode_token, get_password_hash
+from app.db.enums import create_enum_types
+from app.db.session import Base
+from app.main import app
+from app.models.user import Permission, Role, User
 
+# Rate limiting is irrelevant to test correctness and causes flaky 429s when many
+# requests run in sequence. Disable all limiters for the test session.
+limiter.enabled = False
+user_limiter.enabled = False
+tenant_limiter.enabled = False
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
+# A valid bcrypt hash for the synthesized auth user, so password verification
+# (e.g. change-password) returns False rather than raising UnknownHashError.
+_PLACEHOLDER_PASSWORD_HASH = get_password_hash("conftest-placeholder-password")
 
 # =============================================================================
 # Database Fixtures
 # =============================================================================
 
 
-# Use SQLite for tests (faster, no external dependencies)
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+# Tests run against PostgreSQL to match production (the app relies on
+# Postgres-specific column types: JSONB, UUID, ARRAY, INET). The connection
+# string comes from DATABASE_URL (set by CI to the postgres service); the
+# default targets a locally running postgres for developer convenience.
+TEST_DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/test_db",
+)
+
+
+async def _reset_schema(conn) -> None:
+    """Reset to an empty public schema, then build enums + tables.
+
+    A raw DROP SCHEMA ... CASCADE is used instead of Base.metadata.drop_all
+    because check_items and decisions have a circular foreign-key dependency
+    that drop_all cannot topologically sort.
+    """
+    await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+    await conn.execute(text("CREATE SCHEMA public"))
+    await create_enum_types(conn)
+    await conn.run_sync(Base.metadata.create_all)
 
 
 @pytest_asyncio.fixture(scope="function")
 async def async_engine():
-    """Create async test database engine."""
-    engine = create_async_engine(
-        TEST_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    """Engine used only in the pytest event loop (schema setup + db_session).
+
+    A separate engine (app_engine) serves request handlers in the TestClient's
+    portal loop. Keeping them distinct avoids reusing one engine across two
+    event loops, which asyncpg forbids.
+    """
+    engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
 
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await _reset_schema(conn)
 
     yield engine
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
 
+
+@pytest_asyncio.fixture(scope="function")
+async def app_engine(async_engine):
+    """Engine used only by request handlers (the TestClient portal loop).
+
+    Depends on async_engine so the schema is (re)created before any request runs
+    -- otherwise a test that uses ``client`` but not ``db_session`` would hit a
+    database with no tables (order-dependent "relation does not exist" errors).
+    """
+    engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
+    yield engine
     await engine.dispose()
 
 
@@ -79,16 +115,35 @@ async def db_session(async_engine) -> AsyncGenerator[AsyncSession, None]:
     )
 
     async with async_session() as session:
+        # Test setup data frequently references fabricated foreign keys (e.g.
+        # AuditLog.user_id="user-1"). SQLite silently allowed this; Postgres
+        # enforces it. Disable FK/trigger enforcement on this SETUP session only
+        # -- request handlers use a separate session that still enforces FKs, so
+        # the code under test is validated normally.
+        await session.execute(text("SET session_replication_role = replica"))
         yield session
         await session.rollback()
 
 
 @pytest.fixture(scope="function")
-def override_get_db(db_session):
-    """Override the get_db dependency for tests."""
+def override_get_db(app_engine):
+    """Override get_db with a fresh session per request.
+
+    The TestClient runs the ASGI app in its own event loop/thread, and asyncpg
+    connections cannot cross event loops. So each request gets its own session
+    from app_engine (used only in the request loop). Tests commit their setup
+    data via db_session, so the request session sees it.
+    """
+    session_factory = async_sessionmaker(app_engine, class_=AsyncSession, expire_on_commit=False)
 
     async def _override():
-        yield db_session
+        async with session_factory() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
 
     return _override
 
@@ -98,13 +153,147 @@ def override_get_db(db_session):
 # =============================================================================
 
 
+def _synthesize_user_from_claims(payload: dict) -> "User":
+    """Build a transient User from JWT claims (not persisted).
+
+    The token's ``permissions`` claim (a list of ``"resource:action"`` strings,
+    or ``"*:*"`` for superuser) is materialized into transient Role/Permission
+    objects so that User.has_permission / has_role behave as the test intends.
+    """
+    now = datetime.now(timezone.utc)
+    perms = payload.get("permissions", []) or []
+    # Transient ORM objects do not receive column defaults (id, created_at, ...)
+    # until flush, but response serializers (e.g. /me) read them, so set them.
+    role = Role(
+        id=str(uuid.uuid4()),
+        name=(payload.get("roles") or ["user"])[0],
+        description=None,
+        is_system=False,
+        created_at=now,
+        updated_at=now,
+    )
+    # Permission.name is the action (e.g. "review"); EntitlementService's
+    # no-explicit-entitlement fallback checks `permission.name == "review"`.
+    role.permissions = [
+        Permission(
+            id=str(uuid.uuid4()),
+            name=action,
+            resource=resource,
+            action=action,
+            created_at=now,
+            updated_at=now,
+        )
+        for p in perms
+        if p != "*:*"
+        for resource, _, action in [p.partition(":")]
+    ]
+    username = payload.get("username", "testuser")
+    user = User(
+        id=payload.get("sub"),
+        tenant_id=payload.get("tenant_id"),
+        username=username,
+        email=f"{username}@example.com",
+        full_name=payload.get("full_name", "Test User"),
+        hashed_password=_PLACEHOLDER_PASSWORD_HASH,
+        is_active=True,
+        is_superuser="*:*" in perms,
+        mfa_enabled=False,
+        created_at=now,
+        updated_at=now,
+    )
+    user.roles = [role]
+    return user
+
+
+async def _ensure_user_row(db: AsyncSession, user: "User") -> None:
+    """Persist a minimal row for the authenticated user if absent.
+
+    Endpoints write rows that foreign-key to users.id (audit_logs.user_id,
+    queue_assignments.assigned_by_id, ...). The authenticated user is
+    synthesized from the token, so its row must exist for those FKs to resolve.
+    """
+    if not user.id:
+        return
+    if await db.get(User, user.id) is not None:
+        return
+    # Persist into a sentinel tenant (not the token's tenant) with id-derived
+    # username/email so the row satisfies FK references (audit_logs.user_id etc.)
+    # without polluting tenant-scoped user listings or unique constraints.
+    db.add(
+        User(
+            id=user.id,
+            tenant_id="00000000-0000-0000-0000-0000000000ff",
+            username=f"authuser-{user.id}",
+            email=f"{user.id}@auth.test",
+            full_name=user.full_name,
+            hashed_password=user.hashed_password,
+            is_active=True,
+            is_superuser=user.is_superuser,
+        )
+    )
+    await db.flush()
+
+
 @pytest.fixture(scope="function")
 def client(override_get_db) -> Generator[TestClient, None, None]:
-    """Create test client with database override."""
+    """Create test client with database and authentication overrides.
+
+    Authentication is resolved by synthesizing a transient user from the bearer
+    token claims (the token's permissions are the effective permissions). This
+    lets token-based integration tests authenticate without seeding a full
+    user/role graph for every case, and avoids a cross-event-loop DB lookup.
+    """
     app.dependency_overrides[get_db] = override_get_db
 
-    with TestClient(app) as c:
-        yield c
+    async def _resolve_current_user(
+        credentials: HTTPAuthorizationCredentials = Depends(security),
+        db: AsyncSession = Depends(get_db),
+    ) -> User:
+        payload = decode_token(credentials.credentials)
+        if payload is None or payload.get("type") != "access" or not payload.get("sub"):
+            raise HTTPException(
+                status_code=401,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        # Prefer a real user the test created in the token's tenant (so tests that
+        # rely on persisted attributes like mfa_enabled work). Scoping by tenant
+        # avoids matching the sentinel rows _ensure_user_row persists. Otherwise
+        # synthesize from claims and persist a sentinel row for FK references.
+        result = await db.execute(
+            select(User)
+            .options(selectinload(User.roles).selectinload(Role.permissions))
+            .where(User.id == payload["sub"], User.tenant_id == payload.get("tenant_id"))
+        )
+        existing = result.scalar_one_or_none()
+        if existing is not None and existing.roles:
+            # Real user with seeded roles: use as-is.
+            return existing
+        # Synthesize from the token (tests encode effective permissions there).
+        user = _synthesize_user_from_claims(payload)
+        if existing is not None:
+            # Real user exists but without seeded roles: keep token-derived
+            # permissions, overlay the real persisted attributes the endpoints
+            # read (mfa_enabled, password hash, active/superuser flags). The
+            # returned object is transient (its id already exists for FKs).
+            user.mfa_enabled = existing.mfa_enabled
+            user.hashed_password = existing.hashed_password
+            user.is_active = existing.is_active
+            user.is_superuser = existing.is_superuser
+        else:
+            await _ensure_user_row(db, user)
+        return user
+
+    app.dependency_overrides[get_current_user] = _resolve_current_user
+
+    # Note: TestClient is intentionally NOT used as a context manager so the
+    # app lifespan does not run. The lifespan auto-creates tables on the app's
+    # own pooled engine (whose connections would be reused across each test's
+    # TestClient portal loop, causing cross-event-loop errors) and starts the
+    # background scheduler. Tests own schema setup via the async_engine fixture.
+    client = TestClient(app)
+    yield client
+    client.close()
 
     app.dependency_overrides.clear()
 

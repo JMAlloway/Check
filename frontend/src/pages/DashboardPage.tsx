@@ -1,14 +1,28 @@
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
+import { maybeAutoStartTour } from '../tour/productTour';
 import {
   ClockIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
   UserGroupIcon,
+  BuildingLibraryIcon,
+  BoltIcon,
+  InboxArrowDownIcon,
 } from '@heroicons/react/24/outline';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { reportsApi, queueApi } from '../services/api';
 import { DashboardStats, Queue } from '../types';
 import clsx from 'clsx';
+
+const RISK_HEX: Record<string, string> = {
+  low: '#22c55e',
+  medium: '#eab308',
+  high: '#f97316',
+  critical: '#ef4444',
+  unclassified: '#9ca3af',
+};
 
 // Get today's date in ISO format for filtering (America/New_York timezone as default for bank)
 function getTodayDateRange(): { from: string; to: string } {
@@ -44,7 +58,12 @@ function StatCard({
   link?: string;
 }) {
   const content = (
-    <div className={clsx('bg-white rounded-lg shadow p-6', link && 'hover:shadow-md transition-shadow')}>
+    <div
+      className={clsx(
+        'bg-white rounded-lg shadow p-6 transition-shadow',
+        link && 'cursor-pointer hover:shadow-md hover:ring-1 hover:ring-primary-200'
+      )}
+    >
       <div className="flex items-center">
         <div className={clsx('p-3 rounded-lg', `bg-${color}-100`)}>
           <Icon className={clsx('h-6 w-6', `text-${color}-600`)} />
@@ -64,20 +83,21 @@ function StatCard({
   return content;
 }
 
-function RiskDistribution({ data, onSegmentClick }: { data: Record<string, number>; onSegmentClick?: (level: string) => void }) {
-  const total = Object.values(data).reduce((a, b) => a + b, 0);
-  const colors = {
-    low: 'bg-green-500',
-    medium: 'bg-yellow-500',
-    high: 'bg-orange-500',
-    critical: 'bg-red-500',
-  };
-  const hoverColors = {
-    low: 'hover:bg-green-600',
-    medium: 'hover:bg-yellow-600',
-    high: 'hover:bg-orange-600',
-    critical: 'hover:bg-red-600',
-  };
+function RiskDistribution({
+  data,
+  pendingTotal,
+  onSegmentClick,
+}: {
+  data: Record<string, number>;
+  pendingTotal?: number;
+  onSegmentClick?: (level: string) => void;
+}) {
+  const categorized = Object.values(data).reduce((a, b) => a + b, 0);
+  // Reconcile with the authoritative pending count: any pending items without a
+  // risk level show as an "unclassified" slice so the donut total matches the
+  // "Pending Items" KPI instead of silently undercounting.
+  const unclassified = Math.max(0, (pendingTotal ?? categorized) - categorized);
+  const total = categorized + unclassified;
 
   if (total === 0) {
     return (
@@ -87,44 +107,76 @@ function RiskDistribution({ data, onSegmentClick }: { data: Record<string, numbe
     );
   }
 
+  const order = ['low', 'medium', 'high', 'critical', 'unclassified'];
+  const counts: Record<string, number> = { ...data, unclassified };
+  const pieData = order
+    .filter((level) => (counts[level] ?? 0) > 0)
+    .map((level) => ({ name: level, value: counts[level] ?? 0 }));
+
   return (
-    <div>
-      <div className="flex h-4 rounded-full overflow-hidden">
-        {Object.entries(data).map(([level, count]) => {
-          const percentage = (count / total) * 100;
-          if (percentage === 0) return null;
-          return (
-            <div
-              key={level}
-              className={clsx(
-                colors[level as keyof typeof colors],
-                hoverColors[level as keyof typeof hoverColors],
-                'transition-colors cursor-pointer'
-              )}
-              style={{ width: `${percentage}%` }}
-              title={`${level}: ${count} - Click to filter`}
-              onClick={() => onSegmentClick?.(level)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && onSegmentClick?.(level)}
+    <div className="flex flex-col items-center">
+      <div className="relative h-56 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={pieData}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              innerRadius={60}
+              outerRadius={88}
+              paddingAngle={2}
+              onClick={(_, idx) => {
+                const name = pieData[idx].name;
+                if (name !== 'unclassified') onSegmentClick?.(name);
+              }}
+            >
+              {pieData.map((d) => (
+                <Cell
+                  key={d.name}
+                  fill={RISK_HEX[d.name]}
+                  className="cursor-pointer focus:outline-none"
+                />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(value: number, name: string) => [`${value} items`, name]}
+              contentStyle={{ textTransform: 'capitalize', fontSize: 12 }}
             />
-          );
-        })}
+          </PieChart>
+        </ResponsiveContainer>
+        {/* Center total */}
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-3xl font-bold text-gray-900">{total}</span>
+          <span className="text-xs text-gray-500">items</span>
+        </div>
       </div>
-      <div className="flex justify-between mt-2 text-xs text-gray-500">
-        {Object.entries(data).map(([level, count]) => (
-          <div
-            key={level}
-            className="flex items-center cursor-pointer hover:text-gray-700 transition-colors"
-            onClick={() => onSegmentClick?.(level)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && onSegmentClick?.(level)}
-          >
-            <div className={clsx('w-2 h-2 rounded-full mr-1', colors[level as keyof typeof colors])} />
-            <span className="capitalize">{level}: {count}</span>
-          </div>
-        ))}
+
+      {/* Clickable legend (the unclassified bucket isn't a filterable risk) */}
+      <div className="mt-3 grid w-full grid-cols-2 gap-2 text-sm">
+        {order
+          .filter((level) => (counts[level] ?? 0) > 0)
+          .map((level) => {
+            const clickable = level !== 'unclassified';
+            return (
+              <button
+                key={level}
+                onClick={clickable ? () => onSegmentClick?.(level) : undefined}
+                disabled={!clickable}
+                className={clsx(
+                  'flex items-center justify-between rounded-md px-2 py-1 text-left',
+                  clickable ? 'hover:bg-gray-50' : 'cursor-default'
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: RISK_HEX[level] }} />
+                  <span className="capitalize text-gray-600">{level}</span>
+                </span>
+                <span className="font-semibold text-gray-900">{counts[level] ?? 0}</span>
+              </button>
+            );
+          })}
       </div>
     </div>
   );
@@ -141,6 +193,12 @@ export default function DashboardPage() {
     queryKey: ['queues'],
     queryFn: () => queueApi.getQueues(),
   });
+
+  // Auto-start the guided product tour once per browser (offered again via the
+  // "Take a tour" button in the header).
+  useEffect(() => {
+    maybeAutoStartTour();
+  }, []);
 
   // Build link for "Processed Today" with date filter
   const getProcessedTodayLink = (): string => {
@@ -175,8 +233,60 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
 
+      {/* Whole-bank daily volume context (demo): frames the review queue as the
+          small exception slice of a much larger straight-through-cleared volume. */}
+      {stats?.daily_volume && (
+        <div
+          data-tour="bank-volume"
+          className="rounded-lg border border-gray-200 bg-gradient-to-r from-primary-50 to-white p-5"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+              <BuildingLibraryIcon className="h-5 w-5 text-primary-600" />
+              Today across the bank
+            </h2>
+            <span className="text-xs text-gray-400">Illustrative daily volume</span>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                <InboxArrowDownIcon className="h-4 w-4" /> Items presented
+              </div>
+              <p className="mt-1 text-2xl font-bold text-gray-900">
+                {stats.daily_volume.presented.toLocaleString()}
+              </p>
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                <BoltIcon className="h-4 w-4 text-green-600" /> Cleared straight-through
+              </div>
+              <p className="mt-1 text-2xl font-bold text-green-700">
+                {(stats.daily_volume.straight_through_rate * 100).toFixed(1)}%
+              </p>
+              <p className="text-xs text-gray-500">
+                {stats.daily_volume.straight_through_cleared.toLocaleString()} items
+              </p>
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                <UserGroupIcon className="h-4 w-4 text-blue-600" /> Routed to review
+              </div>
+              <p className="mt-1 text-2xl font-bold text-blue-700">
+                {stats.daily_volume.routed_to_review.toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-500">the exception queue below</p>
+            </div>
+            <div className="flex items-end">
+              <Link to="/automation" className="text-xs font-medium text-primary-600 hover:underline">
+                See automation opportunity →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div data-tour="dashboard-kpis" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Pending Items"
           value={stats?.summary.pending_items || 0}
@@ -209,9 +319,13 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Risk Distribution */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div data-tour="risk-distribution" className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Risk Distribution</h2>
-          <RiskDistribution data={stats?.items_by_risk || {}} onSegmentClick={handleRiskSegmentClick} />
+          <RiskDistribution
+            data={stats?.items_by_risk || {}}
+            pendingTotal={stats?.summary.pending_items}
+            onSegmentClick={handleRiskSegmentClick}
+          />
         </div>
 
         {/* Queue Summary */}
@@ -246,6 +360,7 @@ export default function DashboardPage() {
         <div className="flex space-x-4">
           <Link
             to="/queue"
+            data-tour="start-reviewing"
             className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
             Start Reviewing

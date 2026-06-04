@@ -202,16 +202,12 @@ class DemoAIProvider:
         """Determine which demo scenario applies to this check."""
         amount = Decimal(str(check_data.get("amount", 0)))
 
-        # Check for specific indicators
+        # Check for specific indicators.
+        # NOTE: Memo keywords for image-forensic fraud (altered/counterfeit/
+        # forged/suspicious-endorsement) were intentionally removed - the system
+        # has no such detection capability, and the corresponding DemoScenario
+        # members no longer exist. Only real, signal-backed scenarios remain.
         memo = check_data.get("memo", "").lower()
-        if "altered" in memo:
-            return DemoScenario.ALTERED_AMOUNT
-        if "suspicious" in memo:
-            return DemoScenario.SUSPICIOUS_ENDORSEMENT
-        if "counterfeit" in memo:
-            return DemoScenario.COUNTERFEIT_CHECK
-        if "forged" in memo:
-            return DemoScenario.FORGED_SIGNATURE
         if "payroll" in memo:
             return DemoScenario.ROUTINE_PAYROLL
 

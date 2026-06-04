@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { archiveApi } from '../services/api';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import {
   ArchiveBoxIcon,
   MagnifyingGlassIcon,
@@ -99,6 +100,9 @@ export default function ArchivePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
+  const detailTrapRef = useFocusTrap<HTMLDivElement>(!!selectedItem, () =>
+    setSelectedItem(null)
+  );
   const [exporting, setExporting] = useState(false);
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
 
@@ -560,7 +564,7 @@ export default function ArchivePage() {
                       {Object.entries(statusCounts).map(([status, count]) => (
                         <span
                           key={status}
-                          className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${
+                          className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full capitalize ${
                             statusColors[status] || 'bg-gray-100 text-gray-800'
                           }`}
                         >
@@ -596,14 +600,14 @@ export default function ArchivePage() {
                               {formatCurrency(item.amount || 0)}
                             </span>
                             <span
-                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full w-20 justify-center ${
+                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full w-20 justify-center capitalize ${
                                 statusColors[item.status] || 'bg-gray-100 text-gray-800'
                               }`}
                             >
                               {item.status}
                             </span>
                             <span
-                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full w-16 justify-center ${
+                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full w-16 justify-center capitalize ${
                                 riskColors[item.risk_level] || 'bg-gray-100 text-gray-800'
                               }`}
                             >
@@ -658,8 +662,19 @@ export default function ArchivePage() {
 
       {/* Item Detail Modal */}
       {selectedItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedItem(null);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Archived item details"
+        >
+          <div
+            ref={detailTrapRef}
+            className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
+          >
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <h2 className="text-lg font-semibold text-gray-900">
                 Archived Item Details
@@ -700,7 +715,7 @@ export default function ArchivePage() {
                     <div>
                       <p className="text-xs text-gray-500 uppercase">Status</p>
                       <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full capitalize ${
                           statusColors[itemDetail.item.status] || 'bg-gray-100'
                         }`}
                       >
@@ -710,7 +725,7 @@ export default function ArchivePage() {
                     <div>
                       <p className="text-xs text-gray-500 uppercase">Risk Level</p>
                       <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full capitalize ${
                           riskColors[itemDetail.item.risk_level] || 'bg-gray-100'
                         }`}
                       >

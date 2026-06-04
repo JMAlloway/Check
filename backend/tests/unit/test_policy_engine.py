@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
+
 from app.models.check import AccountType, CheckItem, CheckStatus, ItemType, RiskLevel
 from app.policy.engine import PolicyEngine
 
@@ -243,6 +244,7 @@ class TestAIFlagGeneration:
             account_tenure_days = 365
             returned_item_count_90d = 0
             upstream_flags = None
+            risk_flags = None
 
         flags = service._generate_ai_flags(MockItem())
 
@@ -263,6 +265,7 @@ class TestAIFlagGeneration:
             account_tenure_days = 365
             returned_item_count_90d = 3
             upstream_flags = None
+            risk_flags = None
 
         flags = service._generate_ai_flags(MockCheckItem())
 

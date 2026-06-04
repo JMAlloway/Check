@@ -75,7 +75,22 @@ export interface SimulationResult {
   shadowAccuracy: number; // 0..1
   exceptionsCaught: number; // human-rejected/returned that the rule routed to a person
   exceptionsTotal: number;
+  // A spot-check sample of items the policy would auto-clear, with what the
+  // reviewer actually decided - the basis for ongoing QA / governance.
+  qaSample: QaSampleItem[];
 }
+
+export interface QaSampleItem {
+  id: string;
+  externalId: string;
+  payee: string;
+  amount: number;
+  riskLevel: string;
+  humanStatus: string; // approved | returned | rejected
+  agreed: boolean; // reviewer also approved -> auto-clear would have been correct
+}
+
+const QA_SAMPLE_SIZE = 15;
 
 export function useAutomationSimulation(): SimulationResult & { roi: RoiResult } {
   const { autoClearMaxTier, amountCap, annualVolume, avgHandleTimeSec, loadedCostPerMin, annualFraudPrevented } =
@@ -115,6 +130,22 @@ export function useAutomationSimulation(): SimulationResult & { roi: RoiResult }
     const exceptionsTotal = trueExceptions.length;
     const exceptionsCaught = trueExceptions.filter((i) => !autoClears(i, cfg)).length;
 
+    // QA spot-check: a stable sample of the auto-clear candidates (every Nth so
+    // it spans risk tiers and amounts rather than just the first few).
+    const step = Math.max(1, Math.floor(considered.length / QA_SAMPLE_SIZE));
+    const qaSample: QaSampleItem[] = considered
+      .filter((_, idx) => idx % step === 0)
+      .slice(0, QA_SAMPLE_SIZE)
+      .map((i) => ({
+        id: i.id,
+        externalId: i.external_item_id,
+        payee: i.payee_name || '—',
+        amount: i.amount,
+        riskLevel: i.risk_level,
+        humanStatus: i.status,
+        agreed: i.status === 'approved',
+      }));
+
     return {
       isLoading: openQuery.isLoading || decidedQuery.isLoading,
       openTotal,
@@ -129,6 +160,7 @@ export function useAutomationSimulation(): SimulationResult & { roi: RoiResult }
       shadowAccuracy,
       exceptionsCaught,
       exceptionsTotal,
+      qaSample,
     };
   }, [openQuery.data, decidedQuery.data, openQuery.isLoading, decidedQuery.isLoading, autoClearMaxTier, amountCap]);
 

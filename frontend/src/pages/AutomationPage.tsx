@@ -7,6 +7,8 @@ import {
   ArrowRightIcon,
   CheckCircleIcon,
   UserGroupIcon,
+  ClipboardDocumentCheckIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline';
 import BackLink from '../components/common/BackLink';
 import { useAutomationStore, type AutomationMode } from '../stores/automationStore';
@@ -275,6 +277,102 @@ export default function AutomationPage() {
           </div>
         </div>
       </div>
+
+      {/* QA spot-check / governance */}
+      {(() => {
+        const sample = sim.qaSample;
+        const agreed = sample.filter((s) => s.agreed).length;
+        const passRate = sample.length > 0 ? agreed / sample.length : 0;
+        const riskBadge: Record<string, string> = {
+          low: 'bg-green-100 text-green-800',
+          medium: 'bg-yellow-100 text-yellow-800',
+          high: 'bg-orange-100 text-orange-800',
+          critical: 'bg-red-100 text-red-800',
+        };
+        const statusBadge: Record<string, string> = {
+          approved: 'bg-green-100 text-green-800',
+          returned: 'bg-yellow-100 text-yellow-800',
+          rejected: 'bg-red-100 text-red-800',
+        };
+        return (
+          <div className="rounded-lg border border-gray-200 bg-white p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <ClipboardDocumentCheckIcon className="h-5 w-5 text-primary-600" />
+                Quality assurance — auto-decision spot check
+              </h2>
+              <div className="text-sm">
+                <span className="text-gray-500">QA pass rate: </span>
+                <span className="font-bold text-gray-900">{pct(passRate)}</span>
+                <span className="text-gray-500"> ({agreed}/{sample.length} sampled)</span>
+              </div>
+            </div>
+            <p className="mt-1 text-sm text-gray-500">
+              A sample of items the policy would auto-clear, checked against the reviewer's actual
+              decision. Use this as the ongoing control to keep automation honest before and after
+              go-live.
+            </p>
+            {sample.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-500">
+                No auto-clear candidates in the current decided history to sample.
+              </p>
+            ) : (
+              <div className="mt-4 overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+                      <th className="px-3 py-2 font-medium">Item</th>
+                      <th className="px-3 py-2 font-medium">Payee</th>
+                      <th className="px-3 py-2 font-medium text-right">Amount</th>
+                      <th className="px-3 py-2 font-medium">Risk</th>
+                      <th className="px-3 py-2 font-medium">Policy</th>
+                      <th className="px-3 py-2 font-medium">Reviewer</th>
+                      <th className="px-3 py-2 font-medium text-center">Match</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {sample.map((s) => (
+                      <tr key={s.id} className={s.agreed ? '' : 'bg-red-50/40'}>
+                        <td className="px-3 py-2 font-mono text-xs text-gray-600">{s.externalId}</td>
+                        <td className="px-3 py-2 text-gray-700">{s.payee}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-gray-900">
+                          {money(s.amount)}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
+                              riskBadge[s.riskLevel] ?? 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            {s.riskLevel}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-gray-700">Auto-clear</td>
+                        <td className="px-3 py-2">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
+                              statusBadge[s.humanStatus] ?? 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            {s.humanStatus}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {s.agreed ? (
+                            <CheckCircleIcon className="mx-auto h-5 w-5 text-green-600" />
+                          ) : (
+                            <XCircleIcon className="mx-auto h-5 w-5 text-red-600" />
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

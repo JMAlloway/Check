@@ -39,7 +39,11 @@ class Settings(BaseSettings):
                 return False
         return v
 
-    DEMO_DATA_COUNT: int = 60  # Number of demo check items to seed
+    # Number of demo review-queue items to seed. Sized to a realistic daily
+    # exception queue for a ~$2B-asset community bank (the bulk of presented
+    # volume clears straight through and is represented by the daily-volume
+    # backdrop rather than per-item rows).
+    DEMO_DATA_COUNT: int = 200
 
     # API
     API_V1_PREFIX: str = "/api/v1"

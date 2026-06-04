@@ -1392,20 +1392,28 @@ mwIDAQAB
 
         # Distribute scenarios
         scenarios = list(DemoScenario)
+        # Weights reflect a real community-bank review queue: the queue is the
+        # small exception slice of a much larger presented volume, and even
+        # within it most items are routine, low-risk holds (large-dollar /
+        # threshold / new-account) that a human can clear quickly. Suspected
+        # fraud (duplicate, unusual amount, high-risk history) is a minority,
+        # and critical items are rare. This mix keeps the demo authentic and is
+        # what drives a realistic straight-through-processing opportunity.
         scenario_weights = {
-            # Normal scenarios get higher weight
-            DemoScenario.ROUTINE_PAYROLL: 15,
-            DemoScenario.REGULAR_VENDOR_PAYMENT: 15,
-            DemoScenario.KNOWN_CUSTOMER_CHECK: 15,
-            # Review scenarios
-            DemoScenario.STALE_DATED: 4,
+            # Routine, low-risk items dominate the queue
+            DemoScenario.KNOWN_CUSTOMER_CHECK: 28,
+            DemoScenario.ROUTINE_PAYROLL: 20,
+            DemoScenario.REGULAR_VENDOR_PAYMENT: 20,
+            # Medium-risk operational exceptions (date / velocity)
+            DemoScenario.STALE_DATED: 6,
             DemoScenario.POST_DATED: 4,
+            DemoScenario.VELOCITY_SPIKE: 5,
+            DemoScenario.AMOUNT_EXCEEDS_BALANCE: 4,
+            # Higher-risk / suspected-fraud items are a minority
+            DemoScenario.NEW_ACCOUNT_HIGH_VALUE: 4,
+            DemoScenario.UNUSUAL_AMOUNT: 3,
             DemoScenario.DUPLICATE_CHECK: 3,
-            DemoScenario.UNUSUAL_AMOUNT: 5,
-            DemoScenario.NEW_ACCOUNT_HIGH_VALUE: 5,
-            DemoScenario.VELOCITY_SPIKE: 4,
             DemoScenario.HIGH_RISK_HISTORY: 3,
-            DemoScenario.AMOUNT_EXCEEDS_BALANCE: 3,
         }
 
         # Status distribution for workflow demonstration
@@ -1417,6 +1425,19 @@ mwIDAQAB
             CheckStatus.APPROVED: 25,
             CheckStatus.REJECTED: 10,
             CheckStatus.RETURNED: 10,
+        }
+
+        # Once an item is decided, the outcome correlates with its risk. Real
+        # reviewers approve the overwhelming majority of low-risk items and
+        # concentrate returns/rejects on genuine exceptions. Weights are for
+        # (APPROVED, RETURNED, REJECTED). This keeps the decided/open split from
+        # status_distribution but makes the historical record realistic - which
+        # is also what lets shadow-mode automation score a believable accuracy.
+        decision_outcome_by_risk = {
+            RiskLevel.LOW: (94, 4, 2),
+            RiskLevel.MEDIUM: (82, 12, 6),
+            RiskLevel.HIGH: (45, 30, 25),
+            RiskLevel.CRITICAL: (8, 27, 65),
         }
 
         for i in range(self.count):
@@ -1436,15 +1457,29 @@ mwIDAQAB
                 weights=list(status_distribution.values()),
             )[0]
 
-            # Generate amount within scenario range
-            amount = Decimal(
-                str(
-                    random.uniform(
-                        float(scenario_config.amount_range[0]),
-                        float(scenario_config.amount_range[1]),
+            # Generate amount. For routine items, derive it from the account's
+            # own average check size with a right-skewed (log-normal) spread so
+            # consumer checks stay small and commercial checks run large -
+            # exactly the long-tailed distribution a real bank sees. Exception
+            # scenarios keep their defined ranges (those flags are amount-driven).
+            routine_scenarios = (
+                DemoScenario.ROUTINE_PAYROLL,
+                DemoScenario.REGULAR_VENDOR_PAYMENT,
+                DemoScenario.KNOWN_CUSTOMER_CHECK,
+            )
+            if scenario in routine_scenarios:
+                base = float(account.avg_check_amount)
+                raw = base * random.lognormvariate(0.0, 0.45)
+                amount = Decimal(str(max(15.0, raw))).quantize(Decimal("0.01"))
+            else:
+                amount = Decimal(
+                    str(
+                        random.uniform(
+                            float(scenario_config.amount_range[0]),
+                            float(scenario_config.amount_range[1]),
+                        )
                     )
-                )
-            ).quantize(Decimal("0.01"))
+                ).quantize(Decimal("0.01"))
 
             # Generate dates
             presented_date = datetime.now(timezone.utc) - timedelta(
@@ -1497,6 +1532,19 @@ mwIDAQAB
                 and random.random() < 0.7
             ):
                 risk_level = RiskLevel.CRITICAL
+
+            # For decided items, pick the specific outcome from the risk-aware
+            # distribution so low-risk items are mostly approved and exceptions
+            # drive the returns/rejects (set before the status is used below).
+            if status in (
+                CheckStatus.APPROVED,
+                CheckStatus.REJECTED,
+                CheckStatus.RETURNED,
+            ):
+                status = random.choices(
+                    [CheckStatus.APPROVED, CheckStatus.RETURNED, CheckStatus.REJECTED],
+                    weights=decision_outcome_by_risk[risk_level],
+                )[0]
 
             # Stamp a realistic last-touched time. Terminal items were
             # "processed" within the last week (distributed across days, some

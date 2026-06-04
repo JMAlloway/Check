@@ -7,6 +7,9 @@ import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
   UserGroupIcon,
+  BuildingLibraryIcon,
+  BoltIcon,
+  InboxArrowDownIcon,
 } from '@heroicons/react/24/outline';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { reportsApi, queueApi } from '../services/api';
@@ -229,6 +232,55 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+
+      {/* Whole-bank daily volume context (demo): frames the review queue as the
+          small exception slice of a much larger straight-through-cleared volume. */}
+      {stats?.daily_volume && (
+        <div className="rounded-lg border border-gray-200 bg-gradient-to-r from-primary-50 to-white p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+              <BuildingLibraryIcon className="h-5 w-5 text-primary-600" />
+              Today across the bank
+            </h2>
+            <span className="text-xs text-gray-400">Illustrative daily volume</span>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                <InboxArrowDownIcon className="h-4 w-4" /> Items presented
+              </div>
+              <p className="mt-1 text-2xl font-bold text-gray-900">
+                {stats.daily_volume.presented.toLocaleString()}
+              </p>
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                <BoltIcon className="h-4 w-4 text-green-600" /> Cleared straight-through
+              </div>
+              <p className="mt-1 text-2xl font-bold text-green-700">
+                {(stats.daily_volume.straight_through_rate * 100).toFixed(1)}%
+              </p>
+              <p className="text-xs text-gray-500">
+                {stats.daily_volume.straight_through_cleared.toLocaleString()} items
+              </p>
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                <UserGroupIcon className="h-4 w-4 text-blue-600" /> Routed to review
+              </div>
+              <p className="mt-1 text-2xl font-bold text-blue-700">
+                {stats.daily_volume.routed_to_review.toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-500">the exception queue below</p>
+            </div>
+            <div className="flex items-end">
+              <Link to="/automation" className="text-xs font-medium text-primary-600 hover:underline">
+                See automation opportunity →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Summary Stats */}
       <div data-tour="dashboard-kpis" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

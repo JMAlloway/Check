@@ -436,6 +436,14 @@ export interface DashboardStats {
   };
   items_by_risk: Record<string, number>;
   items_by_status: Record<string, number>;
+  // Demo-only: illustrative whole-bank daily volume context (not per-item rows).
+  daily_volume?: {
+    date: string;
+    presented: number;
+    straight_through_cleared: number;
+    straight_through_rate: number;
+    routed_to_review: number;
+  };
 }
 
 // Fraud Intelligence types

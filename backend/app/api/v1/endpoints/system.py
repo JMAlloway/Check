@@ -44,7 +44,7 @@ class DemoModeResponse(BaseModel):
 class DemoSeedRequest(BaseModel):
     """Request to seed demo data."""
 
-    count: int = 60
+    count: int = 200
     reset_existing: bool = False
 
 

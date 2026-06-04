@@ -279,7 +279,7 @@ export default function QueuePage() {
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
                     <Link to={`/review/${item.id}`} className="text-primary-600 hover:text-primary-900 font-medium">
-                      Review
+                      {['approved', 'rejected', 'returned', 'completed'].includes(item.status) ? 'View' : 'Review'}
                     </Link>
                   </td>
                 </tr>

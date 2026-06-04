@@ -46,6 +46,18 @@ function titleCase(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// A regulatory notification deadline that has passed on an unresolved incident
+// is a compliance breach — surface it in red rather than plain gray.
+function DeadlineBadge({ deadline, status }: { deadline: string; status: string }) {
+  const overdue = new Date(deadline).getTime() < Date.now() && status !== 'resolved';
+  return (
+    <span className={overdue ? 'font-semibold text-red-600' : undefined}>
+      {overdue ? 'Overdue — deadline ' : 'Deadline '}
+      {new Date(deadline).toLocaleString()}
+    </span>
+  );
+}
+
 // Returns the next lifecycle action available for a given status, or null.
 function nextAction(status: string): { key: 'confirm' | 'contain' | 'resolve'; label: string } | null {
   if (status === 'draft') return { key: 'confirm', label: 'Confirm' };
@@ -178,7 +190,7 @@ export default function SecurityIncidentsPage() {
                         <span className="text-orange-600">Customer notification required</span>
                       )}
                       {inc.notification_deadline && (
-                        <span>Deadline {new Date(inc.notification_deadline).toLocaleString()}</span>
+                        <DeadlineBadge deadline={inc.notification_deadline} status={inc.status} />
                       )}
                     </div>
                   </div>

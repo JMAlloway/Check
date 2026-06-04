@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowPathIcon,
   ExclamationTriangleIcon,
@@ -93,10 +93,20 @@ function useTabCount(tab: TabDef, queueId?: string, riskFilter?: RiskLevel[]) {
 
 export default function QueuePage() {
   const { queueId } = useParams();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabKey>('pending');
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState(SORTS[0].value);
-  const [riskFilter, setRiskFilter] = useState<RiskLevel[]>([]);
+  // Seed the risk filter from the URL so deep links like the dashboard's
+  // "Risk Distribution" segments (/queue?risk_level=low) actually filter.
+  const [riskFilter, setRiskFilter] = useState<RiskLevel[]>(() => {
+    const valid: RiskLevel[] = ['low', 'medium', 'high', 'critical'];
+    return searchParams
+      .getAll('risk_level')
+      .flatMap((v) => v.split(','))
+      .map((v) => v.trim().toLowerCase())
+      .filter((v): v is RiskLevel => valid.includes(v as RiskLevel));
+  });
 
   const tab = TABS.find((t) => t.key === activeTab)!;
   const sortDef = SORTS.find((s) => s.value === sort)!;

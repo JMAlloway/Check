@@ -296,13 +296,15 @@ export default function CheckReviewPage() {
       </div>
 
       {/* Main Content - Horizontal Layout.
-          On wide desktops (xl+) this is a fixed-height two-pane console: image on
-          top, panels below, each panel scrolling independently. On smaller or
-          shorter windows the height constraint is dropped so the whole page
-          scrolls naturally and every control (including Submit) stays reachable. */}
-      <div className="flex flex-col gap-4 xl:h-[calc(100vh-200px)]">
+          On large AND tall desktops (xltall) this is a fixed-height two-pane
+          console: image on top, panels below, each panel scrolling independently.
+          On smaller or shorter windows the height constraint is dropped so the
+          whole page scrolls naturally and every control (incl. Submit) stays
+          reachable — important on standard laptops where the panels would
+          otherwise be compressed below the fold. */}
+      <div className="flex flex-col gap-4 xltall:h-[calc(100vh-215px)]">
         {/* Top Row: Check Image Viewer (full width, optimized for horizontal checks) */}
-        <div className="shrink-0 h-[45vh] min-h-[300px] xl:h-1/2">
+        <div className="shrink-0 h-[45vh] min-h-[300px] xltall:h-2/5">
           <div className={`grid gap-4 h-full ${showComparison ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
             <CheckImageViewer
               images={item.images}
@@ -342,15 +344,15 @@ export default function CheckReviewPage() {
 
         {/* Bottom Row: Context Panels. Collapse from 4 columns to 2 then 1 as the
             window narrows so panels never squish below a usable width. */}
-        <div className="xl:flex-1 xl:min-h-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 xl:h-full">
+        <div className="xltall:flex-1 xltall:min-h-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 xltall:h-full">
             {/* Context Panel */}
-            <div className="min-h-0 xl:overflow-y-auto">
+            <div className="min-h-0 xltall:overflow-y-auto">
               <CheckContextPanel item={item} />
             </div>
 
             {/* History Panel */}
-            <div className="min-h-0 xl:overflow-y-auto">
+            <div className="min-h-0 xltall:overflow-y-auto">
               <CheckHistoryPanel
                 itemId={item.id}
                 currentAmount={item.amount}
@@ -362,12 +364,12 @@ export default function CheckReviewPage() {
             </div>
 
             {/* Network Intelligence Panel */}
-            <div className="min-h-0 xl:overflow-y-auto">
+            <div className="min-h-0 xltall:overflow-y-auto">
               <NetworkIntelligencePanel checkItemId={item.id} />
             </div>
 
             {/* Decision Panel */}
-            <div className="min-h-0 xl:overflow-y-auto">
+            <div className="min-h-0 xltall:overflow-y-auto">
               <DecisionPanel item={item} onDecisionMade={handleDecisionMade} />
             </div>
           </div>

@@ -87,6 +87,18 @@ body {
   @apply bg-orange-100 text-orange-800;
 }
 
+.status-pending_dual_control {
+  @apply bg-indigo-100 text-indigo-800;
+}
+
+.status-escalated {
+  @apply bg-amber-100 text-amber-800;
+}
+
+.status-closed {
+  @apply bg-gray-100 text-gray-700;
+}
+
 /* Animation for SLA warning */
 @keyframes pulse-warning {
   0%, 100% {

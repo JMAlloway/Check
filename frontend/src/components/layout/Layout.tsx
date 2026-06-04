@@ -251,7 +251,7 @@ export default function Layout({ children }: LayoutProps) {
                   leaveTo="transform opacity-0 scale-95"
                 >
                   <Menu.Items className="absolute right-0 z-10 mt-2.5 w-48 origin-top-right rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
-                    <div className="px-4 py-2 text-sm text-gray-500 border-b">
+                    <div className="px-4 py-2 text-sm text-gray-500 border-b truncate" title={user?.email}>
                       {user?.email}
                     </div>
                     <Menu.Item>

@@ -11,6 +11,7 @@ import { fraudApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { humanizeLabel } from '../utils/labels';
+import ConfirmationModal from '../components/common/ConfirmationModal';
 import type { FraudEventListItem } from '../types';
 
 const STATUS_TONE: Record<string, string> = {
@@ -93,6 +94,7 @@ export default function FraudEventsPage() {
   const canSubmit = hasPermission('fraud', 'submit');
   const canWithdraw = hasPermission('fraud', 'withdraw');
   const [withdrawing, setWithdrawing] = useState<FraudEventListItem | null>(null);
+  const [submitting, setSubmitting] = useState<FraudEventListItem | null>(null);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['fraud-events'],
@@ -192,7 +194,7 @@ export default function FraudEventsPage() {
                     <td className="px-3 py-2">
                       {ev.status === 'draft' && canSubmit && (
                         <button
-                          onClick={() => submit.mutate(ev.id)}
+                          onClick={() => setSubmitting(ev)}
                           disabled={submit.isPending}
                           className="inline-flex items-center gap-1 rounded-lg bg-primary-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-50"
                         >
@@ -229,6 +231,28 @@ export default function FraudEventsPage() {
           }}
         />
       )}
+
+      <ConfirmationModal
+        isOpen={!!submitting}
+        onClose={() => setSubmitting(null)}
+        onConfirm={() => {
+          if (submitting) submit.mutate(submitting.id);
+          setSubmitting(null);
+        }}
+        title="Submit fraud event to network"
+        message="This shares the event with the fraud-intelligence network. Confirm the details are correct and contain no PII before submitting."
+        confirmText="Submit to network"
+        cancelText="Cancel"
+        isPending={submit.isPending}
+        details={
+          submitting
+            ? [
+                { label: 'Type', value: humanizeLabel(submitting.fraud_type) },
+                { label: 'Amount', value: `$${submitting.amount.toLocaleString()}` },
+              ]
+            : undefined
+        }
+      />
     </div>
   );
 }

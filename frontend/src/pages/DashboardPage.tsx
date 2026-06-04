@@ -18,6 +18,7 @@ const RISK_HEX: Record<string, string> = {
   medium: '#eab308',
   high: '#f97316',
   critical: '#ef4444',
+  unclassified: '#9ca3af',
 };
 
 // Get today's date in ISO format for filtering (America/New_York timezone as default for bank)
@@ -54,7 +55,12 @@ function StatCard({
   link?: string;
 }) {
   const content = (
-    <div className={clsx('bg-white rounded-lg shadow p-6', link && 'hover:shadow-md transition-shadow')}>
+    <div
+      className={clsx(
+        'bg-white rounded-lg shadow p-6 transition-shadow',
+        link && 'cursor-pointer hover:shadow-md hover:ring-1 hover:ring-primary-200'
+      )}
+    >
       <div className="flex items-center">
         <div className={clsx('p-3 rounded-lg', `bg-${color}-100`)}>
           <Icon className={clsx('h-6 w-6', `text-${color}-600`)} />
@@ -74,8 +80,21 @@ function StatCard({
   return content;
 }
 
-function RiskDistribution({ data, onSegmentClick }: { data: Record<string, number>; onSegmentClick?: (level: string) => void }) {
-  const total = Object.values(data).reduce((a, b) => a + b, 0);
+function RiskDistribution({
+  data,
+  pendingTotal,
+  onSegmentClick,
+}: {
+  data: Record<string, number>;
+  pendingTotal?: number;
+  onSegmentClick?: (level: string) => void;
+}) {
+  const categorized = Object.values(data).reduce((a, b) => a + b, 0);
+  // Reconcile with the authoritative pending count: any pending items without a
+  // risk level show as an "unclassified" slice so the donut total matches the
+  // "Pending Items" KPI instead of silently undercounting.
+  const unclassified = Math.max(0, (pendingTotal ?? categorized) - categorized);
+  const total = categorized + unclassified;
 
   if (total === 0) {
     return (
@@ -85,10 +104,11 @@ function RiskDistribution({ data, onSegmentClick }: { data: Record<string, numbe
     );
   }
 
-  const order = ['low', 'medium', 'high', 'critical'];
+  const order = ['low', 'medium', 'high', 'critical', 'unclassified'];
+  const counts: Record<string, number> = { ...data, unclassified };
   const pieData = order
-    .filter((level) => (data[level] ?? 0) > 0)
-    .map((level) => ({ name: level, value: data[level] ?? 0 }));
+    .filter((level) => (counts[level] ?? 0) > 0)
+    .map((level) => ({ name: level, value: counts[level] ?? 0 }));
 
   return (
     <div className="flex flex-col items-center">
@@ -104,7 +124,10 @@ function RiskDistribution({ data, onSegmentClick }: { data: Record<string, numbe
               innerRadius={60}
               outerRadius={88}
               paddingAngle={2}
-              onClick={(_, idx) => onSegmentClick?.(pieData[idx].name)}
+              onClick={(_, idx) => {
+                const name = pieData[idx].name;
+                if (name !== 'unclassified') onSegmentClick?.(name);
+              }}
             >
               {pieData.map((d) => (
                 <Cell
@@ -127,21 +150,30 @@ function RiskDistribution({ data, onSegmentClick }: { data: Record<string, numbe
         </div>
       </div>
 
-      {/* Clickable legend */}
+      {/* Clickable legend (the unclassified bucket isn't a filterable risk) */}
       <div className="mt-3 grid w-full grid-cols-2 gap-2 text-sm">
-        {order.map((level) => (
-          <button
-            key={level}
-            onClick={() => onSegmentClick?.(level)}
-            className="flex items-center justify-between rounded-md px-2 py-1 text-left hover:bg-gray-50"
-          >
-            <span className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: RISK_HEX[level] }} />
-              <span className="capitalize text-gray-600">{level}</span>
-            </span>
-            <span className="font-semibold text-gray-900">{data[level] ?? 0}</span>
-          </button>
-        ))}
+        {order
+          .filter((level) => (counts[level] ?? 0) > 0)
+          .map((level) => {
+            const clickable = level !== 'unclassified';
+            return (
+              <button
+                key={level}
+                onClick={clickable ? () => onSegmentClick?.(level) : undefined}
+                disabled={!clickable}
+                className={clsx(
+                  'flex items-center justify-between rounded-md px-2 py-1 text-left',
+                  clickable ? 'hover:bg-gray-50' : 'cursor-default'
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: RISK_HEX[level] }} />
+                  <span className="capitalize text-gray-600">{level}</span>
+                </span>
+                <span className="font-semibold text-gray-900">{counts[level] ?? 0}</span>
+              </button>
+            );
+          })}
       </div>
     </div>
   );
@@ -234,7 +266,11 @@ export default function DashboardPage() {
         {/* Risk Distribution */}
         <div data-tour="risk-distribution" className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Risk Distribution</h2>
-          <RiskDistribution data={stats?.items_by_risk || {}} onSegmentClick={handleRiskSegmentClick} />
+          <RiskDistribution
+            data={stats?.items_by_risk || {}}
+            pendingTotal={stats?.summary.pending_items}
+            onSegmentClick={handleRiskSegmentClick}
+          />
         </div>
 
         {/* Queue Summary */}

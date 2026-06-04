@@ -109,16 +109,19 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-        <select
-          value={timeRange}
-          onChange={(e) => setTimeRange(Number(e.target.value))}
-          className="rounded-lg border-gray-300 text-sm"
-        >
-          <option value={7}>Last 7 days</option>
-          <option value={14}>Last 14 days</option>
-          <option value={30}>Last 30 days</option>
-          <option value={90}>Last 90 days</option>
-        </select>
+        <label className="flex items-center gap-2 text-sm text-gray-600">
+          <span className="whitespace-nowrap">Charts range:</span>
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(Number(e.target.value))}
+            className="rounded-lg border-gray-300 text-sm"
+          >
+            <option value={7}>Last 7 days</option>
+            <option value={14}>Last 14 days</option>
+            <option value={30}>Last 30 days</option>
+            <option value={90}>Last 90 days</option>
+          </select>
+        </label>
       </div>
 
       {/* PDF Report Generation */}
@@ -156,6 +159,9 @@ export default function ReportsPage() {
             </button>
           )}
         </div>
+        <p className="-mt-3 mb-6 text-xs text-gray-500">
+          The date range above applies to the PDF and CSV exports below.
+        </p>
 
         {/* Report Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -247,6 +247,21 @@ export const checkApi = {
     return response.data;
   },
 
+  pullNextItem: async () => {
+    const response = await api.post('/checks/worklist/pull-next');
+    return response.data;
+  },
+
+  getWorklistLocks: async () => {
+    const response = await api.get('/checks/worklist/locks');
+    return response.data as { locks: { item_id: string; username: string; user_id: string }[] };
+  },
+
+  releaseItem: async (itemId: string) => {
+    const response = await api.post(`/checks/${itemId}/release`);
+    return response.data;
+  },
+
   getHistory: async (itemId: string, limit = 10) => {
     const response = await api.get(`/checks/${itemId}/history`, {
       params: { limit },

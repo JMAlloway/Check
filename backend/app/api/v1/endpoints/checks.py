@@ -1,5 +1,7 @@
 """Check item endpoints."""
 
+import asyncio
+import time
 from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
@@ -106,6 +108,124 @@ async def get_my_queue(
         has_next=page < total_pages,
         has_previous=page > 1,
     )
+
+
+# ---------------------------------------------------------------------------
+# Claim-based worklist + soft locks
+#
+# Lets a team of reviewers "pull" the next item rather than browse-and-pick,
+# and prevents two reviewers from working the same item at once. Locks are
+# advisory (soft) and kept in memory with a TTL - appropriate for the demo's
+# single worker; a clustered deployment would back this with Redis.
+# ---------------------------------------------------------------------------
+
+_worklist_lock = asyncio.Lock()
+# item_id -> {"user_id", "username", "tenant_id", "expires_at"}
+_soft_locks: dict[str, dict] = {}
+LOCK_TTL_SECONDS = 300
+
+
+def _active_locks() -> dict[str, dict]:
+    """Return the live (non-expired) locks, pruning any that have lapsed."""
+    now = time.time()
+    for item_id in [k for k, v in _soft_locks.items() if v["expires_at"] <= now]:
+        _soft_locks.pop(item_id, None)
+    return _soft_locks
+
+
+@router.get("/worklist/locks")
+async def get_worklist_locks(
+    current_user: Annotated[object, Depends(require_permission("check_item", "view"))],
+):
+    """List items currently locked by a reviewer (for queue badges)."""
+    locks = _active_locks()
+    return {
+        "locks": [
+            {"item_id": item_id, "username": lk["username"], "user_id": lk["user_id"]}
+            for item_id, lk in locks.items()
+            if lk.get("tenant_id") == current_user.tenant_id
+        ]
+    }
+
+
+@router.post("/worklist/pull-next", response_model=CheckItemResponse)
+async def pull_next_item(
+    request: Request,
+    db: DBSession,
+    current_user: Annotated[object, Depends(require_permission("check_item", "review"))],
+):
+    """Claim the highest-priority unclaimed pending item for the current user."""
+    from sqlalchemy import or_, select
+
+    from app.models.check import CheckItem
+
+    async with _worklist_lock:
+        locks = _active_locks()
+        result = await db.execute(
+            select(CheckItem)
+            .where(
+                CheckItem.tenant_id == current_user.tenant_id,
+                CheckItem.status.in_([CheckStatus.NEW, CheckStatus.IN_REVIEW]),
+                or_(
+                    CheckItem.assigned_reviewer_id.is_(None),
+                    CheckItem.assigned_reviewer_id == current_user.id,
+                ),
+            )
+            .order_by(CheckItem.priority.desc(), CheckItem.created_at.asc())
+        )
+
+        candidate = None
+        for item in result.scalars().all():
+            lock = locks.get(item.id)
+            if lock and lock["user_id"] != current_user.id:
+                continue  # actively held by someone else
+            candidate = item
+            break
+
+        if candidate is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No items are available to pull right now.",
+            )
+
+        candidate.assigned_reviewer_id = current_user.id
+        if candidate.status == CheckStatus.NEW:
+            candidate.status = CheckStatus.IN_REVIEW
+        _soft_locks[candidate.id] = {
+            "user_id": current_user.id,
+            "username": current_user.username,
+            "tenant_id": current_user.tenant_id,
+            "expires_at": time.time() + LOCK_TTL_SECONDS,
+        }
+        item_id = candidate.id
+
+        audit_service = AuditService(db)
+        await audit_service.log(
+            action=AuditAction.ITEM_ASSIGNED,
+            resource_type="check_item",
+            resource_id=item_id,
+            user_id=current_user.id,
+            username=current_user.username,
+            ip_address=get_client_ip(request),
+            description="Pulled next item from the worklist",
+        )
+        await db.commit()
+
+    check_service = CheckService(db)
+    return await check_service.get_check_item(item_id, current_user.id, current_user.tenant_id)
+
+
+@router.post("/{item_id}/release")
+async def release_worklist_item(
+    item_id: str,
+    current_user: Annotated[object, Depends(require_permission("check_item", "view"))],
+):
+    """Release a soft lock the current user holds on an item."""
+    lock = _soft_locks.get(item_id)
+    if lock and lock["user_id"] == current_user.id:
+        _soft_locks.pop(item_id, None)
+        return {"released": True}
+    return {"released": False}
 
 
 @router.get("/{item_id}", response_model=CheckItemResponse)

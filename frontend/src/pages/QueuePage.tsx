@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowPathIcon,
   ExclamationTriangleIcon,
@@ -9,8 +9,11 @@ import {
   ShieldCheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  BoltIcon,
+  LockClosedIcon,
 } from '@heroicons/react/24/outline';
 import { checkApi, queueApi } from '../services/api';
+import { useAuthStore } from '../stores/authStore';
 import { CheckItemListItem, CheckStatus, RiskLevel, PaginatedResponse } from '../types';
 import { StatusBadge, RiskBadge, SLABadge } from '../components/common/StatusBadge';
 import BackLink from '../components/common/BackLink';
@@ -145,6 +148,32 @@ export default function QueuePage() {
   const total = data?.total ?? 0;
   const totalPages = data?.total_pages ?? 1;
 
+  // Claim-based worklist: who is actively working which item.
+  const navigate = useNavigate();
+  const currentUser = useAuthStore((s) => s.user);
+  const { data: locksData } = useQuery({
+    queryKey: ['worklist-locks'],
+    queryFn: checkApi.getWorklistLocks,
+    refetchInterval: 15000,
+  });
+  const lockByItem = new Map((locksData?.locks ?? []).map((l) => [l.item_id, l]));
+  const [pulling, setPulling] = useState(false);
+  const [pullMsg, setPullMsg] = useState<string | null>(null);
+
+  const handlePullNext = async () => {
+    setPulling(true);
+    setPullMsg(null);
+    try {
+      const item = await checkApi.pullNextItem();
+      navigate(`/review/${item.id}`);
+    } catch (e) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setPullMsg(detail ?? 'No items are available to pull right now.');
+    } finally {
+      setPulling(false);
+    }
+  };
+
   const selectTab = (key: TabKey) => {
     setActiveTab(key);
     setPage(1);
@@ -168,13 +197,27 @@ export default function QueuePage() {
           <h1 className="text-2xl font-bold text-gray-900">{queue ? queue.name : 'Review Queue'}</h1>
           {queue?.description && <p className="text-gray-500">{queue.description}</p>}
         </div>
-        <button
-          onClick={() => refetch()}
-          className="flex items-center px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-        >
-          <ArrowPathIcon className={clsx('h-5 w-5 mr-1', isFetching && 'animate-spin')} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex flex-col items-end">
+            <button
+              onClick={handlePullNext}
+              disabled={pulling}
+              className="flex items-center px-3 py-2 font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Claim the highest-priority unassigned item and start reviewing it"
+            >
+              <BoltIcon className="h-5 w-5 mr-1" />
+              {pulling ? 'Pulling…' : 'Pull next item'}
+            </button>
+            {pullMsg && <span className="mt-1 text-xs text-amber-600">{pullMsg}</span>}
+          </div>
+          <button
+            onClick={() => refetch()}
+            className="flex items-center px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            <ArrowPathIcon className={clsx('h-5 w-5 mr-1', isFetching && 'animate-spin')} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Tabs with live counts */}
@@ -268,13 +311,27 @@ export default function QueuePage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {items.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50">
+              {items.map((item) => {
+                const lock = lockByItem.get(item.id);
+                const lockedByOther = lock && lock.user_id !== currentUser?.id;
+                return (
+                <tr key={item.id} className={clsx('hover:bg-gray-50', lockedByOther && 'opacity-70')}>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{item.account_number_masked}</div>
                     <div className="text-sm text-gray-500">Check #{item.check_number || '-'}</div>
                     {item.payee_name && (
                       <div className="text-xs text-gray-400 truncate max-w-[180px]">{item.payee_name}</div>
+                    )}
+                    {lock && (
+                      <div
+                        className={clsx(
+                          'mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
+                          lockedByOther ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
+                        )}
+                      >
+                        <LockClosedIcon className="h-3 w-3" />
+                        {lockedByOther ? `In use by ${lock.username}` : 'You have this'}
+                      </div>
                     )}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
@@ -292,12 +349,17 @@ export default function QueuePage() {
                     <SLABadge dueAt={item.sla_due_at} breached={item.sla_breached} status={item.status} />
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
-                    <Link to={`/review/${item.id}`} className="text-primary-600 hover:text-primary-900 font-medium">
-                      {['approved', 'rejected', 'returned', 'completed'].includes(item.status) ? 'View' : 'Review'}
-                    </Link>
+                    {lockedByOther ? (
+                      <span className="text-gray-400" title={`In use by ${lock?.username}`}>In use</span>
+                    ) : (
+                      <Link to={`/review/${item.id}`} className="text-primary-600 hover:text-primary-900 font-medium">
+                        {['approved', 'rejected', 'returned', 'completed'].includes(item.status) ? 'View' : 'Review'}
+                      </Link>
+                    )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}

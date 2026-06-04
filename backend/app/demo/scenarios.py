@@ -521,24 +521,43 @@ import datetime as _dt
 import random as _rnd
 
 
-def get_daily_volume_context(target_date: _dt.date | None = None) -> dict:
-    """Return an illustrative whole-bank item-volume snapshot for a date."""
+def get_daily_volume_context(
+    target_date: _dt.date | None = None,
+    routed_to_review: int | None = None,
+) -> dict:
+    """Return an illustrative whole-bank item-volume snapshot for a date.
+
+    When ``routed_to_review`` is supplied (e.g. the live count of items actually
+    routed to the review queue) the whole-bank figures are derived from it so the
+    dashboard's "Today across the bank" numbers stay consistent with the real
+    queue volume: presented = routed / (1 - straight-through rate). In production
+    these would come from actual ingestion metrics; here they are anchored to the
+    seeded data so the demo never shows a contradictory story.
+    """
     target_date = target_date or _dt.date.today()
     rng = _rnd.Random(target_date.toordinal())
-    weekday = target_date.weekday()  # 0=Mon .. 6=Sun
-    # Weekends present far fewer items; Mondays run heavy.
-    weekday_factor = {0: 1.18, 1: 1.05, 2: 1.0, 3: 1.0, 4: 1.08, 5: 0.35, 6: 0.18}[weekday]
-    presented = int(8200 * weekday_factor * rng.uniform(0.9, 1.12))
     # ~96-98% of presented items clear straight through without a human.
     stp_rate = round(rng.uniform(0.958, 0.978), 4)
-    straight_through = int(presented * stp_rate)
-    routed_to_review = presented - straight_through
+
+    if routed_to_review is not None:
+        # Anchor the whole-bank volume to the real exception count.
+        routed = max(int(routed_to_review), 0)
+        presented = round(routed / (1 - stp_rate)) if routed > 0 else 0
+        straight_through = presented - routed
+    else:
+        weekday = target_date.weekday()  # 0=Mon .. 6=Sun
+        # Weekends present far fewer items; Mondays run heavy.
+        weekday_factor = {0: 1.18, 1: 1.05, 2: 1.0, 3: 1.0, 4: 1.08, 5: 0.35, 6: 0.18}[weekday]
+        presented = int(8200 * weekday_factor * rng.uniform(0.9, 1.12))
+        straight_through = int(presented * stp_rate)
+        routed = presented - straight_through
+
     return {
         "date": target_date.isoformat(),
         "presented": presented,
         "straight_through_cleared": straight_through,
         "straight_through_rate": stp_rate,
-        "routed_to_review": routed_to_review,
+        "routed_to_review": routed,
     }
 
 

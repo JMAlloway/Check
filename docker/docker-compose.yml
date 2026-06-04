@@ -57,7 +57,7 @@ services:
       # If false, run: docker-compose exec backend python scripts/seed_db.py
       # Production credentials: system_admin/sysadmin123, reviewer/reviewer123, etc.
       DEMO_MODE: ${DEMO_MODE:-false}
-      DEMO_DATA_COUNT: ${DEMO_DATA_COUNT:-200}
+      DEMO_DATA_COUNT: ${DEMO_DATA_COUNT:-250}
       CORS_ORIGINS: '["http://localhost:3000", "http://localhost:5173"]'
     # Volume mount enabled for development - uses local code directly
     volumes:

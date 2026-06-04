@@ -761,6 +761,8 @@ export const queueAdminApi = {
     queue_type?: string;
     is_active?: boolean;
     sla_hours?: number;
+    warning_threshold_minutes?: number;
+    routing_criteria?: Record<string, unknown> | null;
     display_order?: number;
   }) => {
     const response = await api.patch(`/queues/${queueId}`, data);
@@ -780,6 +782,11 @@ export const queueAdminApi = {
   }) => {
     // The schema requires queue_id in the body as well as the path.
     const response = await api.post(`/queues/${queueId}/assignments`, { ...data, queue_id: queueId });
+    return response.data;
+  },
+
+  deleteAssignment: async (queueId: string, userId: string) => {
+    const response = await api.delete(`/queues/${queueId}/assignments/${userId}`);
     return response.data;
   },
 };

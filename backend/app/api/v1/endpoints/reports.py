@@ -125,8 +125,16 @@ async def get_dashboard_stats(
     # In demo mode, frame the review queue against whole-bank daily volume. This
     # is illustrative context (not per-item rows) showing that the queue is the
     # small exception slice of a much larger straight-through-cleared volume.
+    # Anchor "routed to review" to the real number of items in the system so the
+    # headline volume stays consistent with the queue the user is looking at.
     if settings.DEMO_MODE:
-        result["daily_volume"] = get_daily_volume_context(now.date())
+        routed_result = await db.execute(
+            select(func.count(CheckItem.id)).where(CheckItem.tenant_id == tenant_id)
+        )
+        routed_count = routed_result.scalar() or 0
+        result["daily_volume"] = get_daily_volume_context(
+            now.date(), routed_to_review=routed_count
+        )
 
     return result
 

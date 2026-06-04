@@ -60,12 +60,12 @@ function StatCard({
   const content = (
     <div
       className={clsx(
-        'bg-white rounded-lg shadow p-6 transition-shadow',
+        'bg-white rounded-lg shadow p-6 transition-shadow h-full',
         link && 'cursor-pointer hover:shadow-md hover:ring-1 hover:ring-primary-200'
       )}
     >
       <div className="flex items-center">
-        <div className={clsx('p-3 rounded-lg', `bg-${color}-100`)}>
+        <div className={clsx('shrink-0 p-3 rounded-lg', `bg-${color}-100`)}>
           <Icon className={clsx('h-6 w-6', `text-${color}-600`)} />
         </div>
         <div className="ml-4">
@@ -77,7 +77,11 @@ function StatCard({
   );
 
   if (link) {
-    return <Link to={link}>{content}</Link>;
+    return (
+      <Link to={link} className="block h-full">
+        {content}
+      </Link>
+    );
   }
 
   return content;

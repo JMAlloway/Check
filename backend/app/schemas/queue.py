@@ -47,6 +47,7 @@ class QueueResponse(QueueBase, TimestampSchema):
     display_order: int
     current_item_count: int
     items_processed_today: int
+    routing_criteria: dict | None = None
 
 
 class QueueStatsResponse(BaseModel):

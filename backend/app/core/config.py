@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     # exception queue for a ~$2B-asset community bank (the bulk of presented
     # volume clears straight through and is represented by the daily-volume
     # backdrop rather than per-item rows).
-    DEMO_DATA_COUNT: int = 200
+    DEMO_DATA_COUNT: int = 250
 
     # API
     API_V1_PREFIX: str = "/api/v1"

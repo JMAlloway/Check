@@ -23,11 +23,17 @@ export default function DemoBanner({ variant = 'full', dismissible = true }: Dem
 
   if (variant === 'compact') {
     return (
-      <div className="bg-amber-50 border-b border-amber-200">
-        <div className="flex items-center justify-center gap-2 px-4 py-1.5 text-sm text-amber-800">
-          <BeakerIcon className="h-4 w-4" />
-          <span className="font-medium">Demo Mode</span>
-          <span className="text-amber-600">- Using synthetic data</span>
+      <div className="bg-bank-navy text-white">
+        <div className="flex items-center justify-center gap-2.5 px-4 py-1.5 text-xs sm:text-sm">
+          <span className="inline-flex items-center gap-1 rounded bg-bank-gold px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-bank-navy">
+            <BeakerIcon className="h-3 w-3" />
+            Demo
+          </span>
+          <span className="font-medium text-white/90">Check Review demo environment</span>
+          <span className="hidden text-white/40 sm:inline">·</span>
+          <span className="hidden text-white/60 sm:inline">
+            Synthetic data — no production records
+          </span>
         </div>
       </div>
     );

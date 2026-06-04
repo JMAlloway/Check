@@ -1,5 +1,6 @@
 """Queue management endpoints."""
 
+import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -26,6 +27,32 @@ from app.schemas.queue import (
 router = APIRouter()
 
 
+def _queue_response(queue: Queue) -> QueueResponse:
+    """Build a QueueResponse, decoding the stored routing_criteria JSON."""
+    criteria = None
+    if queue.routing_criteria:
+        try:
+            parsed = json.loads(queue.routing_criteria)
+            criteria = parsed if isinstance(parsed, dict) else None
+        except (ValueError, TypeError):
+            criteria = None
+    return QueueResponse(
+        id=queue.id,
+        name=queue.name,
+        description=queue.description,
+        queue_type=queue.queue_type,
+        sla_hours=queue.sla_hours,
+        warning_threshold_minutes=queue.warning_threshold_minutes,
+        is_active=queue.is_active,
+        display_order=queue.display_order,
+        current_item_count=queue.current_item_count,
+        items_processed_today=queue.items_processed_today,
+        routing_criteria=criteria,
+        created_at=queue.created_at,
+        updated_at=queue.updated_at,
+    )
+
+
 @router.get("", response_model=list[QueueResponse])
 @user_limiter.limit(RateLimits.SEARCH)  # User-based: 60/min, 500/hour
 async def list_queues(
@@ -48,23 +75,7 @@ async def list_queues(
     result = await db.execute(query)
     queues = result.scalars().all()
 
-    return [
-        QueueResponse(
-            id=q.id,
-            name=q.name,
-            description=q.description,
-            queue_type=q.queue_type,
-            sla_hours=q.sla_hours,
-            warning_threshold_minutes=q.warning_threshold_minutes,
-            is_active=q.is_active,
-            display_order=q.display_order,
-            current_item_count=q.current_item_count,
-            items_processed_today=q.items_processed_today,
-            created_at=q.created_at,
-            updated_at=q.updated_at,
-        )
-        for q in queues
-    ]
+    return [_queue_response(q) for q in queues]
 
 
 @router.post("", response_model=QueueResponse)
@@ -112,20 +123,7 @@ async def create_queue(
     # Explicit commit for write operation
     await db.commit()
 
-    return QueueResponse(
-        id=queue.id,
-        name=queue.name,
-        description=queue.description,
-        queue_type=queue.queue_type,
-        sla_hours=queue.sla_hours,
-        warning_threshold_minutes=queue.warning_threshold_minutes,
-        is_active=queue.is_active,
-        display_order=queue.display_order,
-        current_item_count=queue.current_item_count,
-        items_processed_today=queue.items_processed_today,
-        created_at=queue.created_at,
-        updated_at=queue.updated_at,
-    )
+    return _queue_response(queue)
 
 
 @router.get("/{queue_id}", response_model=QueueResponse)
@@ -150,20 +148,7 @@ async def get_queue(
             detail="Queue not found",
         )
 
-    return QueueResponse(
-        id=queue.id,
-        name=queue.name,
-        description=queue.description,
-        queue_type=queue.queue_type,
-        sla_hours=queue.sla_hours,
-        warning_threshold_minutes=queue.warning_threshold_minutes,
-        is_active=queue.is_active,
-        display_order=queue.display_order,
-        current_item_count=queue.current_item_count,
-        items_processed_today=queue.items_processed_today,
-        created_at=queue.created_at,
-        updated_at=queue.updated_at,
-    )
+    return _queue_response(queue)
 
 
 @router.patch("/{queue_id}", response_model=QueueResponse)
@@ -200,8 +185,17 @@ async def update_queue(
         queue.is_active = queue_data.is_active
     if queue_data.sla_hours is not None:
         queue.sla_hours = queue_data.sla_hours
+    if queue_data.warning_threshold_minutes is not None:
+        queue.warning_threshold_minutes = queue_data.warning_threshold_minutes
     if queue_data.display_order is not None:
         queue.display_order = queue_data.display_order
+    if queue_data.routing_criteria is not None:
+        # Empty dict clears the criteria; otherwise store as JSON.
+        queue.routing_criteria = (
+            json.dumps(queue_data.routing_criteria)
+            if queue_data.routing_criteria
+            else None
+        )
 
     audit_service = AuditService(db)
     await audit_service.log(
@@ -214,20 +208,7 @@ async def update_queue(
         description=f"Updated queue {queue.name}",
     )
 
-    return QueueResponse(
-        id=queue.id,
-        name=queue.name,
-        description=queue.description,
-        queue_type=queue.queue_type,
-        sla_hours=queue.sla_hours,
-        warning_threshold_minutes=queue.warning_threshold_minutes,
-        is_active=queue.is_active,
-        display_order=queue.display_order,
-        current_item_count=queue.current_item_count,
-        items_processed_today=queue.items_processed_today,
-        created_at=queue.created_at,
-        updated_at=queue.updated_at,
-    )
+    return _queue_response(queue)
 
 
 @router.get("/{queue_id}/stats", response_model=QueueStatsResponse)
@@ -451,3 +432,57 @@ async def create_queue_assignment(
         created_at=assignment.created_at,
         updated_at=assignment.updated_at,
     )
+
+
+@router.delete("/{queue_id}/assignments/{user_id}", response_model=MessageResponse)
+async def delete_queue_assignment(
+    request: Request,
+    queue_id: str,
+    user_id: str,
+    db: DBSession,
+    current_user: Annotated[object, Depends(require_permission("queue", "assign"))],
+):
+    """Remove a user's assignment from a queue."""
+    # CRITICAL: Filter by tenant_id for multi-tenant security
+    queue_result = await db.execute(
+        select(Queue).where(
+            Queue.id == queue_id,
+            Queue.tenant_id == current_user.tenant_id,
+        )
+    )
+    queue = queue_result.scalar_one_or_none()
+    if not queue:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Queue not found",
+        )
+
+    result = await db.execute(
+        select(QueueAssignment).where(
+            QueueAssignment.queue_id == queue_id,
+            QueueAssignment.user_id == user_id,
+        )
+    )
+    assignment = result.scalar_one_or_none()
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assignment not found",
+        )
+
+    await db.delete(assignment)
+
+    audit_service = AuditService(db)
+    await audit_service.log(
+        action=AuditAction.QUEUE_UPDATED,
+        resource_type="queue",
+        resource_id=queue_id,
+        user_id=current_user.id,
+        username=current_user.username,
+        ip_address=get_client_ip(request),
+        description=f"Removed user {user_id} from queue {queue.name}",
+    )
+
+    await db.commit()
+
+    return MessageResponse(message="User removed from queue")

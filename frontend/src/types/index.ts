@@ -361,6 +361,16 @@ export interface Queue {
   display_order: number;
   current_item_count: number;
   items_processed_today: number;
+  routing_criteria?: QueueRoutingCriteria | null;
+}
+
+/** Item parameters that decide which checks are routed into a queue. */
+export interface QueueRoutingCriteria {
+  amount_min?: number | null;
+  amount_max?: number | null;
+  risk_levels?: string[];
+  item_types?: string[];
+  requires_dual_control?: boolean | null;
 }
 
 export interface QueueStats {

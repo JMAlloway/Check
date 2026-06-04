@@ -89,7 +89,7 @@ from app.services.evidence_seal import seal_evidence_snapshot
 class DemoSeeder:
     """Seeds the database with demo data."""
 
-    def __init__(self, db: AsyncSession, count: int = 60):
+    def __init__(self, db: AsyncSession, count: int = 250):
         self.db = db
         self.count = count
         self.demo_users: dict[str, User] = {}
@@ -2738,7 +2738,7 @@ async def reset_demo_schema() -> None:
     await engine.dispose()
 
 
-async def seed_demo_data(reset: bool = False, count: int = 60) -> dict:
+async def seed_demo_data(reset: bool = False, count: int = 250) -> dict:
     """Main entry point for seeding demo data."""
     # A reset recreates the schema (see reset_demo_schema) and then seeds the
     # now-empty database, rather than trying to delete existing rows.
@@ -2762,8 +2762,8 @@ def main():
     parser.add_argument(
         "--count",
         type=int,
-        default=60,
-        help="Number of check items to create (default: 60)",
+        default=250,
+        help="Number of check items to create (default: 250)",
     )
 
     args = parser.parse_args()

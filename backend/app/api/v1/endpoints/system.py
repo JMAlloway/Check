@@ -11,8 +11,11 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from app.api.deps import get_current_active_superuser
+from sqlalchemy import func, select
+
+from app.api.deps import DBSession, get_current_active_superuser
 from app.core.config import settings
+from app.models.check import CheckItem
 from app.models.user import User
 
 router = APIRouter()
@@ -45,6 +48,10 @@ class DemoModeResponse(BaseModel):
     environment: str
     safety_checks_passed: bool
     demo_data_count: int
+    # Actual number of check items currently in the database. Unlike
+    # ``demo_data_count`` (the configured target), this reflects reality after a
+    # reseed, so the Admin panel can show what was really generated.
+    live_item_count: int | None = None
     features: dict[str, bool]
     notices: list[str]
 
@@ -52,7 +59,7 @@ class DemoModeResponse(BaseModel):
 class DemoSeedRequest(BaseModel):
     """Request to seed demo data."""
 
-    count: int = 200
+    count: int = 250
     reset_existing: bool = False
 
 
@@ -87,7 +94,7 @@ async def get_system_status() -> SystemStatusResponse:
 
 
 @router.get("/demo-mode", response_model=DemoModeResponse)
-async def get_demo_mode_status() -> DemoModeResponse:
+async def get_demo_mode_status(db: DBSession) -> DemoModeResponse:
     """
     Get detailed demo mode status.
 
@@ -97,6 +104,16 @@ async def get_demo_mode_status() -> DemoModeResponse:
     # Safety checks
     safety_passed = True
     notices = []
+
+    # Live count of actual check items so the Admin panel reflects what a reseed
+    # really produced (not just the configured target).
+    live_item_count: int | None = None
+    if settings.DEMO_MODE:
+        try:
+            count_result = await db.execute(select(func.count(CheckItem.id)))
+            live_item_count = count_result.scalar() or 0
+        except Exception:
+            live_item_count = None
 
     if settings.DEMO_MODE:
         if settings.ENVIRONMENT == "production":
@@ -114,6 +131,7 @@ async def get_demo_mode_status() -> DemoModeResponse:
         environment=settings.ENVIRONMENT,
         safety_checks_passed=safety_passed,
         demo_data_count=settings.DEMO_DATA_COUNT,
+        live_item_count=live_item_count,
         features={
             "synthetic_checks": settings.DEMO_MODE,
             "mock_ai_analysis": settings.DEMO_MODE,

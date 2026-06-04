@@ -295,83 +295,77 @@ export default function CheckReviewPage() {
         </div>
       </div>
 
-      {/* Main Content - Horizontal Layout.
-          On large AND tall desktops (xltall) this is a fixed-height two-pane
-          console: image on top, panels below, each panel scrolling independently.
-          On smaller or shorter windows the height constraint is dropped so the
-          whole page scrolls naturally and every control (incl. Submit) stays
-          reachable — important on standard laptops where the panels would
-          otherwise be compressed below the fold. */}
-      <div className="flex flex-col gap-4 xltall:h-[calc(100vh-215px)]">
-        {/* Top Row: Check Image Viewer (full width, optimized for horizontal checks) */}
-        <div className="shrink-0 h-[45vh] min-h-[300px] xltall:h-2/5">
-          <div className={`grid gap-4 h-full ${showComparison ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
-            <CheckImageViewer
-              images={item.images}
-              roiRegions={defaultROIRegions}
-              showROI={true}
-            />
-
-            {/* Comparison View (side-by-side when active) */}
-            {showComparison && comparisonItem && (
-              <div className="bg-gray-900 rounded-lg h-full flex flex-col">
-                <div className="px-4 py-2 bg-gray-800 border-b border-gray-700 flex justify-between items-center">
-                  <span className="text-white text-sm font-medium">
-                    Historical Check - {new Date(comparisonItem.check_date).toLocaleDateString()}
-                  </span>
-                  <button
-                    onClick={() => setShowComparison(false)}
-                    className="text-gray-400 hover:text-white text-sm"
-                  >
-                    Close
-                  </button>
-                </div>
-                <div className="flex-1 flex items-center justify-center">
-                  {comparisonItem.front_image_url ? (
-                    <img
-                      src={resolveImageUrl(comparisonItem.front_image_url)}
-                      alt="Historical check"
-                      className="max-w-full max-h-full object-contain"
-                    />
-                  ) : (
-                    <p className="text-gray-500">No image available</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+      {/* Main Content.
+          Left column: the Item Context card, running the full height of the
+          working area (sticky so it stays in view while the right column
+          scrolls). Right column: the check image(s) on top, then the
+          supporting panels (history, network, decision) directly below them.
+          Keeping the image in its own column stops the side-by-side
+          comparison from overlapping the context/history cards. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+        {/* Left: Item context, full height alongside the right column */}
+        <div className="lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-110px)] lg:overflow-y-auto">
+          <CheckContextPanel item={item} />
         </div>
 
-        {/* Bottom Row: Context Panels. Collapse from 4 columns to 2 then 1 as the
-            window narrows so panels never squish below a usable width. */}
-        <div className="xltall:flex-1 xltall:min-h-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 xltall:h-full">
-            {/* Context Panel */}
-            <div className="min-h-0 xltall:overflow-y-auto">
-              <CheckContextPanel item={item} />
-            </div>
-
-            {/* History Panel */}
-            <div className="min-h-0 xltall:overflow-y-auto">
-              <CheckHistoryPanel
-                itemId={item.id}
-                currentAmount={item.amount}
-                onSelectComparison={(historyItem) => {
-                  setComparisonItem(historyItem);
-                  setShowComparison(true);
-                }}
+        {/* Right: check image(s) then the supporting panels */}
+        <div className="min-w-0 space-y-4">
+          {/* Check Image Viewer (side-by-side with historical when comparing) */}
+          <div className="h-[48vh] min-h-[320px]">
+            <div className={`grid gap-4 h-full ${showComparison ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
+              <CheckImageViewer
+                images={item.images}
+                roiRegions={defaultROIRegions}
+                showROI={true}
               />
+
+              {/* Comparison View (side-by-side when active) */}
+              {showComparison && comparisonItem && (
+                <div className="bg-gray-900 rounded-lg h-full flex flex-col">
+                  <div className="px-4 py-2 bg-gray-800 border-b border-gray-700 flex justify-between items-center">
+                    <span className="text-white text-sm font-medium">
+                      Historical Check - {new Date(comparisonItem.check_date).toLocaleDateString()}
+                    </span>
+                    <button
+                      onClick={() => setShowComparison(false)}
+                      className="text-gray-400 hover:text-white text-sm"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <div className="flex-1 flex items-center justify-center overflow-hidden">
+                    {comparisonItem.front_image_url ? (
+                      <img
+                        src={resolveImageUrl(comparisonItem.front_image_url)}
+                        alt="Historical check"
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    ) : (
+                      <p className="text-gray-500">No image available</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+          </div>
+
+          {/* Supporting panels, directly below the image */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {/* History Panel */}
+            <CheckHistoryPanel
+              itemId={item.id}
+              currentAmount={item.amount}
+              onSelectComparison={(historyItem) => {
+                setComparisonItem(historyItem);
+                setShowComparison(true);
+              }}
+            />
 
             {/* Network Intelligence Panel */}
-            <div className="min-h-0 xltall:overflow-y-auto">
-              <NetworkIntelligencePanel checkItemId={item.id} />
-            </div>
+            <NetworkIntelligencePanel checkItemId={item.id} />
 
             {/* Decision Panel */}
-            <div className="min-h-0 xltall:overflow-y-auto">
-              <DecisionPanel item={item} onDecisionMade={handleDecisionMade} />
-            </div>
+            <DecisionPanel item={item} onDecisionMade={handleDecisionMade} />
           </div>
         </div>
       </div>

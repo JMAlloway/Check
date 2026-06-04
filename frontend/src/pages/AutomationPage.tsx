@@ -9,10 +9,13 @@ import {
   UserGroupIcon,
   ClipboardDocumentCheckIcon,
   XCircleIcon,
+  LockClosedIcon,
 } from '@heroicons/react/24/outline';
+import { Link as RouterLink } from 'react-router-dom';
 import BackLink from '../components/common/BackLink';
 import { useAutomationStore, type AutomationMode } from '../stores/automationStore';
 import { useAutomationSimulation } from '../hooks/useAutomationSimulation';
+import { useAuthStore } from '../stores/authStore';
 
 const pct = (n: number) => `${(n * 100).toFixed(0)}%`;
 const money = (n: number) =>
@@ -42,6 +45,11 @@ export default function AutomationPage() {
     setAmountCap,
   } = useAutomationStore();
   const sim = useAutomationSimulation();
+
+  // Only users who can manage policies may change the automation configuration;
+  // everyone else sees it read-only. The binding guardrails themselves live in
+  // Admin → Policies and are enforced server-side regardless of this view.
+  const canManage = useAuthStore((s) => s.hasPermission('policy', 'update'));
 
   const dispositionData = [
     { name: 'Auto-clear', value: sim.autoClearCount, color: '#22c55e' },
@@ -100,6 +108,21 @@ export default function AutomationPage() {
         </Link>
       </div>
 
+      {/* Read-only notice for non-administrators */}
+      {!canManage && (
+        <div className="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+          <LockClosedIcon className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+          <p>
+            These straight-through-processing controls are managed by administrators and are
+            read-only for your role. The binding auto-clear policy and guardrails are configured in{' '}
+            <RouterLink to="/admin/policies" className="font-medium text-primary-600 hover:underline">
+              Admin → Policies
+            </RouterLink>{' '}
+            and enforced server-side.
+          </p>
+        </div>
+      )}
+
       {/* Mode selector */}
       <div className="rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="text-sm font-semibold text-gray-900">Automation mode</h2>
@@ -107,10 +130,11 @@ export default function AutomationPage() {
           {MODES.map((m) => (
             <button
               key={m.value}
-              onClick={() => setMode(m.value)}
+              onClick={() => canManage && setMode(m.value)}
+              disabled={!canManage}
               className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
                 mode === m.value ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-50'
-              }`}
+              } ${!canManage ? 'cursor-not-allowed opacity-60 hover:bg-transparent' : ''}`}
             >
               {m.label}
             </button>
@@ -130,10 +154,11 @@ export default function AutomationPage() {
               {(['low', 'medium'] as const).map((t) => (
                 <button
                   key={t}
-                  onClick={() => setAutoClearMaxTier(t)}
+                  onClick={() => canManage && setAutoClearMaxTier(t)}
+                  disabled={!canManage}
                   className={`rounded-md px-3 py-1.5 text-sm font-medium capitalize transition-colors ${
                     autoClearMaxTier === t ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
-                  }`}
+                  } ${!canManage ? 'cursor-not-allowed opacity-60 hover:bg-transparent' : ''}`}
                 >
                   {t === 'low' ? 'Low only' : 'Low + Medium'}
                 </button>
@@ -153,8 +178,9 @@ export default function AutomationPage() {
                 min={0}
                 step={500}
                 value={amountCap}
+                disabled={!canManage}
                 onChange={(e) => setAmountCap(Number(e.target.value))}
-                className="w-40 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                className="w-40 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
               />
             </div>
             <input
@@ -163,8 +189,9 @@ export default function AutomationPage() {
               max={25000}
               step={500}
               value={Math.min(amountCap, 25000)}
+              disabled={!canManage}
               onChange={(e) => setAmountCap(Number(e.target.value))}
-              className="mt-2 w-full"
+              className="mt-2 w-full disabled:cursor-not-allowed disabled:opacity-60"
               aria-label="Amount cap slider"
             />
           </div>

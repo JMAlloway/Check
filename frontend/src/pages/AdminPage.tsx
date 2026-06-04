@@ -482,6 +482,14 @@ function UserFormModal({
 // Queue Management Component
 // ============================================================================
 
+interface QueueRoutingCriteria {
+  amount_min?: number | null;
+  amount_max?: number | null;
+  risk_levels?: string[];
+  item_types?: string[];
+  requires_dual_control?: boolean | null;
+}
+
 interface Queue {
   id: string;
   name: string;
@@ -493,6 +501,7 @@ interface Queue {
   display_order: number;
   current_item_count: number;
   items_processed_today: number;
+  routing_criteria?: QueueRoutingCriteria | null;
 }
 
 function QueuesAdmin() {
@@ -666,6 +675,18 @@ function QueueAssignments({ queueId }: { queueId: string }) {
     },
   });
 
+  const removeMember = useMutation({
+    mutationFn: (userId: string) => queueAdminApi.deleteAssignment(queueId, userId),
+    onSuccess: () => {
+      toast.success('User removed from queue');
+      queryClient.invalidateQueries({ queryKey: ['queue-assignments', queueId] });
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : 'Failed to remove user');
+    },
+  });
+
   if (isLoading) {
     return <div className="mt-4 p-4 text-sm text-gray-500">Loading assignments...</div>;
   }
@@ -723,12 +744,26 @@ function QueueAssignments({ queueId }: { queueId: string }) {
                 )}
               </div>
             </div>
-            <span className={clsx(
-              'text-xs px-2 py-0.5 rounded',
-              assignment.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-            )}>
-              {assignment.is_active ? 'Active' : 'Inactive'}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className={clsx(
+                'text-xs px-2 py-0.5 rounded',
+                assignment.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+              )}>
+                {assignment.is_active ? 'Active' : 'Inactive'}
+              </span>
+              <button
+                onClick={() => {
+                  if (window.confirm(`Remove ${assignment.user_name || 'this user'} from the queue?`)) {
+                    removeMember.mutate(assignment.user_id);
+                  }
+                }}
+                disabled={removeMember.isPending}
+                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-50"
+                title="Remove from queue"
+              >
+                <TrashIcon className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         ))}
         </div>
@@ -748,19 +783,48 @@ function QueueFormModal({
   onSubmit: (data: any) => void;
   isLoading: boolean;
 }) {
+  const initialCriteria = queue?.routing_criteria || {};
   const [formData, setFormData] = useState({
     name: queue?.name || '',
     description: queue?.description || '',
-    queue_type: queue?.queue_type || 'general',
+    queue_type: queue?.queue_type || 'standard',
     sla_hours: queue?.sla_hours || 24,
     warning_threshold_minutes: queue?.warning_threshold_minutes || 120,
     is_active: queue?.is_active ?? true,
     display_order: queue?.display_order || 0,
   });
 
+  // Routing criteria — the item parameters that decide what lands in this queue.
+  const [routing, setRouting] = useState({
+    amount_min: initialCriteria.amount_min ?? ('' as number | ''),
+    amount_max: initialCriteria.amount_max ?? ('' as number | ''),
+    risk_levels: initialCriteria.risk_levels ?? ([] as string[]),
+    item_types: initialCriteria.item_types ?? ([] as string[]),
+    requires_dual_control: initialCriteria.requires_dual_control ?? false,
+  });
+
+  const toggleInList = (key: 'risk_levels' | 'item_types', value: string) => {
+    setRouting((prev) => {
+      const list = prev[key] as string[];
+      return {
+        ...prev,
+        [key]: list.includes(value) ? list.filter((v: string) => v !== value) : [...list, value],
+      };
+    });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    // Build routing_criteria from only the fields that were set, so an empty
+    // editor sends `{}` (clears criteria) rather than a wall of nulls.
+    const criteria: Record<string, unknown> = {};
+    if (routing.amount_min !== '') criteria.amount_min = Number(routing.amount_min);
+    if (routing.amount_max !== '') criteria.amount_max = Number(routing.amount_max);
+    if (routing.risk_levels.length) criteria.risk_levels = routing.risk_levels;
+    if (routing.item_types.length) criteria.item_types = routing.item_types;
+    if (routing.requires_dual_control) criteria.requires_dual_control = true;
+
+    onSubmit({ ...formData, routing_criteria: criteria });
   };
 
   const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
@@ -775,7 +839,10 @@ function QueueFormModal({
       aria-modal="true"
       aria-label={queue ? 'Edit queue' : 'Create queue'}
     >
-      <div ref={trapRef} className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+      <div
+        ref={trapRef}
+        className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
+      >
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">
             {queue ? 'Edit Queue' : 'Create Queue'}
@@ -815,10 +882,10 @@ function QueueFormModal({
                 onChange={(e) => setFormData({ ...formData, queue_type: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               >
-                <option value="general">General</option>
-                <option value="high_value">High Value</option>
+                <option value="standard">Standard</option>
+                <option value="high_priority">High Priority</option>
                 <option value="escalation">Escalation</option>
-                <option value="fraud">Fraud</option>
+                <option value="special_review">Special Review</option>
               </select>
             </div>
 
@@ -831,6 +898,108 @@ function QueueFormModal({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               />
             </div>
+          </div>
+
+          {/* Routing criteria — which items land in this queue */}
+          <div className="rounded-lg border border-gray-200 p-4">
+            <h4 className="text-sm font-medium text-gray-900">Routing criteria</h4>
+            <p className="mt-0.5 text-xs text-gray-500">
+              Item parameters that route a check into this queue. Leave a field blank to ignore it.
+            </p>
+
+            <div className="mt-3 grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Min amount ($)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={routing.amount_min}
+                  onChange={(e) =>
+                    setRouting({
+                      ...routing,
+                      amount_min: e.target.value === '' ? '' : Number(e.target.value),
+                    })
+                  }
+                  placeholder="Any"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Max amount ($)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={routing.amount_max}
+                  onChange={(e) =>
+                    setRouting({
+                      ...routing,
+                      amount_max: e.target.value === '' ? '' : Number(e.target.value),
+                    })
+                  }
+                  placeholder="Any"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Risk levels</label>
+              <div className="flex flex-wrap gap-2">
+                {(['low', 'medium', 'high', 'critical'] as const).map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => toggleInList('risk_levels', level)}
+                    className={clsx(
+                      'rounded-full px-2.5 py-1 text-xs font-medium border capitalize',
+                      routing.risk_levels.includes(level)
+                        ? 'border-primary-400 bg-primary-50 text-primary-700'
+                        : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                    )}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Item types</label>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { value: 'on_us', label: 'On-Us' },
+                  { value: 'transit', label: 'Transit' },
+                ] as const).map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => toggleInList('item_types', t.value)}
+                    className={clsx(
+                      'rounded-full px-2.5 py-1 text-xs font-medium border',
+                      routing.item_types.includes(t.value)
+                        ? 'border-primary-400 bg-primary-50 text-primary-700'
+                        : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className="mt-3 flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={routing.requires_dual_control}
+                onChange={(e) =>
+                  setRouting({ ...routing, requires_dual_control: e.target.checked })
+                }
+                className="rounded border-gray-300 text-primary-600"
+              />
+              <span className="text-xs font-medium text-gray-700">
+                Only items that require dual control
+              </span>
+            </label>
           </div>
 
           <div>
@@ -901,6 +1070,14 @@ function PoliciesAdmin() {
     enabled: !!selectedPolicy,
   });
 
+  // Full detail (incl. rules) for the policy being edited, so the editor can be
+  // prefilled with the current version's rules.
+  const { data: editingDetail } = useQuery({
+    queryKey: ['policy', editingPolicy?.id],
+    queryFn: () => policyApi.getPolicy(editingPolicy!.id),
+    enabled: !!editingPolicy,
+  });
+
   const queryClient = useQueryClient();
   const activateMutation = useMutation({
     mutationFn: (policyId: string) => policyApi.activatePolicy(policyId),
@@ -944,19 +1121,6 @@ function PoliciesAdmin() {
     },
   });
 
-  const updatePolicyMutation = useMutation({
-    mutationFn: ({ policyId, data }: { policyId: string; data: { name?: string; description?: string; status?: string } }) =>
-      policyApi.updatePolicy(policyId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['policies'] });
-      setEditingPolicy(null);
-    },
-    onError: (error: any) => {
-      console.error('Failed to update policy:', error);
-      alert(`Failed to update policy: ${formatErrorMessage(error)}`);
-    },
-  });
-
   const deletePolicyMutation = useMutation({
     mutationFn: ({ policyId, force }: { policyId: string; force?: boolean }) =>
       policyApi.deletePolicy(policyId, force),
@@ -972,6 +1136,67 @@ function PoliciesAdmin() {
       alert(`Failed to delete policy: ${formatErrorMessage(error)}`);
     },
   });
+
+  // Full edit: update metadata and, when rules are provided, publish a new
+  // version and activate it so the edited rules take effect.
+  const editPolicyMutation = useMutation({
+    mutationFn: async ({ policy, data }: { policy: Policy; data: any }) => {
+      const metadata: { name?: string; description?: string } = {};
+      if (data.name && data.name !== policy.name) metadata.name = data.name;
+      if ((data.description ?? '') !== (policy.description ?? '')) {
+        metadata.description = data.description ?? '';
+      }
+      if (Object.keys(metadata).length > 0) {
+        await policyApi.updatePolicy(policy.id, metadata);
+      }
+      if (data.initial_version?.rules?.length) {
+        const version = await policyApi.createVersion(policy.id, {
+          effective_date: new Date().toISOString(),
+          change_notes: 'Edited via Admin',
+          rules: data.initial_version.rules,
+        });
+        await policyApi.activatePolicy(policy.id, version.id);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['policies'] });
+      queryClient.invalidateQueries({ queryKey: ['policy'] });
+      setEditingPolicy(null);
+    },
+    onError: (error: any) => {
+      console.error('Failed to update policy:', error);
+      alert(`Failed to update policy: ${formatErrorMessage(error)}`);
+    },
+  });
+
+  // Map a saved policy version's rules into the editor's input shape.
+  const rulesToInput = (detail: any): RuleInput[] => {
+    const rules = detail?.current_version?.rules ?? [];
+    return rules.map((rule: any) => {
+      let conditions: Array<{ field: string; operator: string; value: any }> = [];
+      try {
+        const parsed =
+          typeof rule.conditions === 'string' ? JSON.parse(rule.conditions) : rule.conditions;
+        if (Array.isArray(parsed)) {
+          conditions = parsed.map((c: any) => ({
+            field: c.field,
+            operator: c.operator,
+            value: c.value,
+          }));
+        }
+      } catch {
+        conditions = [];
+      }
+      return {
+        name: rule.name ?? '',
+        description: rule.description ?? '',
+        rule_type: rule.rule_type ?? 'routing',
+        priority: rule.priority ?? 1,
+        is_enabled: rule.is_enabled ?? true,
+        conditions,
+      };
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -1086,13 +1311,21 @@ function PoliciesAdmin() {
         />
       )}
 
-      {/* Edit Policy Modal */}
-      {editingPolicy && (
-        <PolicyEditModal
-          policy={editingPolicy}
+      {/* Edit Policy Modal — full editor (name, description and rules). Wait for
+          the policy detail to load so the rule list is prefilled. */}
+      {editingPolicy && editingDetail && (
+        <PolicyFormModal
+          key={editingPolicy.id}
+          title={`Edit Policy — ${editingPolicy.name}`}
+          submitLabel="Save Changes"
+          initialData={{
+            name: editingPolicy.name,
+            description: editingPolicy.description,
+            rules: rulesToInput(editingDetail),
+          }}
           onClose={() => setEditingPolicy(null)}
-          onSubmit={(data) => updatePolicyMutation.mutate({ policyId: editingPolicy.id, data })}
-          isLoading={updatePolicyMutation.isPending}
+          onSubmit={(data) => editPolicyMutation.mutate({ policy: editingPolicy, data })}
+          isLoading={editPolicyMutation.isPending}
         />
       )}
 
@@ -1214,120 +1447,33 @@ function getFieldDef(fieldName: string) {
   return POLICY_FIELDS.find(f => f.field === fieldName);
 }
 
-// Edit Policy Modal - simpler version for updating policy metadata
-function PolicyEditModal({
-  policy,
-  onClose,
-  onSubmit,
-  isLoading,
-}: {
-  policy: { id: string; name: string; description?: string; status: string };
-  onClose: () => void;
-  onSubmit: (data: { name?: string; description?: string; status?: string }) => void;
-  isLoading: boolean;
-}) {
-  const [formData, setFormData] = useState({
-    name: policy.name,
-    description: policy.description || '',
-    status: policy.status,
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit({
-      name: formData.name !== policy.name ? formData.name : undefined,
-      description: formData.description !== (policy.description || '') ? formData.description : undefined,
-      status: formData.status !== policy.status ? formData.status : undefined,
-    });
-  };
-
-  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Edit policy"
-    >
-      <div ref={trapRef} className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
-        <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Edit Policy</h3>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Policy Name</label>
-            <input
-              type="text"
-              required
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="draft">Draft</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="archived">Archived</option>
-            </select>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading || !formData.name}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-            >
-              {isLoading ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
+interface RuleInput {
+  name: string;
+  description: string;
+  rule_type: string;
+  priority: number;
+  is_enabled: boolean;
+  conditions: Array<{ field: string; operator: string; value: any }>;
 }
 
 function PolicyFormModal({
   onClose,
   onSubmit,
   isLoading,
+  initialData,
+  title = 'Create Policy',
+  submitLabel,
 }: {
   onClose: () => void;
   onSubmit: (data: any) => void;
   isLoading: boolean;
+  initialData?: { name: string; description?: string; rules?: RuleInput[] };
+  title?: string;
+  submitLabel?: string;
 }) {
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
+    name: initialData?.name || '',
+    description: initialData?.description || '',
     applies_to_account_types: [] as string[],
     applies_to_branches: [] as string[],
   });
@@ -1345,7 +1491,7 @@ function PolicyFormModal({
     priority: number;
     is_enabled: boolean;
     conditions: RuleCondition[];
-  }>>([]);
+  }>>(initialData?.rules ?? []);
 
   const [showAddRule, setShowAddRule] = useState(false);
   const [newRule, setNewRule] = useState({
@@ -1412,7 +1558,7 @@ function PolicyFormModal({
     if (rules.length > 0) {
       policyData.initial_version = {
         effective_date: new Date().toISOString(),
-        change_notes: 'Initial version',
+        change_notes: initialData ? 'Edited rules' : 'Initial version',
         rules: rules.map((rule) => ({
           name: rule.name,
           description: rule.description,
@@ -1453,7 +1599,12 @@ function PolicyFormModal({
         className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
       >
         <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Create Policy</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+          {initialData && (
+            <p className="mt-1 text-sm text-gray-500">
+              Saving publishes a new active version of this policy.
+            </p>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -1722,7 +1873,7 @@ function PolicyFormModal({
               disabled={isLoading || !formData.name}
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
             >
-              {isLoading ? 'Creating...' : 'Create Policy'}
+              {isLoading ? 'Saving...' : submitLabel ?? 'Create Policy'}
             </button>
           </div>
         </form>
@@ -2814,11 +2965,18 @@ function SystemMetricsAdmin() {
   const reseedQueryClient = useQueryClient();
   const [reseedResult, setReseedResult] = useState<string | null>(null);
   const [reseedBusy, setReseedBusy] = useState(false);
+  const [reseedCount, setReseedCount] = useState<number>(250);
+
+  // Default the count input to the configured target once it loads.
+  useEffect(() => {
+    if (demoMode?.demo_data_count) setReseedCount(demoMode.demo_data_count);
+  }, [demoMode?.demo_data_count]);
 
   const handleReseed = async () => {
+    const count = Math.max(1, Math.min(2000, Math.round(reseedCount) || 250));
     if (
       !window.confirm(
-        'Reseed demo data?\n\nThis recreates the database schema and regenerates a fresh demo dataset. All current demo items, decisions and activity will be replaced. This cannot be undone.'
+        `Reseed demo data with ${count} items?\n\nThis recreates the database schema and regenerates a fresh demo dataset. All current demo items, decisions and activity will be replaced. This cannot be undone.`
       )
     ) {
       return;
@@ -2829,8 +2987,8 @@ function SystemMetricsAdmin() {
       // The backend recreates the schema in the background (it must run after
       // this request releases its DB locks), so wait for it to finish before
       // refreshing cached data.
-      await systemApi.seedDemoData(demoMode?.demo_data_count ?? 200, true);
-      setReseedResult('Reseeding… recreating schema and regenerating demo data (~20s).');
+      await systemApi.seedDemoData(count, true);
+      setReseedResult(`Reseeding ${count} items… recreating schema and regenerating demo data (~20s).`);
       await new Promise((resolve) => setTimeout(resolve, 22000));
       await reseedQueryClient.invalidateQueries();
       setReseedResult('Demo data reseeded. The dashboard and queues now reflect the fresh dataset.');
@@ -3126,11 +3284,32 @@ function SystemMetricsAdmin() {
           </ul>
           <div className="mt-4 pt-4 border-t border-amber-200">
             <p className="text-sm text-amber-700">
-              Demo Data Count: <span className="font-semibold">{demoMode.demo_data_count}</span> items
+              Items currently in the database:{' '}
+              <span className="font-semibold">
+                {demoMode.live_item_count ?? demoMode.demo_data_count}
+              </span>{' '}
+              items
+              {demoMode.live_item_count != null &&
+                demoMode.live_item_count !== demoMode.demo_data_count && (
+                  <span className="text-amber-600"> (configured target: {demoMode.demo_data_count})</span>
+                )}
             </p>
           </div>
           <div className="mt-4 pt-4 border-t border-amber-200">
             <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-amber-800">
+                Items to generate
+                <input
+                  type="number"
+                  min={1}
+                  max={2000}
+                  step={50}
+                  value={reseedCount}
+                  disabled={reseedBusy}
+                  onChange={(e) => setReseedCount(Number(e.target.value))}
+                  className="w-24 rounded-lg border border-amber-300 bg-white px-2 py-1.5 text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 disabled:opacity-50"
+                />
+              </label>
               <button
                 onClick={handleReseed}
                 disabled={reseedBusy}
@@ -3139,7 +3318,7 @@ function SystemMetricsAdmin() {
                 {reseedBusy ? 'Reseeding…' : 'Reseed demo data'}
               </button>
               <span className="text-xs text-amber-700">
-                Recreates the schema and regenerates a fresh demo dataset.
+                Recreates the schema and regenerates a fresh demo dataset. Larger counts take longer.
               </span>
             </div>
             {reseedResult && (

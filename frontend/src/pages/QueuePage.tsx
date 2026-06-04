@@ -315,7 +315,16 @@ export default function QueuePage() {
                 const lock = lockByItem.get(item.id);
                 const lockedByOther = lock && lock.user_id !== currentUser?.id;
                 return (
-                <tr key={item.id} className={clsx('hover:bg-gray-50', lockedByOther && 'opacity-70')}>
+                <tr
+                  key={item.id}
+                  onClick={() => {
+                    if (!lockedByOther) navigate(`/review/${item.id}`);
+                  }}
+                  className={clsx(
+                    'hover:bg-gray-50',
+                    lockedByOther ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'
+                  )}
+                >
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{item.account_number_masked}</div>
                     <div className="text-sm text-gray-500">Check #{item.check_number || '-'}</div>

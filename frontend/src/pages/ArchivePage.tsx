@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { archiveApi } from '../services/api';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import {
   ArchiveBoxIcon,
   MagnifyingGlassIcon,
@@ -99,6 +100,9 @@ export default function ArchivePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
+  const detailTrapRef = useFocusTrap<HTMLDivElement>(!!selectedItem, () =>
+    setSelectedItem(null)
+  );
   const [exporting, setExporting] = useState(false);
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
 
@@ -658,8 +662,19 @@ export default function ArchivePage() {
 
       {/* Item Detail Modal */}
       {selectedItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedItem(null);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Archived item details"
+        >
+          <div
+            ref={detailTrapRef}
+            className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
+          >
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <h2 className="text-lg font-semibold text-gray-900">
                 Archived Item Details

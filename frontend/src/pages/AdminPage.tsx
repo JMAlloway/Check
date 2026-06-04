@@ -25,6 +25,7 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { userApi, queueAdminApi, queueApi, policyApi, auditLogApi, imageConnectorApi, systemApi, reportsApi, operationsApi } from '../services/api';
 import { format } from 'date-fns';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 const adminNav = [
   { name: 'System Metrics', href: '/admin/metrics', icon: ChartBarSquareIcon },
@@ -322,9 +323,22 @@ function UserFormModal({
     onSubmit(submitData);
   };
 
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={user ? 'Edit user' : 'Create user'}
+    >
+      <div
+        ref={trapRef}
+        className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
+      >
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">
             {user ? 'Edit User' : 'Create User'}
@@ -735,9 +749,19 @@ function QueueFormModal({
     onSubmit(formData);
   };
 
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={queue ? 'Edit queue' : 'Create queue'}
+    >
+      <div ref={trapRef} className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">
             {queue ? 'Edit Queue' : 'Create Queue'}
@@ -845,6 +869,9 @@ function PoliciesAdmin() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState<Policy | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Policy | null>(null);
+  const deleteTrapRef = useFocusTrap<HTMLDivElement>(!!deleteConfirm, () =>
+    setDeleteConfirm(null)
+  );
 
   const { data: policies, isLoading } = useQuery({
     queryKey: ['policies'],
@@ -1054,8 +1081,16 @@ function PoliciesAdmin() {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDeleteConfirm(null);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Delete policy"
+        >
+          <div ref={deleteTrapRef} className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
             <div className="flex items-center gap-3 text-red-600 mb-4">
               <ExclamationTriangleIcon className="h-6 w-6" />
               <h3 className="text-lg font-semibold">Delete Policy</h3>
@@ -1189,9 +1224,19 @@ function PolicyEditModal({
     });
   };
 
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Edit policy"
+    >
+      <div ref={trapRef} className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">Edit Policy</h3>
         </div>
@@ -1374,9 +1419,22 @@ function PolicyFormModal({
     onSubmit(policyData);
   };
 
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Create policy"
+    >
+      <div
+        ref={trapRef}
+        className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+      >
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">Create Policy</h3>
         </div>
@@ -2331,9 +2389,22 @@ function ConnectorFormModal({
     }
   };
 
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={connector ? 'Edit connector' : 'Add connector'}
+    >
+      <div
+        ref={trapRef}
+        className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+      >
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">
             {connector ? 'Edit Connector' : 'Add Image Connector'}
@@ -2527,9 +2598,22 @@ function KeyManagementModal({
     rotateMutation.mutate({ new_public_key_pem: newPublicKey, overlap_hours: overlapHours });
   };
 
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Key management"
+    >
+      <div
+        ref={trapRef}
+        className="bg-white rounded-lg shadow-xl max-w-xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+      >
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">Key Management</h3>
           <p className="text-sm text-gray-500">{connector.name}</p>

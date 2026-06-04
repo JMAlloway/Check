@@ -169,7 +169,7 @@ export default function CheckReviewPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center space-x-4">
           <Link
             to="/queue"
@@ -210,7 +210,7 @@ export default function CheckReviewPage() {
             <h1 className="text-xl font-bold text-gray-900">
               Check Review: {item.account_number_masked}
             </h1>
-            <div className="flex items-center space-x-2 mt-1">
+            <div className="flex flex-wrap items-center gap-2 mt-1">
               <ItemTypeBadge itemType={item.item_type} />
               <StatusBadge status={item.status} />
               <RiskBadge level={item.risk_level} />
@@ -222,7 +222,7 @@ export default function CheckReviewPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Auto-Advance Toggle */}
           <button
             onClick={() => setAutoAdvance(!autoAdvance)}
@@ -295,11 +295,15 @@ export default function CheckReviewPage() {
         </div>
       </div>
 
-      {/* Main Content - Horizontal Layout */}
-      <div className="flex flex-col gap-4" style={{ height: 'calc(100vh - 200px)' }}>
+      {/* Main Content - Horizontal Layout.
+          On wide desktops (xl+) this is a fixed-height two-pane console: image on
+          top, panels below, each panel scrolling independently. On smaller or
+          shorter windows the height constraint is dropped so the whole page
+          scrolls naturally and every control (including Submit) stays reachable. */}
+      <div className="flex flex-col gap-4 xl:h-[calc(100vh-200px)]">
         {/* Top Row: Check Image Viewer (full width, optimized for horizontal checks) */}
-        <div className="flex-shrink-0" style={{ height: showComparison ? '45%' : '50%' }}>
-          <div className={`grid gap-4 h-full ${showComparison ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        <div className="shrink-0 h-[45vh] min-h-[300px] xl:h-1/2">
+          <div className={`grid gap-4 h-full ${showComparison ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
             <CheckImageViewer
               images={item.images}
               roiRegions={defaultROIRegions}
@@ -336,16 +340,17 @@ export default function CheckReviewPage() {
           </div>
         </div>
 
-        {/* Bottom Row: Context Panels (horizontal layout) */}
-        <div className="flex-1 min-h-0">
-          <div className="grid grid-cols-4 gap-4 h-full">
+        {/* Bottom Row: Context Panels. Collapse from 4 columns to 2 then 1 as the
+            window narrows so panels never squish below a usable width. */}
+        <div className="xl:flex-1 xl:min-h-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 xl:h-full">
             {/* Context Panel */}
-            <div className="overflow-hidden">
+            <div className="min-h-0 xl:overflow-y-auto">
               <CheckContextPanel item={item} />
             </div>
 
             {/* History Panel */}
-            <div className="overflow-hidden">
+            <div className="min-h-0 xl:overflow-y-auto">
               <CheckHistoryPanel
                 itemId={item.id}
                 currentAmount={item.amount}
@@ -357,12 +362,12 @@ export default function CheckReviewPage() {
             </div>
 
             {/* Network Intelligence Panel */}
-            <div className="overflow-hidden">
+            <div className="min-h-0 xl:overflow-y-auto">
               <NetworkIntelligencePanel checkItemId={item.id} />
             </div>
 
             {/* Decision Panel */}
-            <div className="overflow-hidden">
+            <div className="min-h-0 xl:overflow-y-auto">
               <DecisionPanel item={item} onDecisionMade={handleDecisionMade} />
             </div>
           </div>

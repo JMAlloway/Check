@@ -19,7 +19,7 @@ const STEPS: DriveStep[] = [
     popover: {
       title: 'The review queue',
       description:
-        'Your work list. Triage by Pending, SLA-breached, Dual-control or Processed, sort by risk/amount/SLA, and page through it at volume.',
+        'Your work list. Triage by Pending, SLA-breached, Dual-control or Processed, sort by risk/amount/SLA, and page through it at volume. Reviewers can also "Pull next item" to claim the top item — soft locks stop two people working the same check.',
       side: 'right',
     },
   },
@@ -30,6 +30,15 @@ const STEPS: DriveStep[] = [
       description:
         'High-value items require a second approver here — a reviewer cannot approve their own recommendation.',
       side: 'right',
+    },
+  },
+  {
+    element: '[data-tour="bank-volume"]',
+    popover: {
+      title: 'Bank-scale context',
+      description:
+        'Thousands of items are presented each day; the overwhelming majority clear straight through. The review queue you work is the small exception slice — that gap is the automation opportunity.',
+      side: 'bottom',
     },
   },
   {
@@ -46,6 +55,15 @@ const STEPS: DriveStep[] = [
     popover: {
       title: 'Portfolio risk mix',
       description: 'See the risk breakdown of the queue — click any segment to filter straight to those items.',
+      side: 'right',
+    },
+  },
+  {
+    element: '[data-tour="nav-Automation"]',
+    popover: {
+      title: 'Decision automation (STP)',
+      description:
+        'Auto-clear low-risk items straight through and route only the exceptions to people. Tune the policy, validate it in shadow mode against real reviewer decisions, spot-check it with built-in QA, and see the projected annual value (labor + FTEs freed).',
       side: 'right',
     },
   },

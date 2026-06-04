@@ -236,7 +236,10 @@ export default function DashboardPage() {
       {/* Whole-bank daily volume context (demo): frames the review queue as the
           small exception slice of a much larger straight-through-cleared volume. */}
       {stats?.daily_volume && (
-        <div className="rounded-lg border border-gray-200 bg-gradient-to-r from-primary-50 to-white p-5">
+        <div
+          data-tour="bank-volume"
+          className="rounded-lg border border-gray-200 bg-gradient-to-r from-primary-50 to-white p-5"
+        >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
               <BuildingLibraryIcon className="h-5 w-5 text-primary-600" />

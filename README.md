@@ -19,9 +19,9 @@ A bank-grade web application for community bank operations teams to review prese
 - **Full Audit Trail**: Every action logged with immutable chain integrity
 
 ### Connectors
-- **Connector A (Image)**: Real-time check image retrieval via secure signed URLs
-- **Connector B (Real-Time)**: Account context and history from core banking (planned)
-- **Connector C (Item Context)**: Daily flat file imports via SFTP for batch data
+- **Image Intake Connector** (Connector A, Bank → SaaS): Real-time check image retrieval via secure signed URLs
+- **Decision Commit Service** (Connector B, SaaS → Bank): Batch return/commit of approved review decisions to core systems — batch creation, dual-control, transmission, acknowledgement and reconciliation
+- **Account Context Feed** (Connector C, Bank → SaaS): Inbound SFTP imports that enrich items with account tenure, balances and behavior
 
 ### Security
 - **6-Role RBAC System**: Granular permissions per Technical Guide Section 2.2
@@ -293,7 +293,7 @@ Comprehensive documentation is available in the `docs/` directory:
 |----------|-------------|
 | `CHECK_REVIEW_CONSOLE_TECHNICAL_GUIDE.md` | Complete technical specification |
 | `BANK_ONBOARDING_GUIDE.md` | Step-by-step bank integration guide |
-| `CONNECTOR_SETUP.md` | Connector A, B, C configuration |
+| `CONNECTOR_SETUP.md` | Image Intake / Decision Commit / Account Context connector configuration (Connectors A–C) |
 | `SECURITY_ARCHITECTURE.md` | Security design and controls |
 | `RBAC.md` | Role-based access control details |
 | `AUDIT_EVIDENCE_MODEL.md` | Audit trail and evidence sealing |

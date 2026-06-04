@@ -564,7 +564,7 @@ export default function ArchivePage() {
                       {Object.entries(statusCounts).map(([status, count]) => (
                         <span
                           key={status}
-                          className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${
+                          className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full capitalize ${
                             statusColors[status] || 'bg-gray-100 text-gray-800'
                           }`}
                         >
@@ -600,14 +600,14 @@ export default function ArchivePage() {
                               {formatCurrency(item.amount || 0)}
                             </span>
                             <span
-                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full w-20 justify-center ${
+                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full w-20 justify-center capitalize ${
                                 statusColors[item.status] || 'bg-gray-100 text-gray-800'
                               }`}
                             >
                               {item.status}
                             </span>
                             <span
-                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full w-16 justify-center ${
+                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full w-16 justify-center capitalize ${
                                 riskColors[item.risk_level] || 'bg-gray-100 text-gray-800'
                               }`}
                             >
@@ -715,7 +715,7 @@ export default function ArchivePage() {
                     <div>
                       <p className="text-xs text-gray-500 uppercase">Status</p>
                       <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full capitalize ${
                           statusColors[itemDetail.item.status] || 'bg-gray-100'
                         }`}
                       >
@@ -725,7 +725,7 @@ export default function ArchivePage() {
                     <div>
                       <p className="text-xs text-gray-500 uppercase">Risk Level</p>
                       <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full capitalize ${
                           riskColors[itemDetail.item.risk_level] || 'bg-gray-100'
                         }`}
                       >

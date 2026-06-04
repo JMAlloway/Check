@@ -10,6 +10,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -17,6 +18,7 @@ import {
   LineChart,
   Line,
 } from 'recharts';
+import { humanizeLabel } from '../utils/labels';
 import {
   DocumentArrowDownIcon,
   DocumentTextIcon,
@@ -246,6 +248,7 @@ export default function ReportsPage() {
                   />
                   <YAxis />
                   <Tooltip />
+                  <Legend />
                   <Line type="monotone" dataKey="received" stroke="#3b82f6" name="Received" />
                   <Line type="monotone" dataKey="processed" stroke="#22c55e" name="Processed" />
                 </LineChart>
@@ -302,7 +305,7 @@ export default function ReportsPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={performance.reviewers.slice(0, 10)}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="username" />
+                  <XAxis dataKey="username" tickFormatter={(v) => humanizeLabel(v)} />
                   <YAxis />
                   <Tooltip />
                   <Bar dataKey="total_decisions" fill="#3b82f6" name="Total Decisions" />

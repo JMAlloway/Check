@@ -26,6 +26,7 @@ import toast from 'react-hot-toast';
 import { userApi, queueAdminApi, queueApi, policyApi, auditLogApi, imageConnectorApi, systemApi, reportsApi, operationsApi } from '../services/api';
 import { format } from 'date-fns';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { humanizeLabel } from '../utils/labels';
 
 const adminNav = [
   { name: 'System Metrics', href: '/admin/metrics', icon: ChartBarSquareIcon },
@@ -188,7 +189,7 @@ function UsersAdmin() {
                             key={role}
                             className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
                           >
-                            {role}
+                            {humanizeLabel(role)}
                           </span>
                         ))}
                       </div>
@@ -348,30 +349,38 @@ function UserFormModal({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {!user && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Username <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 required
                 value={formData.username}
                 onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                placeholder="e.g., jsmith"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               />
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email <span className="text-red-500">*</span>
+            </label>
             <input
               type="email"
               required
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              placeholder="name@example.com"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Full Name <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               required
@@ -383,7 +392,9 @@ function UserFormModal({
 
           {!user && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Password <span className="text-red-500">*</span>
+              </label>
               <input
                 type="password"
                 required
@@ -391,6 +402,9 @@ function UserFormModal({
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               />
+              <p className="mt-1 text-xs text-gray-500">
+                Min 12 characters, with upper &amp; lower case, a number and a symbol.
+              </p>
             </div>
           )}
 
@@ -421,7 +435,7 @@ function UserFormModal({
                     }}
                     className="rounded border-gray-300 text-primary-600"
                   />
-                  <span className="text-sm text-gray-700">{role.name}</span>
+                  <span className="text-sm text-gray-700">{humanizeLabel(role.name)}</span>
                   {role.is_system && (
                     <span className="text-xs text-gray-500">(system)</span>
                   )}
@@ -546,7 +560,7 @@ function QueuesAdmin() {
                         {queue.is_active ? 'Active' : 'Inactive'}
                       </span>
                       <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-xs">
-                        {queue.queue_type}
+                        {humanizeLabel(queue.queue_type)}
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-gray-500">{queue.description || 'No description'}</p>
@@ -770,12 +784,15 @@ function QueueFormModal({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Name <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="e.g., High Value Review"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
             />
           </div>

@@ -84,42 +84,123 @@ class DemoCheckScenario:
 import random as _random
 
 _FIRST_NAMES = [
-    "James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael",
-    "Linda", "David", "Elizabeth", "William", "Barbara", "Richard", "Susan",
-    "Joseph", "Jessica", "Thomas", "Karen", "Christopher", "Sarah", "Daniel",
-    "Nancy", "Matthew", "Lisa", "Anthony", "Margaret", "Mark", "Sandra",
-    "Carlos", "Maria", "Luis", "Elena", "Wei", "Mei", "Aisha", "Omar",
-    "Priya", "Raj", "Sofia", "Diego",
+    "James",
+    "Mary",
+    "Robert",
+    "Patricia",
+    "John",
+    "Jennifer",
+    "Michael",
+    "Linda",
+    "David",
+    "Elizabeth",
+    "William",
+    "Barbara",
+    "Richard",
+    "Susan",
+    "Joseph",
+    "Jessica",
+    "Thomas",
+    "Karen",
+    "Christopher",
+    "Sarah",
+    "Daniel",
+    "Nancy",
+    "Matthew",
+    "Lisa",
+    "Anthony",
+    "Margaret",
+    "Mark",
+    "Sandra",
+    "Carlos",
+    "Maria",
+    "Luis",
+    "Elena",
+    "Wei",
+    "Mei",
+    "Aisha",
+    "Omar",
+    "Priya",
+    "Raj",
+    "Sofia",
+    "Diego",
 ]
 _LAST_NAMES = [
-    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller",
-    "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez",
-    "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin",
-    "Lee", "Perez", "Thompson", "White", "Harris", "Clark", "Nguyen",
-    "Patel", "Kim", "Cohen", "Murphy", "Reed", "Bailey", "Foster", "Hughes",
+    "Smith",
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Jones",
+    "Garcia",
+    "Miller",
+    "Davis",
+    "Rodriguez",
+    "Martinez",
+    "Hernandez",
+    "Lopez",
+    "Gonzalez",
+    "Wilson",
+    "Anderson",
+    "Thomas",
+    "Taylor",
+    "Moore",
+    "Jackson",
+    "Martin",
+    "Lee",
+    "Perez",
+    "Thompson",
+    "White",
+    "Harris",
+    "Clark",
+    "Nguyen",
+    "Patel",
+    "Kim",
+    "Cohen",
+    "Murphy",
+    "Reed",
+    "Bailey",
+    "Foster",
+    "Hughes",
 ]
 _BUSINESS_NAMES = [
-    "Acme Industrial Corp", "Williams Property Management LLC",
-    "Garcia Landscaping Services", "Summit Office Supplies Inc",
-    "BrightWell Cleaning Services", "Apex Contracting LLC",
-    "Northstar Marketing Agency", "Brightline IT Solutions",
-    "Cardinal Shipping & Logistics", "Henderson Legal Group",
-    "Whitaker & Associates CPAs", "Precision Maintenance Co",
-    "Beacon Consulting Group", "Sentry Security Services",
-    "Garden State Catering", "Pinnacle Training Institute",
-    "Lakeside Auto Repair", "Maplewood Family Dental",
-    "Riverbend Hardware Supply", "Copperline Electric Co",
-    "Fairfax Medical Associates", "Oakhurst Veterinary Clinic",
-    "Harbor Point Restaurant Group", "Stonebridge Construction LLC",
+    "Acme Industrial Corp",
+    "Williams Property Management LLC",
+    "Garcia Landscaping Services",
+    "Summit Office Supplies Inc",
+    "BrightWell Cleaning Services",
+    "Apex Contracting LLC",
+    "Northstar Marketing Agency",
+    "Brightline IT Solutions",
+    "Cardinal Shipping & Logistics",
+    "Henderson Legal Group",
+    "Whitaker & Associates CPAs",
+    "Precision Maintenance Co",
+    "Beacon Consulting Group",
+    "Sentry Security Services",
+    "Garden State Catering",
+    "Pinnacle Training Institute",
+    "Lakeside Auto Repair",
+    "Maplewood Family Dental",
+    "Riverbend Hardware Supply",
+    "Copperline Electric Co",
+    "Fairfax Medical Associates",
+    "Oakhurst Veterinary Clinic",
+    "Harbor Point Restaurant Group",
+    "Stonebridge Construction LLC",
 ]
 _COMMERCIAL_NAMES = [
-    "Davis Industries Inc", "Meridian Manufacturing Co",
-    "Continental Freight Systems", "Vanguard Distribution LLC",
-    "Ironwood Building Products", "Atlas Food Wholesale Inc",
+    "Davis Industries Inc",
+    "Meridian Manufacturing Co",
+    "Continental Freight Systems",
+    "Vanguard Distribution LLC",
+    "Ironwood Building Products",
+    "Atlas Food Wholesale Inc",
 ]
 _NONPROFIT_NAMES = [
-    "Riverside Community Foundation", "Hope Valley Food Bank",
-    "Lincoln County Youth Center", "St. Augustine Parish",
+    "Riverside Community Foundation",
+    "Hope Valley Food Bank",
+    "Lincoln County Youth Center",
+    "St. Augustine Parish",
 ]
 
 
@@ -131,12 +212,7 @@ def _build_demo_accounts():
     rng = _random.Random(20240601)
     accounts = []
     # Community/retail deposit mix: consumer-heavy with a small-business core.
-    mix = (
-        ["consumer"] * 24
-        + ["business"] * 10
-        + ["commercial"] * 4
-        + ["non_profit"] * 2
-    )
+    mix = ["consumer"] * 24 + ["business"] * 10 + ["commercial"] * 4 + ["non_profit"] * 2
     biz_names = _BUSINESS_NAMES.copy()
     comm_names = _COMMERCIAL_NAMES.copy()
     np_names = _NONPROFIT_NAMES.copy()
@@ -162,19 +238,22 @@ def _build_demo_accounts():
             avg_balance = Decimal(str(round(rng.uniform(8000, 160000), 2)))
             avg_check = Decimal(str(round(rng.uniform(900, 15000), 2)))
             freq = rng.randint(8, 40)
-            business = biz_names[bi % len(biz_names)]; bi += 1
+            business = biz_names[bi % len(biz_names)]
+            bi += 1
             holder = _person_name(rng)
         elif acct_type == "commercial":
             avg_balance = Decimal(str(round(rng.uniform(120000, 1100000), 2)))
             avg_check = Decimal(str(round(rng.uniform(10000, 60000), 2)))
             freq = rng.randint(20, 80)
-            business = comm_names[ci % len(comm_names)]; ci += 1
+            business = comm_names[ci % len(comm_names)]
+            ci += 1
             holder = _person_name(rng)
         else:  # non_profit
             avg_balance = Decimal(str(round(rng.uniform(20000, 220000), 2)))
             avg_check = Decimal(str(round(rng.uniform(1500, 12000), 2)))
             freq = rng.randint(4, 25)
-            business = np_names[ni % len(np_names)]; ni += 1
+            business = np_names[ni % len(np_names)]
+            ni += 1
             holder = business
 
         # A minority of accounts have prior returned items (drives risk history).

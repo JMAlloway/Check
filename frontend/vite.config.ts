@@ -20,6 +20,7 @@ export default defineConfig({
     allowedHosts: [
       'localhost',
       '.trycloudflare.com', // Allow Cloudflare quick tunnels
+      '.app.github.dev', // Allow GitHub Codespaces forwarded ports
     ],
     proxy: {
       '/api': {

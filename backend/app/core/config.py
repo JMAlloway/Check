@@ -282,9 +282,15 @@ def _validate_production_secrets(s: Settings) -> None:
     - No known default values
     - No common placeholder patterns
     """
-    # Environments that require secure secrets (any non-development environment)
-    secure_environments = {"production", "pilot", "staging", "uat"}
-    if s.ENVIRONMENT.lower() not in secure_environments:
+    # Fail closed: enforce strong secrets in EVERY environment except the
+    # explicitly-recognized local/dev/test ones. Previously this was an
+    # allow-list of {production, pilot, staging, uat}, which meant an
+    # unrecognized or unset ENVIRONMENT (e.g. a "prod" typo, or forgetting to
+    # set it at all) would silently boot with the hardcoded default signing
+    # keys, letting anyone forge an admin token. Inverting the check removes
+    # that footgun.
+    dev_environments = {"development", "local", "dev", "test"}
+    if s.ENVIRONMENT.lower() in dev_environments:
         return
 
     # Secrets to validate with their minimum required length

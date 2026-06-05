@@ -4,6 +4,7 @@ import { XMarkIcon, ExclamationTriangleIcon, ShieldCheckIcon } from '@heroicons/
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { fraudApi } from '../../services/api';
+import { formatCurrency } from '../../utils/currency';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import {
   CheckItem,
@@ -189,7 +190,7 @@ export default function FraudReportModal({ isOpen, onClose, item }: FraudReportM
             </div>
             <div>
               <span className="text-gray-500">Amount:</span>{' '}
-              <span className="font-medium">${item.amount.toLocaleString()}</span>
+              <span className="font-medium">{formatCurrency(item.amount)}</span>
             </div>
             {item.check_number && (
               <div>

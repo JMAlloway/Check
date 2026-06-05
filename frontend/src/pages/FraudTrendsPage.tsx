@@ -105,6 +105,9 @@ function SimpleBarChart({ data, label }: { data: Array<{ name: string; value: nu
   return (
     <div className="space-y-2">
       <h4 className="text-sm font-medium text-gray-700">{label}</h4>
+      {data.length === 0 ? (
+        <p className="text-xs text-gray-400 py-2">No data for this period.</p>
+      ) : (
       <div className="space-y-2">
         {data.slice(0, 6).map((item) => (
           <div key={item.name} className="flex items-center space-x-2">
@@ -121,6 +124,7 @@ function SimpleBarChart({ data, label }: { data: Array<{ name: string; value: nu
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }
@@ -317,7 +321,7 @@ export default function FraudTrendsPage() {
             <h4 className="text-sm font-medium text-blue-900">Privacy-Preserving Analytics</h4>
             <p className="text-sm text-blue-700 mt-1">
               All data shown is aggregated from multiple institutions. Individual transaction details
-              and institution identities are never shared. Counts below {3} are suppressed for privacy.
+              and institution identities are never shared. Counts below 3 are suppressed for privacy.
             </p>
           </div>
         </div>

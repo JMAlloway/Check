@@ -1764,7 +1764,23 @@ mwIDAQAB
         count = 0
         terminal_statuses = [CheckStatus.APPROVED, CheckStatus.REJECTED, CheckStatus.RETURNED]
 
-        for check in self.demo_checks:
+        # Spread terminal decisions across multiple reviewers/approvers so the
+        # reviewer-performance report shows a realistic distribution rather than
+        # a single bar. Rotation is by item index, so it stays deterministic
+        # across reseeds.
+        fallback = self.demo_users.get("system_admin")
+        reviewer_pool = [
+            self.demo_users[r]
+            for r in ("reviewer", "senior_reviewer", "supervisor", "administrator")
+            if self.demo_users.get(r) is not None
+        ] or [fallback]
+        approver_pool = [
+            self.demo_users[r]
+            for r in ("senior_reviewer", "supervisor", "administrator")
+            if self.demo_users.get(r) is not None
+        ] or [fallback]
+
+        for idx, check in enumerate(self.demo_checks):
             if check.status in terminal_statuses:
                 # Map check status to decision action
                 action_map = {
@@ -1773,7 +1789,7 @@ mwIDAQAB
                     CheckStatus.RETURNED: DecisionAction.RETURN,
                 }
 
-                reviewer = self.demo_users.get("reviewer", self.demo_users.get("system_admin"))
+                reviewer = reviewer_pool[idx % len(reviewer_pool)]
                 decision = Decision(
                     id=str(uuid.uuid4()),
                     tenant_id="DEMO-TENANT-000000000000000000000000",
@@ -1795,11 +1811,13 @@ mwIDAQAB
                 self.db.add(decision)
                 count += 1
 
-                # Add approver decision for dual control items
+                # Add approver decision for dual control items. Pick an approver
+                # different from the recommending reviewer (dual control requires
+                # two distinct people).
                 if check.requires_dual_control:
-                    approver = self.demo_users.get(
-                        "senior_reviewer", self.demo_users.get("system_admin")
-                    )
+                    approver = approver_pool[idx % len(approver_pool)]
+                    if approver.id == reviewer.id and len(approver_pool) > 1:
+                        approver = approver_pool[(idx + 1) % len(approver_pool)]
                     approval_decision = Decision(
                         id=str(uuid.uuid4()),
                         tenant_id="DEMO-TENANT-000000000000000000000000",

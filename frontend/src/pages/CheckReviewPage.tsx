@@ -18,6 +18,7 @@ import { CheckItem, CheckHistory, ROIRegion } from '../types';
 import { useReviewSettings } from '../stores/reviewSettingsStore';
 import { useAuthStore } from '../stores/authStore';
 import { useResizableWidth } from '../hooks/useResizableWidth';
+import { formatDate } from '../utils/date';
 
 // Image URL refresh interval (60 seconds - before 90s TTL expires)
 const IMAGE_URL_REFRESH_INTERVAL = 60 * 1000;
@@ -61,6 +62,7 @@ export default function CheckReviewPage() {
   } = useResizableWidth({ storageKey: 'cr_item_context_width', defaultWidth: 340, min: 280, max: 640 });
   const canViewAudit = useAuthStore((s) => s.hasPermission('audit', 'view'));
   const canAssign = useAuthStore((s) => s.hasPermission('check_item', 'assign'));
+  const canReportFraud = useAuthStore((s) => s.hasPermission('fraud', 'create'));
 
   const { data: item, isLoading, error } = useQuery<CheckItem>({
     queryKey: ['checkItem', itemId],
@@ -249,13 +251,15 @@ export default function CheckReviewPage() {
             <span className="text-sm font-medium">Auto-Advance</span>
           </button>
 
-          <button
-            onClick={() => setShowFraudModal(true)}
-            className="flex items-center px-3 py-2 text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
-          >
-            <ShieldExclamationIcon className="h-5 w-5 mr-1" />
-            Report Fraud
-          </button>
+          {canReportFraud && (
+            <button
+              onClick={() => setShowFraudModal(true)}
+              className="flex items-center px-3 py-2 text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
+            >
+              <ShieldExclamationIcon className="h-5 w-5 mr-1" />
+              Report Fraud
+            </button>
+          )}
           {canAssign && (
             <button
               onClick={() => setShowAssignModal(true)}
@@ -348,7 +352,7 @@ export default function CheckReviewPage() {
                 <div className="bg-gray-900 rounded-lg h-full flex flex-col">
                   <div className="px-4 py-2 bg-gray-800 border-b border-gray-700 flex justify-between items-center">
                     <span className="text-white text-sm font-medium">
-                      Historical Check - {new Date(comparisonItem.check_date).toLocaleDateString()}
+                      Historical Check - {formatDate(comparisonItem.check_date)}
                     </span>
                     <button
                       onClick={() => setShowComparison(false)}

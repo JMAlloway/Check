@@ -263,7 +263,12 @@ async def get_queue_stats(
                 CheckItem.tenant_id == current_user.tenant_id,
                 CheckItem.risk_level == risk_val,
                 CheckItem.status.in_(
-                    [CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]
+                    [
+                        CheckStatus.NEW,
+                        CheckStatus.IN_REVIEW,
+                        CheckStatus.PENDING_DUAL_CONTROL,
+                        CheckStatus.ESCALATED,
+                    ]
                 ),
             )
         )
@@ -279,7 +284,12 @@ async def get_queue_stats(
             CheckItem.tenant_id == current_user.tenant_id,
             CheckItem.sla_breached == True,
             CheckItem.status.in_(
-                [CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]
+                [
+                    CheckStatus.NEW,
+                    CheckStatus.IN_REVIEW,
+                    CheckStatus.PENDING_DUAL_CONTROL,
+                    CheckStatus.ESCALATED,
+                ]
             ),
         )
     )
@@ -292,7 +302,12 @@ async def get_queue_stats(
             CheckItem.queue_id == queue_id,
             CheckItem.tenant_id == current_user.tenant_id,
             CheckItem.status.in_(
-                [CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]
+                [
+                    CheckStatus.NEW,
+                    CheckStatus.IN_REVIEW,
+                    CheckStatus.PENDING_DUAL_CONTROL,
+                    CheckStatus.ESCALATED,
+                ]
             ),
         )
     )

@@ -11,6 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
+import { useAuthStore } from '../stores/authStore';
 
 /**
  * Operations Hub
@@ -32,6 +33,9 @@ interface Capability {
   summarize?: (data: unknown) => string;
   // Optional in-app route to a dedicated screen for this capability.
   link?: string;
+  // Capability whose backend requires superuser; hidden entirely for everyone
+  // else (the endpoint would 403 and the dedicated screen is inaccessible).
+  superuserOnly?: boolean;
 }
 
 function countOf(data: unknown): number {
@@ -65,7 +69,12 @@ const CAPABILITIES: Capability[] = [
       'Outbound batch return/commit of decisions to the core: batch creation, dual-control approval, transmission, acknowledgement and reconciliation.',
     icon: ArrowsRightLeftIcon,
     endpoint: '/connector/dashboard',
-    summarize: () => 'Backend ready',
+    summarize: (d) => {
+      const o = (d ?? {}) as Record<string, number>;
+      const pending = o.batches_pending_approval ?? 0;
+      const awaitingAck = o.batches_awaiting_acknowledgement ?? 0;
+      return `${pending} pending approval · ${awaitingAck} awaiting ack`;
+    },
     link: '/connectors/commit',
   },
   {
@@ -87,6 +96,7 @@ const CAPABILITIES: Capability[] = [
     endpoint: '/security/incidents',
     summarize: (d) => `${countOf(d)} incident(s)`,
     link: '/security/incidents',
+    superuserOnly: true,
   },
   {
     key: 'evidence',
@@ -140,15 +150,16 @@ function CapabilityCard({ capability }: { capability: Capability }) {
   const isForbidden =
     (error as { response?: { status?: number } } | undefined)?.response?.status === 403;
 
+  // If this role isn't entitled to the feature, hide the card entirely rather
+  // than showing an "elevated access" wall the user can do nothing about.
+  if (isForbidden) return null;
+
   let status: string;
   let tone: 'live' | 'preview' = 'preview';
   if (!capability.endpoint) {
     status = capability.summarize ? capability.summarize(null) : 'Preview';
   } else if (isLoading) {
     status = 'Loading…';
-  } else if (isForbidden) {
-    // Feature exists but this role isn't entitled to it.
-    status = 'Requires elevated access';
   } else if (isError) {
     status = 'Preview — UI coming soon';
   } else {
@@ -191,6 +202,10 @@ function CapabilityCard({ capability }: { capability: Capability }) {
 }
 
 export default function OperationsHubPage() {
+  const isSuperuser = useAuthStore((s) => !!s.user?.is_superuser);
+  // Drop superuser-only capabilities up front for everyone else, so we don't
+  // render a card (or fire its endpoint) that they can't use.
+  const capabilities = CAPABILITIES.filter((c) => !c.superuserOnly || isSuperuser);
   return (
     <div className="space-y-6">
       <div>
@@ -208,7 +223,7 @@ export default function OperationsHubPage() {
         </p>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {CAPABILITIES.map((c) => (
+        {capabilities.map((c) => (
           <CapabilityCard key={c.key} capability={c} />
         ))}
       </div>

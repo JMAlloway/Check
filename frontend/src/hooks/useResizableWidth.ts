@@ -55,6 +55,14 @@ export function useResizableWidth({ storageKey, defaultWidth, min, max }: Resiza
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      // If the component unmounts mid-drag, restore the global cursor/selection
+      // styles we set in onMouseDown — otherwise the col-resize cursor and
+      // disabled text selection would stick for the rest of the session.
+      if (draggingRef.current) {
+        draggingRef.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
     };
   }, [storageKey, width, min, max]);
 

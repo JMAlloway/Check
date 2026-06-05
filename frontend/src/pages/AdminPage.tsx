@@ -27,14 +27,24 @@ import { userApi, queueAdminApi, queueApi, policyApi, auditLogApi, imageConnecto
 import { format } from 'date-fns';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { humanizeLabel } from '../utils/labels';
+import { useAuthStore } from '../stores/authStore';
 
-const adminNav = [
+// Each section is gated to the permission(s) a role needs to actually do
+// something there, so supervisor/auditor don't see screens full of actions they
+// can't perform. System Metrics is read-only and shown to anyone who reaches
+// the Admin area.
+const adminNav: {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  permission?: readonly [string, string];
+}[] = [
   { name: 'System Metrics', href: '/admin/metrics', icon: ChartBarSquareIcon },
-  { name: 'Users', href: '/admin/users', icon: UsersIcon },
-  { name: 'Queues', href: '/admin/queues', icon: QueueListIcon },
-  { name: 'Policies', href: '/admin/policies', icon: DocumentTextIcon },
-  { name: 'Image Intake', href: '/admin/connectors', icon: ServerIcon },
-  { name: 'Audit Log', href: '/admin/audit', icon: ClipboardDocumentListIcon },
+  { name: 'Users', href: '/admin/users', icon: UsersIcon, permission: ['user', 'create'] },
+  { name: 'Queues', href: '/admin/queues', icon: QueueListIcon, permission: ['queue', 'create'] },
+  { name: 'Policies', href: '/admin/policies', icon: DocumentTextIcon, permission: ['policy', 'create'] },
+  { name: 'Image Intake', href: '/admin/connectors', icon: ServerIcon, permission: ['image_connector', 'view'] },
+  { name: 'Audit Log', href: '/admin/audit', icon: ClipboardDocumentListIcon, permission: ['audit', 'view'] },
 ];
 
 // ============================================================================
@@ -70,6 +80,8 @@ interface Permission {
 
 function UsersAdmin() {
   const queryClient = useQueryClient();
+  const canCreateUser = useAuthStore((s) => s.hasPermission('user', 'create'));
+  const canUpdateUser = useAuthStore((s) => s.hasPermission('user', 'update'));
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -114,13 +126,15 @@ function UsersAdmin() {
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">User Management</h2>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-            >
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Add User
-            </button>
+            {canCreateUser && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              >
+                <PlusIcon className="h-5 w-5 mr-2" />
+                Add User
+              </button>
+            )}
           </div>
 
           {/* Filters */}
@@ -211,12 +225,17 @@ function UsersAdmin() {
                       {user.last_login ? format(new Date(user.last_login), 'MMM d, yyyy HH:mm') : 'Never'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => setEditingUser(user)}
-                        className="text-primary-600 hover:text-primary-900"
-                      >
-                        <PencilIcon className="h-5 w-5" />
-                      </button>
+                      {canUpdateUser ? (
+                        <button
+                          onClick={() => setEditingUser(user)}
+                          className="text-primary-600 hover:text-primary-900"
+                          aria-label={`Edit ${user.username}`}
+                        >
+                          <PencilIcon className="h-5 w-5" />
+                        </button>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -1051,6 +1070,10 @@ interface Policy {
 }
 
 function PoliciesAdmin() {
+  const canCreatePolicy = useAuthStore((s) => s.hasPermission('policy', 'create'));
+  const canUpdatePolicy = useAuthStore((s) => s.hasPermission('policy', 'update'));
+  const canActivatePolicy = useAuthStore((s) => s.hasPermission('policy', 'activate'));
+  const canDeletePolicy = useAuthStore((s) => s.hasPermission('policy', 'delete'));
   const [selectedPolicy, setSelectedPolicy] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState<Policy | null>(null);
@@ -1083,7 +1106,7 @@ function PoliciesAdmin() {
     mutationFn: (policyId: string) => policyApi.activatePolicy(policyId),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['policies'] });
-      alert(`Policy activated: ${data.message || 'Success'}`);
+      toast.success(`Policy activated: ${data.message || 'Success'}`);
     },
     onError: (error: any) => {
       console.error('Failed to activate policy:', error);
@@ -1092,7 +1115,7 @@ function PoliciesAdmin() {
       if (detail) {
         message = typeof detail === 'string' ? detail : JSON.stringify(detail);
       }
-      alert(`Failed to activate policy: ${message}`);
+      toast.error(`Failed to activate policy: ${message}`);
     },
   });
 
@@ -1117,7 +1140,7 @@ function PoliciesAdmin() {
     },
     onError: (error: any) => {
       console.error('Failed to create policy:', error);
-      alert(`Failed to create policy: ${formatErrorMessage(error)}`);
+      toast.error(`Failed to create policy: ${formatErrorMessage(error)}`);
     },
   });
 
@@ -1133,7 +1156,7 @@ function PoliciesAdmin() {
     },
     onError: (error: any) => {
       console.error('Failed to delete policy:', error);
-      alert(`Failed to delete policy: ${formatErrorMessage(error)}`);
+      toast.error(`Failed to delete policy: ${formatErrorMessage(error)}`);
     },
   });
 
@@ -1165,7 +1188,7 @@ function PoliciesAdmin() {
     },
     onError: (error: any) => {
       console.error('Failed to update policy:', error);
-      alert(`Failed to update policy: ${formatErrorMessage(error)}`);
+      toast.error(`Failed to update policy: ${formatErrorMessage(error)}`);
     },
   });
 
@@ -1209,13 +1232,15 @@ function PoliciesAdmin() {
                 Policies define routing, escalation, and approval rules
               </p>
             </div>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-            >
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Create Policy
-            </button>
+            {canCreatePolicy && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              >
+                <PlusIcon className="h-5 w-5 mr-2" />
+                Create Policy
+              </button>
+            )}
           </div>
         </div>
 
@@ -1259,7 +1284,7 @@ function PoliciesAdmin() {
                     >
                       {selectedPolicy === policy.id ? 'Hide Details' : 'View Details'}
                     </button>
-                    {policy.status === 'draft' && (
+                    {policy.status === 'draft' && canActivatePolicy && (
                       <button
                         onClick={() => activateMutation.mutate(policy.id)}
                         disabled={activateMutation.isPending}
@@ -1268,14 +1293,16 @@ function PoliciesAdmin() {
                         Activate
                       </button>
                     )}
-                    <button
-                      onClick={() => setEditingPolicy(policy)}
-                      className="p-1.5 text-gray-400 hover:text-primary-600 rounded"
-                      title="Edit policy"
-                    >
-                      <PencilIcon className="h-5 w-5" />
-                    </button>
-                    {!policy.is_default && (
+                    {canUpdatePolicy && (
+                      <button
+                        onClick={() => setEditingPolicy(policy)}
+                        className="p-1.5 text-gray-400 hover:text-primary-600 rounded"
+                        title="Edit policy"
+                      >
+                        <PencilIcon className="h-5 w-5" />
+                      </button>
+                    )}
+                    {!policy.is_default && canDeletePolicy && (
                       <button
                         onClick={() => setDeleteConfirm(policy)}
                         className="p-1.5 text-gray-400 hover:text-red-600 rounded"
@@ -1571,6 +1598,15 @@ function PolicyFormModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // A policy with no rules does nothing. When editing, an empty rule set would
+    // otherwise be silently dropped (only metadata persisted, rules unchanged),
+    // so block it with clear feedback instead of a confusing no-op.
+    if (rules.length === 0) {
+      toast.error('A policy needs at least one rule.');
+      return;
+    }
+
     const policyData: any = {
       name: formData.name,
       description: formData.description || undefined,
@@ -2975,6 +3011,7 @@ function KeyManagementModal({
 // ============================================================================
 
 function SystemMetricsAdmin() {
+  const isSuperuser = useAuthStore((s) => !!s.user?.is_superuser);
   const { data: systemStatus, isLoading: statusLoading } = useQuery({
     queryKey: ['system-status'],
     queryFn: () => systemApi.getStatus(),
@@ -3333,6 +3370,7 @@ function SystemMetricsAdmin() {
                 )}
             </p>
           </div>
+          {isSuperuser && (
           <div className="mt-4 pt-4 border-t border-amber-200">
             <div className="flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-2 text-sm text-amber-800">
@@ -3363,6 +3401,7 @@ function SystemMetricsAdmin() {
               <p className="mt-2 text-sm font-medium text-amber-800">{reseedResult}</p>
             )}
           </div>
+          )}
         </div>
       )}
     </div>
@@ -3375,6 +3414,10 @@ function SystemMetricsAdmin() {
 
 export default function AdminPage() {
   const location = useLocation();
+  const hasPermission = useAuthStore((s) => s.hasPermission);
+  const visibleNav = adminNav.filter(
+    (item) => !item.permission || hasPermission(item.permission[0], item.permission[1])
+  );
 
   return (
     <div className="space-y-6">
@@ -3385,7 +3428,7 @@ export default function AdminPage() {
         <div className="w-64 flex-shrink-0">
           <nav className="bg-white rounded-lg shadow p-4">
             <ul className="space-y-1">
-              {adminNav.map((item) => (
+              {visibleNav.map((item) => (
                 <li key={item.name}>
                   <Link
                     to={item.href}

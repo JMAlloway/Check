@@ -42,7 +42,10 @@ jobs:
       - name: Run linting
         working-directory: ./backend
         run: |
-          pip install black isort mypy
+          # Pin to the versions in requirements.txt so formatting is
+          # deterministic — an unpinned black floats to the latest release,
+          # whose style rules drift and break `--check` on unchanged files.
+          pip install black==24.1.0 isort==5.13.2 mypy
           black --check .
           isort --check-only .
 

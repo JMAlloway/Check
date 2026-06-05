@@ -44,14 +44,14 @@ const TABS: TabDef[] = [
     label: 'Pending Review',
     icon: ClockIcon,
     color: 'text-blue-600',
-    filters: { status: ['new', 'in_review', 'pending_approval', 'escalated'] },
+    filters: { status: ['new', 'in_review', 'escalated'] },
   },
   {
     key: 'sla',
     label: 'SLA Breached',
     icon: ExclamationTriangleIcon,
     color: 'text-red-600',
-    filters: { status: ['new', 'in_review', 'pending_approval', 'escalated'], sla_breached: true },
+    filters: { status: ['new', 'in_review', 'escalated'], sla_breached: true },
   },
   {
     key: 'dual',
@@ -78,10 +78,29 @@ const SORTS: { value: string; label: string; sort_by: string; sort_order: string
   { value: 'presented_date_asc', label: 'Oldest first', sort_by: 'presented_date', sort_order: 'asc' },
 ];
 
+interface DateRange {
+  date_from?: string;
+  date_to?: string;
+}
+
+// Map dashboard deep-link query params (status / sla_breached / date) to the
+// tab whose filters best match, so the landing view matches the clicked KPI
+// card rather than always defaulting to "Pending Review".
+function initialTabFromParams(params: URLSearchParams): TabKey {
+  const statuses = params
+    .getAll('status')
+    .flatMap((v) => v.split(','))
+    .map((s) => s.trim().toLowerCase());
+  if (params.get('sla_breached') === 'true') return 'sla';
+  if (statuses.includes('pending_dual_control')) return 'dual';
+  if (statuses.some((s) => ['approved', 'rejected', 'returned'].includes(s))) return 'processed';
+  return 'pending';
+}
+
 // Lightweight count for a tab (reads `total` from a 1-row page).
-function useTabCount(tab: TabDef, queueId?: string, riskFilter?: RiskLevel[]) {
+function useTabCount(tab: TabDef, queueId?: string, riskFilter?: RiskLevel[], dates?: DateRange) {
   return useQuery({
-    queryKey: ['checkCount', tab.key, queueId, riskFilter],
+    queryKey: ['checkCount', tab.key, queueId, riskFilter, dates],
     queryFn: () =>
       checkApi.getItems({
         page: 1,
@@ -90,6 +109,8 @@ function useTabCount(tab: TabDef, queueId?: string, riskFilter?: RiskLevel[]) {
         status: tab.filters.status,
         sla_breached: tab.filters.sla_breached,
         risk_level: riskFilter && riskFilter.length ? riskFilter : undefined,
+        date_from: dates?.date_from,
+        date_to: dates?.date_to,
       }) as Promise<PaginatedResponse<CheckItemListItem>>,
     select: (d) => d.total,
   });
@@ -98,9 +119,16 @@ function useTabCount(tab: TabDef, queueId?: string, riskFilter?: RiskLevel[]) {
 export default function QueuePage() {
   const { queueId } = useParams();
   const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<TabKey>('pending');
+  // Land on the tab matching the dashboard KPI card that was clicked.
+  const [activeTab, setActiveTab] = useState<TabKey>(() => initialTabFromParams(searchParams));
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState(SORTS[0].value);
+  // Seed the date range from the URL so the "Processed Today" deep link
+  // (/queue?status=...&date_from=...&date_to=...) lands pre-filtered to today.
+  const [dateRange] = useState<DateRange>(() => ({
+    date_from: searchParams.get('date_from') || undefined,
+    date_to: searchParams.get('date_to') || undefined,
+  }));
   // Seed the risk filter from the URL so deep links like the dashboard's
   // "Risk Distribution" segments (/queue?risk_level=low) actually filter.
   const [riskFilter, setRiskFilter] = useState<RiskLevel[]>(() => {
@@ -122,14 +150,14 @@ export default function QueuePage() {
   });
 
   const counts = {
-    pending: useTabCount(TABS[0], queueId, riskFilter),
-    sla: useTabCount(TABS[1], queueId, riskFilter),
-    dual: useTabCount(TABS[2], queueId, riskFilter),
-    processed: useTabCount(TABS[3], queueId, riskFilter),
+    pending: useTabCount(TABS[0], queueId, riskFilter, dateRange),
+    sla: useTabCount(TABS[1], queueId, riskFilter, dateRange),
+    dual: useTabCount(TABS[2], queueId, riskFilter, dateRange),
+    processed: useTabCount(TABS[3], queueId, riskFilter, dateRange),
   };
 
   const { data, isLoading, isFetching, refetch } = useQuery<PaginatedResponse<CheckItemListItem>>({
-    queryKey: ['checkItems', queueId, activeTab, page, sort, riskFilter],
+    queryKey: ['checkItems', queueId, activeTab, page, sort, riskFilter, dateRange],
     queryFn: () =>
       checkApi.getItems({
         page,
@@ -138,6 +166,8 @@ export default function QueuePage() {
         status: tab.filters.status,
         sla_breached: tab.filters.sla_breached,
         risk_level: riskFilter.length ? riskFilter : undefined,
+        date_from: dateRange.date_from,
+        date_to: dateRange.date_to,
         sort_by: sortDef.sort_by,
         sort_order: sortDef.sort_order,
       }),
@@ -151,6 +181,7 @@ export default function QueuePage() {
   // Claim-based worklist: who is actively working which item.
   const navigate = useNavigate();
   const currentUser = useAuthStore((s) => s.user);
+  const canReview = useAuthStore((s) => s.hasPermission('check_item', 'review'));
   const { data: locksData } = useQuery({
     queryKey: ['worklist-locks'],
     queryFn: checkApi.getWorklistLocks,
@@ -198,18 +229,20 @@ export default function QueuePage() {
           {queue?.description && <p className="text-gray-500">{queue.description}</p>}
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex flex-col items-end">
-            <button
-              onClick={handlePullNext}
-              disabled={pulling}
-              className="flex items-center px-3 py-2 font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Claim the highest-priority unassigned item and start reviewing it"
-            >
-              <BoltIcon className="h-5 w-5 mr-1" />
-              {pulling ? 'Pulling…' : 'Pull next item'}
-            </button>
-            {pullMsg && <span className="mt-1 text-xs text-amber-600">{pullMsg}</span>}
-          </div>
+          {canReview && (
+            <div className="flex flex-col items-end">
+              <button
+                onClick={handlePullNext}
+                disabled={pulling}
+                className="flex items-center px-3 py-2 font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Claim the highest-priority unassigned item and start reviewing it"
+              >
+                <BoltIcon className="h-5 w-5 mr-1" />
+                {pulling ? 'Pulling…' : 'Pull next item'}
+              </button>
+              {pullMsg && <span className="mt-1 text-xs text-amber-600">{pullMsg}</span>}
+            </div>
+          )}
           <button
             onClick={() => refetch()}
             className="flex items-center px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"

@@ -120,12 +120,24 @@ export default function CheckImageViewer({
     setIsDragging(false);
   }, []);
 
-  // Keyboard shortcuts
+  // Whether the pointer is currently over the viewer. The viewer's shortcuts are
+  // scoped to this so its single-letter keys (f/m/r), digit/zoom keys and Tab
+  // don't fire globally and collide with the decision panel's shortcuts (which
+  // also listen on window) or break normal Tab navigation elsewhere on the page.
+  const hoveredRef = useRef(false);
+
+  // Keyboard shortcuts — only active while the viewer is hovered.
   useEffect(() => {
+    // Keys this viewer owns while hovered. For any of these we stop propagation
+    // so the same key can't ALSO trigger the decision panel (e.g. `r` toggles
+    // ROI here OR arms "Return" there — never both).
+    const VIEWER_KEYS = new Set(['+', '=', '-', '0', 'f', 'm', 'r', 'Tab']);
+
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Only act when the user is actually interacting with the viewer.
+      if (!hoveredRef.current) return;
+
       // Don't hijack keystrokes while the user is typing (e.g. a decision note).
-      // Without this, single-letter viewer shortcuts (f/m/r) and digit/zoom keys
-      // were swallowing characters from the notes textarea.
       const t = e.target as HTMLElement | null;
       if (
         t instanceof HTMLInputElement ||
@@ -136,33 +148,35 @@ export default function CheckImageViewer({
         return;
       }
 
+      if (!VIEWER_KEYS.has(e.key)) return;
+
+      // We own this key while hovered: handle it and prevent any other
+      // window-level handler (the decision panel) from also reacting.
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
       if (e.key === '+' || e.key === '=') {
-        e.preventDefault();
         handleZoomIn();
       } else if (e.key === '-') {
-        e.preventDefault();
         handleZoomOut();
       } else if (e.key === '0') {
-        e.preventDefault();
         handleZoomPreset(100);
       } else if (e.key === 'f') {
-        e.preventDefault();
         handleFitToScreen();
       } else if (e.key === 'm') {
-        e.preventDefault();
-        setShowMagnifier(!showMagnifier);
+        setShowMagnifier((v) => !v);
       } else if (e.key === 'r') {
-        e.preventDefault();
-        setShowROI(!showROI);
+        setShowROI((v) => !v);
       } else if (e.key === 'Tab') {
-        e.preventDefault();
-        setActiveImage(activeImage === 'front' ? 'back' : 'front');
+        setActiveImage((cur) => (cur === 'front' ? 'back' : 'front'));
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleZoomIn, handleZoomOut, handleZoomPreset, handleFitToScreen, showMagnifier, showROI, activeImage]);
+    // Capture phase so we run before the decision panel's bubble-phase listener
+    // and can stop it via stopImmediatePropagation when we own the key.
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [handleZoomIn, handleZoomOut, handleZoomPreset, handleFitToScreen]);
 
   // Log zoom usage
   useEffect(() => {
@@ -391,7 +405,13 @@ export default function CheckImageViewer({
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseEnter={() => {
+          hoveredRef.current = true;
+        }}
+        onMouseLeave={() => {
+          hoveredRef.current = false;
+          handleMouseUp();
+        }}
       >
         {currentImage?.image_url ? (
           <>

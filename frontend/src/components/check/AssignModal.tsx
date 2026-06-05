@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { XMarkIcon } from '@heroicons/react/24/outline';
@@ -26,6 +26,16 @@ export default function AssignModal({ isOpen, onClose, item }: AssignModalProps)
   const queryClient = useQueryClient();
   const [reviewerId, setReviewerId] = useState(item.assigned_reviewer_id ?? '');
   const [queueId, setQueueId] = useState(item.queue_id ?? '');
+
+  // Resync the selects when the modal (re)opens or the item changes — otherwise
+  // the initial useState values stick and the modal shows a stale selection
+  // from a previously-assigned item.
+  useEffect(() => {
+    if (isOpen) {
+      setReviewerId(item.assigned_reviewer_id ?? '');
+      setQueueId(item.queue_id ?? '');
+    }
+  }, [isOpen, item.id, item.assigned_reviewer_id, item.queue_id]);
 
   const { data: usersData } = useQuery({
     queryKey: ['users', 'assignable'],

@@ -10,7 +10,6 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
-
 from sqlalchemy import func, select
 
 from app.api.deps import DBSession, get_current_active_superuser

@@ -13,6 +13,7 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -44,6 +45,24 @@ class Permission(Base, UUIDMixin, TimestampMixin):
     """
 
     __tablename__ = "permissions"
+    # Names are unique per tenant, and unique among system rows (tenant_id NULL).
+    # Two partial indexes are required because Postgres treats NULL tenant_ids
+    # as distinct, which would otherwise allow duplicate system permission names.
+    __table_args__ = (
+        Index(
+            "uq_permissions_tenant_name",
+            "tenant_id",
+            "name",
+            unique=True,
+            postgresql_where=text("tenant_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_permissions_system_name",
+            "name",
+            unique=True,
+            postgresql_where=text("tenant_id IS NULL"),
+        ),
+    )
 
     # Multi-tenant support - null means system-wide permission
     tenant_id: Mapped[str | None] = mapped_column(String(36), index=True)
@@ -75,6 +94,22 @@ class Role(Base, UUIDMixin, TimestampMixin):
     """
 
     __tablename__ = "roles"
+    # Names are unique per tenant, and unique among system rows (tenant_id NULL).
+    __table_args__ = (
+        Index(
+            "uq_roles_tenant_name",
+            "tenant_id",
+            "name",
+            unique=True,
+            postgresql_where=text("tenant_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_roles_system_name",
+            "name",
+            unique=True,
+            postgresql_where=text("tenant_id IS NULL"),
+        ),
+    )
 
     # Multi-tenant support - null means system-wide role
     tenant_id: Mapped[str | None] = mapped_column(String(36), index=True)

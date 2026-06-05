@@ -47,9 +47,12 @@ class DemoStorageProvider(StorageProvider):
             local_path = self._settings.get_demo_path(handle.path)
             resolved = local_path.resolve()
 
-            # Security: Ensure path is within demo root
+            # Security: Ensure path is within demo root. Use is_relative_to
+            # (true path-segment containment) rather than a string prefix
+            # match, which would let "/demo_repo_evil" pass when the root is
+            # "/demo_repo".
             root_resolved = self._root.resolve()
-            if not str(resolved).startswith(str(root_resolved)):
+            if not resolved.is_relative_to(root_resolved):
                 raise StorageAccessError(
                     handle.path,
                     "Path traversal attempt detected"

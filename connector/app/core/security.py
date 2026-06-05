@@ -291,9 +291,12 @@ class PathValidator:
         # Normalize for comparison
         normalized = self._normalize_path(path)
 
-        # Check against allowed roots
+        # Check against allowed roots. Compare on a path-segment boundary
+        # (root, or root + "/") so a sibling share whose name merely *starts*
+        # with an allowed root (e.g. ".../transit-secret" vs ".../transit")
+        # cannot pass validation.
         for root in self._normalized_roots:
-            if normalized.startswith(root):
+            if normalized == root or normalized.startswith(root + "/"):
                 return True, None
 
         return False, "Path not in allowed share roots"

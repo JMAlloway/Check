@@ -100,6 +100,18 @@ class ImageService:
             ImageDecodeFailedError: If decoding fails
             UpstreamIOError: If storage access fails
         """
+        # Defense in depth: enforce the allowed-share-root allow-list here, not
+        # only in the by-handle endpoint dependency. The by-item endpoint
+        # resolves a path and calls this method directly, so without this check
+        # a poisoned/attacker-influenced resolver record could read outside the
+        # configured roots. Validating in the service guarantees every code
+        # path is covered.
+        from ..core.security import get_path_validator
+
+        is_valid, error = get_path_validator().validate(path)
+        if not is_valid:
+            raise StorageAccessError(path, error or "Path not in allowed share roots")
+
         # Determine page number
         page = 1 if side == ImageSide.FRONT else 2
 

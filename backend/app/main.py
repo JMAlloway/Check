@@ -96,14 +96,34 @@ async def lifespan(app: FastAPI):
 
             await conn.run_sync(Base.metadata.create_all)
 
-            # Fix column sizes that may be too small in existing databases
-            # audit_logs.resource_id needs to be 255 to accommodate demo image IDs
-            alter_sql = text("ALTER TABLE audit_logs ALTER COLUMN resource_id TYPE VARCHAR(255)")
-            try:
-                await conn.execute(alter_sql)
-                logger.debug("Updated audit_logs.resource_id column size")
-            except Exception:
-                pass  # Column already correct size or table doesn't exist yet
+            # Reconcile columns/indexes that newer model revisions added but that
+            # may be missing from a PRE-EXISTING dev/demo database. create_all
+            # only creates missing *tables* - it never alters an existing one -
+            # so a persistent dev volume can lag the model (e.g. a login 500 from
+            # a missing audit_logs.previous_hash). Production uses Alembic and is
+            # unaffected. Each statement is idempotent and best-effort.
+            reconcile_ddl = [
+                # audit_logs.resource_id widened to 255 for demo image IDs
+                "ALTER TABLE audit_logs ALTER COLUMN resource_id TYPE VARCHAR(255)",
+                # audit chain column (migration 013) - the login-blocking gap
+                "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS previous_hash VARCHAR(64)",
+                "CREATE INDEX IF NOT EXISTS ix_audit_logs_previous_hash "
+                "ON audit_logs (previous_hash)",
+                # per-tenant uniqueness for permissions/roles (migration 016)
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_permissions_tenant_name "
+                "ON permissions (tenant_id, name) WHERE tenant_id IS NOT NULL",
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_permissions_system_name "
+                "ON permissions (name) WHERE tenant_id IS NULL",
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_roles_tenant_name "
+                "ON roles (tenant_id, name) WHERE tenant_id IS NOT NULL",
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_roles_system_name "
+                "ON roles (name) WHERE tenant_id IS NULL",
+            ]
+            for stmt in reconcile_ddl:
+                try:
+                    await conn.execute(text(stmt))
+                except Exception as exc:  # pragma: no cover - dev convenience only
+                    logger.debug("Schema reconcile skipped: %s (%s)", stmt, exc)
 
         logger.info("Database tables created/verified")
 

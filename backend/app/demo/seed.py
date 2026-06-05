@@ -286,7 +286,9 @@ class DemoSeeder:
         The seed assigns checks to queues but the stored counter isn't maintained,
         so the Queue page would show "0 items" on every queue. This backfills it.
         """
-        await self.db.execute(text("""
+        await self.db.execute(
+            text(
+                """
                 UPDATE queues SET current_item_count = COALESCE(sub.cnt, 0)
                 FROM (
                     SELECT queue_id, COUNT(*) AS cnt
@@ -296,7 +298,9 @@ class DemoSeeder:
                     GROUP BY queue_id
                 ) AS sub
                 WHERE queues.id = sub.queue_id
-                """))
+                """
+            )
+        )
 
     async def _seed_queues(self) -> int:
         """Create demo queues."""

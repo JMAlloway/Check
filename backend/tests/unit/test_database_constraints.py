@@ -222,12 +222,37 @@ class TestAuditLogConstraints:
         assert after_col is not None
         assert extra_col is not None
 
-    @pytest.mark.skip(reason="integrity_hash feature not yet implemented")
     def test_audit_log_has_integrity_hash(self):
-        """AuditLog should have integrity_hash field."""
+        """AuditLog should have integrity_hash and previous_hash fields."""
         mapper = inspect(AuditLog)
-        hash_col = mapper.columns.get("integrity_hash")
-        assert hash_col is not None
+        assert mapper.columns.get("integrity_hash") is not None
+        assert mapper.columns.get("previous_hash") is not None
+
+    def test_audit_integrity_hash_covers_payload_and_chain(self):
+        """The integrity hash must change when the change payload or the chain
+        link changes, so tampering with a decision delta is detectable."""
+        base = AuditLog(
+            tenant_id="t1",
+            timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            action=AuditAction.DECISION_APPROVED,
+            resource_type="check_item",
+            resource_id="c1",
+            before_value='{"status": "in_review"}',
+            after_value='{"status": "approved"}',
+            extra_data='{"reason": "ok"}',
+            previous_hash="0" * 64,
+        )
+        original = base.compute_integrity_hash()
+
+        # Mutating the after-value delta must change the hash.
+        base.after_value = '{"status": "rejected"}'
+        assert base.compute_integrity_hash() != original
+
+        # Restoring it, then re-pointing the chain link, must also change it.
+        base.after_value = '{"status": "approved"}'
+        assert base.compute_integrity_hash() == original
+        base.previous_hash = "f" * 64
+        assert base.compute_integrity_hash() != original
 
 
 class TestQueueConstraints:

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { archiveApi } from '../services/api';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import {
@@ -155,7 +156,8 @@ export default function ArchivePage() {
       });
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Failed to export archive data');
+      const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(detail || 'Failed to export archive data');
     } finally {
       setExporting(false);
     }
@@ -284,7 +286,7 @@ export default function ArchivePage() {
         <button
           onClick={handleExport}
           disabled={exporting}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
         >
           <DocumentArrowDownIcon className="h-5 w-5" />
           <span>{exporting ? 'Exporting...' : 'Export CSV'}</span>
@@ -350,14 +352,14 @@ export default function ArchivePage() {
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center space-x-2 px-4 py-2 border rounded-lg ${
               hasActiveFilters
-                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                ? 'border-primary-500 bg-primary-50 text-primary-700'
                 : 'border-gray-300 text-gray-700'
             }`}
           >
             <FunnelIcon className="h-5 w-5" />
             <span>Filters</span>
             {hasActiveFilters && (
-              <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
+              <span className="bg-primary-500 text-white text-xs px-2 py-0.5 rounded-full">
                 {statusFilter.length +
                   riskFilter.length +
                   (dateFrom ? 1 : 0) +
@@ -640,8 +642,9 @@ export default function ArchivePage() {
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={!data.has_previous}
                     className="p-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                    aria-label="Previous page"
                   >
-                    <ChevronLeftIcon className="h-5 w-5" />
+                    <ChevronLeftIcon className="h-5 w-5" aria-hidden="true" />
                   </button>
                   <span className="text-sm text-gray-700">
                     Page {page} of {data.total_pages}
@@ -650,8 +653,9 @@ export default function ArchivePage() {
                     onClick={() => setPage((p) => p + 1)}
                     disabled={!data.has_next}
                     className="p-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                    aria-label="Next page"
                   >
-                    <ChevronRightIcon className="h-5 w-5" />
+                    <ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
                   </button>
                 </div>
               </div>

@@ -84,7 +84,7 @@ export default function ReportsPage() {
     }
   };
 
-  const { data: throughput } = useQuery({
+  const { data: throughput, isLoading: throughputLoading } = useQuery({
     queryKey: ['throughput', timeRange],
     queryFn: () => reportsApi.getThroughput(timeRange),
   });
@@ -94,7 +94,7 @@ export default function ReportsPage() {
     queryFn: () => reportsApi.getDecisionReport(timeRange),
   });
 
-  const { data: performance } = useQuery({
+  const { data: performance, isLoading: performanceLoading } = useQuery({
     queryKey: ['performance', timeRange],
     queryFn: () => reportsApi.getReviewerPerformance(timeRange),
   });
@@ -164,7 +164,9 @@ export default function ReportsPage() {
           The date range above applies to the PDF and CSV exports below.
         </p>
 
-        {/* Report Cards */}
+        {/* Report Cards — only shown to users who can export (backend requires
+            report:export and would 403 otherwise). */}
+        {canExport && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Daily Activity Log */}
           <div className="border border-gray-200 rounded-lg p-4 hover:border-primary-300 transition-colors">
@@ -238,6 +240,7 @@ export default function ReportsPage() {
             </button>
           </div>
         </div>
+        )}
       </div>
 
       {/* Automation / STP value */}
@@ -248,7 +251,11 @@ export default function ReportsPage() {
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Daily Throughput</h2>
           <div className="h-64">
-            {throughput?.daily ? (
+            {throughputLoading ? (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                Loading...
+              </div>
+            ) : throughput?.daily && throughput.daily.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={throughput.daily}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -265,7 +272,7 @@ export default function ReportsPage() {
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-full text-gray-500">
-                Loading...
+                No data for this range
               </div>
             )}
           </div>
@@ -311,7 +318,11 @@ export default function ReportsPage() {
         <div className="bg-white rounded-lg shadow p-6 lg:col-span-2">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Reviewer Performance</h2>
           <div className="h-64">
-            {performance?.reviewers ? (
+            {performanceLoading ? (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                Loading...
+              </div>
+            ) : performance?.reviewers && performance.reviewers.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={performance.reviewers.slice(0, 10)}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -323,7 +334,7 @@ export default function ReportsPage() {
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-full text-gray-500">
-                Loading...
+                No data for this range
               </div>
             )}
           </div>

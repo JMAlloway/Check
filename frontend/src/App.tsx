@@ -127,6 +127,8 @@ function App() {
                     <Route path="/connectors/commit" element={<CommitBatchesPage />} />
                     <Route path="/audit/drill-down" element={<AuditDrillDownPage />} />
                     <Route path="/help" element={<HelpPage />} />
+                    {/* Unknown routes fall back to the dashboard. */}
+                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
                   </Routes>
                 </Suspense>
               </Layout>

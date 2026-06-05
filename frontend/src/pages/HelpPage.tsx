@@ -114,15 +114,32 @@ function GettingStartedTab() {
       </Section>
 
       <Section title="4. Keyboard Shortcuts">
+        <p className="mb-2 text-sm font-medium text-gray-700">Decision panel</p>
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="bg-gray-50 p-2 rounded"><code>A</code> - Approve</div>
           <div className="bg-gray-50 p-2 rounded"><code>R</code> - Return</div>
-          <div className="bg-gray-50 p-2 rounded"><code>H</code> - Hold</div>
+          <div className="bg-gray-50 p-2 rounded"><code>J</code> - Reject</div>
           <div className="bg-gray-50 p-2 rounded"><code>E</code> - Escalate</div>
-          <div className="bg-gray-50 p-2 rounded"><code>N</code> - Next Item</div>
-          <div className="bg-gray-50 p-2 rounded"><code>P</code> - Previous Item</div>
-          <div className="bg-gray-50 p-2 rounded"><code>Z</code> - Zoom Image</div>
-          <div className="bg-gray-50 p-2 rounded"><code>F</code> - Flip (Front/Back)</div>
+          <div className="bg-gray-50 p-2 rounded"><code>I</code> - Needs More Info</div>
+          <div className="bg-gray-50 p-2 rounded"><code>Enter</code> - Submit decision</div>
+        </div>
+
+        <p className="mb-2 mt-4 text-sm font-medium text-gray-700">Navigation</p>
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <div className="bg-gray-50 p-2 rounded"><code>N</code> - Next item</div>
+          <div className="bg-gray-50 p-2 rounded"><code>P</code> - Previous item</div>
+        </div>
+
+        <p className="mb-2 mt-4 text-sm font-medium text-gray-700">
+          Image viewer <span className="font-normal text-gray-500">(while hovering the check image)</span>
+        </p>
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <div className="bg-gray-50 p-2 rounded"><code>+</code> / <code>-</code> - Zoom in / out</div>
+          <div className="bg-gray-50 p-2 rounded"><code>0</code> - Actual size</div>
+          <div className="bg-gray-50 p-2 rounded"><code>F</code> - Fit to screen</div>
+          <div className="bg-gray-50 p-2 rounded"><code>M</code> - Magnifier</div>
+          <div className="bg-gray-50 p-2 rounded"><code>R</code> - Toggle ROI overlays</div>
+          <div className="bg-gray-50 p-2 rounded"><code>Tab</code> - Switch front / back</div>
         </div>
       </Section>
     </div>
@@ -498,10 +515,8 @@ export default function HelpPage() {
       {/* Contact support footer */}
       <div className="bg-gray-50 rounded-lg p-4 text-center text-sm text-gray-600">
         <p>
-          Can&apos;t find what you&apos;re looking for?{' '}
-          <a href="mailto:support@example.com" className="text-primary-600 hover:underline">
-            Contact Support
-          </a>
+          Can&apos;t find what you&apos;re looking for? Contact your platform
+          administrator or your organization&apos;s support desk.
         </p>
       </div>
     </div>

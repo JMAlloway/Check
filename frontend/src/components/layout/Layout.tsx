@@ -33,7 +33,7 @@ const navigation = [
   { name: 'Reports', href: '/reports', icon: ChartBarIcon },
   { name: 'Automation', href: '/automation', icon: BoltIcon },
   { name: 'Archive', href: '/archive', icon: ArchiveBoxIcon },
-  { name: 'Operations', href: '/operations', icon: ServerStackIcon },
+  { name: 'Operations', href: '/operations', icon: ServerStackIcon, permission: ['connector', 'view'] as const },
   { name: 'Help', href: '/help', icon: QuestionMarkCircleIcon },
 ];
 
@@ -217,8 +217,9 @@ export default function Layout({ children }: LayoutProps) {
             type="button"
             className="-m-2.5 p-2.5 text-gray-700 lg:hidden"
             onClick={() => setSidebarOpen(true)}
+            aria-label="Open navigation menu"
           >
-            <Bars3Icon className="h-6 w-6" />
+            <Bars3Icon className="h-6 w-6" aria-hidden="true" />
           </button>
 
           <div className="h-6 w-px bg-gray-200 lg:hidden" />

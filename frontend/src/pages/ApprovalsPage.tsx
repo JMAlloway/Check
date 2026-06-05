@@ -57,14 +57,18 @@ export default function ApprovalsPage() {
   });
 
   const decide = useMutation({
-    mutationFn: ({ decisionId, approve }: { decisionId: string; approve: boolean }) =>
+    mutationFn: ({ decisionId, approve }: { decisionId: string; approve: boolean; checkItemId: string }) =>
       decisionApi.approveDualControl({ decision_id: decisionId, approve }),
     onMutate: ({ decisionId }) => setActingId(decisionId),
-    onSuccess: (_res, { approve }) => {
+    onSuccess: (_res, { approve, checkItemId }) => {
       toast.success(approve ? 'Approval recorded' : 'Sent back to review');
       queryClient.invalidateQueries({ queryKey: ['pending-approvals'] });
       queryClient.invalidateQueries({ queryKey: ['queues'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+      // The approved item's status changed — refresh the queue list and the
+      // item detail so they don't show a stale (pre-approval) status.
+      queryClient.invalidateQueries({ queryKey: ['checkItems'] });
+      queryClient.invalidateQueries({ queryKey: ['checkItem', checkItemId] });
     },
     onError: (err: unknown) => {
       const detail =
@@ -201,7 +205,7 @@ export default function ApprovalsPage() {
                   <div className="flex shrink-0 gap-2">
                     <button
                       onClick={() =>
-                        decide.mutate({ decisionId: a.decision_id, approve: false })
+                        decide.mutate({ decisionId: a.decision_id, approve: false, checkItemId: a.check_item_id })
                       }
                       disabled={isActing}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
@@ -211,7 +215,7 @@ export default function ApprovalsPage() {
                     </button>
                     <button
                       onClick={() =>
-                        decide.mutate({ decisionId: a.decision_id, approve: true })
+                        decide.mutate({ decisionId: a.decision_id, approve: true, checkItemId: a.check_item_id })
                       }
                       disabled={isActing}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"

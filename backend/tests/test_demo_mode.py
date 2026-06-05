@@ -73,8 +73,17 @@ class TestDemoModuleFunctions:
         """Test require_non_production raises in production."""
         with patch("app.demo.settings") as mock_settings:
             mock_settings.ENVIRONMENT = "production"
-            with pytest.raises(RuntimeError, match="not allowed in production"):
+            with pytest.raises(RuntimeError, match="not allowed"):
                 require_non_production()
+
+    def test_require_non_production_blocks_all_secure_environments(self):
+        """require_non_production must block every environment that may hold
+        real data - not just the exact string 'production'."""
+        for env in ("production", "pilot", "staging", "uat", "PILOT"):
+            with patch("app.demo.settings") as mock_settings:
+                mock_settings.ENVIRONMENT = env
+                with pytest.raises(RuntimeError, match="not allowed"):
+                    require_non_production()
 
 
 # =============================================================================

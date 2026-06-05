@@ -1,5 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore, getCsrfToken } from '../stores/authStore';
+import { queryClient } from '../queryClient';
 import type {
   PendingApproval,
   EvidenceChainVerification,
@@ -75,13 +76,15 @@ export const api = axios.create({
 
 // Track if we're currently refreshing to prevent multiple refresh attempts
 let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
+// Subscribers receive the new token, or null when the refresh failed so each
+// waiting request can settle (reject) instead of hanging forever.
+let refreshSubscribers: ((token: string | null) => void)[] = [];
 
-function subscribeTokenRefresh(cb: (token: string) => void) {
+function subscribeTokenRefresh(cb: (token: string | null) => void) {
   refreshSubscribers.push(cb);
 }
 
-function onTokenRefreshed(token: string) {
+function onTokenRefreshed(token: string | null) {
   refreshSubscribers.forEach((cb) => cb(token));
   refreshSubscribers = [];
 }
@@ -113,7 +116,12 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Note: the refresh endpoint itself is excluded - a 401 from /auth/refresh
+    // means the session is gone, so re-entering this handler (and subscribing a
+    // callback that would never be invoked) must be avoided or it hangs forever.
+    const isRefreshCall = originalRequest.url?.includes('/auth/refresh');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isRefreshCall) {
       // Check if we have a user (indicating we were logged in)
       const { user, logout, setAccessToken } = useAuthStore.getState();
 
@@ -123,9 +131,14 @@ api.interceptors.response.use(
       }
 
       if (isRefreshing) {
-        // Wait for the refresh to complete
-        return new Promise((resolve) => {
+        // Wait for the in-flight refresh to complete.
+        return new Promise((resolve, reject) => {
           subscribeTokenRefresh((token) => {
+            if (!token) {
+              // Refresh failed - settle this waiter with a rejection.
+              reject(error);
+              return;
+            }
             originalRequest.headers.Authorization = `Bearer ${token}`;
             resolve(api(originalRequest));
           });
@@ -150,11 +163,14 @@ api.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${access_token}`;
 
         return api(originalRequest);
-      } catch {
-        // Refresh failed, logout user
+      } catch (refreshError) {
+        // Refresh failed: settle any waiting requests (so they reject rather
+        // than hang), drop all cached data, and log the user out.
+        onTokenRefreshed(null);
         logout();
-        refreshSubscribers = [];
+        queryClient.clear();
         // Redirect to login (handled by auth guard in router)
+        return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
       }

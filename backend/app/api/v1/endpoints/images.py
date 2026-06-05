@@ -5,7 +5,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import DBSession, require_permission
 from app.audit.service import AuditService
@@ -125,6 +126,16 @@ async def get_secure_image(
 
     resource_id = payload.resource_id
 
+    # Tenant isolation: the signed token cryptographically carries the minting
+    # tenant ("tid"). Bind the served image to the embedded user's tenant and
+    # require the claim to be present, so an unscoped or cross-tenant token
+    # cannot be replayed to fetch another tenant's image.
+    if not payload.tenant_id or payload.tenant_id != user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found",
+        )
+
     # Handle thumbnail prefix
     is_thumbnail = resource_id.startswith("thumb_")
     if is_thumbnail:
@@ -191,6 +202,30 @@ async def get_image_direct(
     This endpoint provides direct access to check images for authenticated users
     with appropriate permissions.
     """
+    # Tenant isolation: resolve the image and confirm it belongs to the
+    # caller's tenant before serving. Without this, any reviewer could fetch
+    # any image by id across tenants (IDOR).
+    image_row = await db.execute(
+        select(CheckImage)
+        .options(selectinload(CheckImage.check_item))
+        .where(
+            or_(
+                CheckImage.id == image_id,
+                CheckImage.external_image_id == image_id,
+            )
+        )
+    )
+    check_image = image_row.scalar_one_or_none()
+    if (
+        check_image is None
+        or check_image.check_item is None
+        or check_image.check_item.tenant_id != current_user.tenant_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found",
+        )
+
     adapter = get_adapter()
     audit_service = AuditService(db)
 
@@ -299,8 +334,15 @@ async def mint_image_token(
     tenant_id = current_user.tenant_id
     audit_service = AuditService(db)
 
-    # Verify image exists and belongs to user's tenant
-    image_result = await db.execute(select(CheckImage).where(CheckImage.id == data.image_id))
+    # Verify image exists and belongs to user's tenant.
+    # Eager-load check_item: under async SQLAlchemy a lazy access would raise
+    # MissingGreenlet, and treating a missing relationship as "ok" would skip
+    # the tenant check entirely. Both are closed by loading it here.
+    image_result = await db.execute(
+        select(CheckImage)
+        .options(selectinload(CheckImage.check_item))
+        .where(CheckImage.id == data.image_id)
+    )
     image = image_result.scalar_one_or_none()
 
     if not image:
@@ -309,8 +351,9 @@ async def mint_image_token(
             detail="Image not found",
         )
 
-    # Validate tenant ownership via the check item
-    if image.check_item and image.check_item.tenant_id != tenant_id:
+    # Validate tenant ownership via the check item. An image with no parent
+    # check item cannot be tenant-verified, so it is denied.
+    if image.check_item is None or image.check_item.tenant_id != tenant_id:
         # Log the access attempt
         await audit_service.log(
             action=AuditAction.IMAGE_ACCESS_DENIED,
@@ -395,15 +438,20 @@ async def mint_image_tokens_batch(
     tokens = []
 
     for image_id in data.image_ids:
-        # Verify each image exists and belongs to tenant
-        image_result = await db.execute(select(CheckImage).where(CheckImage.id == image_id))
+        # Verify each image exists and belongs to tenant (eager-load check_item
+        # so the tenant check cannot be skipped by a lazy/None relationship).
+        image_result = await db.execute(
+            select(CheckImage)
+            .options(selectinload(CheckImage.check_item))
+            .where(CheckImage.id == image_id)
+        )
         image = image_result.scalar_one_or_none()
 
         if not image:
             continue  # Skip missing images in batch
 
-        # Validate tenant ownership
-        if image.check_item and image.check_item.tenant_id != tenant_id:
+        # Validate tenant ownership; skip orphan or cross-tenant images.
+        if image.check_item is None or image.check_item.tenant_id != tenant_id:
             continue  # Skip images from other tenants
 
         # Create token
@@ -497,8 +545,29 @@ async def get_image_by_token(
             detail="Token has expired",
         )
 
-    # Check if token was already used
-    if token.is_used:
+    # CRITICAL: atomically claim the token BEFORE serving the image.
+    #
+    # A plain "if token.is_used: ... else: token.used_at = now" is a
+    # check-then-set TOCTOU: two concurrent requests both read used_at IS NULL
+    # before either commits, so the same one-time token serves the image twice.
+    # Instead we issue a single conditional UPDATE; the `used_at IS NULL`
+    # predicate means only one concurrent request can win the transition.
+    claim_result = await db.execute(
+        update(ImageAccessToken)
+        .where(
+            ImageAccessToken.id == token_id,
+            ImageAccessToken.used_at.is_(None),
+        )
+        .values(
+            used_at=datetime.now(timezone.utc),
+            used_by_ip=get_client_ip(request),
+            used_by_user_agent=request.headers.get("user-agent", "")[:500],
+        )
+    )
+
+    if claim_result.rowcount == 0:
+        # We lost the race (another request already consumed it) or it was
+        # used previously. Either way it is a reuse attempt.
         await audit_service.log(
             action=AuditAction.IMAGE_TOKEN_REUSE_ATTEMPTED,
             resource_type="image_access_token",
@@ -519,11 +588,6 @@ async def get_image_by_token(
             detail="Token has already been used",
         )
 
-    # CRITICAL: Mark token as used BEFORE serving the image
-    # This prevents race conditions where the same token is used twice
-    token.used_at = datetime.now(timezone.utc)
-    token.used_by_ip = get_client_ip(request)
-    token.used_by_user_agent = request.headers.get("user-agent", "")[:500]
     await db.commit()
 
     # Now fetch and serve the image

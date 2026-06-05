@@ -9,6 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit import AuditAction, AuditLog, ItemView
 
+# Fixed sentinel used as previous_hash for the first entry in a tenant's chain.
+GENESIS_HASH = "0" * 64
+
 
 class AuditService:
     """
@@ -75,6 +78,28 @@ class AuditService:
 
         self.db.add(log_entry)
         await self.db.flush()
+
+        # Link this entry to the previous one in the same tenant to form a
+        # tamper-evident chain. Genesis rows use a fixed sentinel.
+        #
+        # NOTE: the DB-level UPDATE/DELETE triggers (migration 004) are the
+        # primary tamper control. This chain adds detection of deletion/
+        # reordering on top. Without serialization, two concurrent inserts in
+        # the same tenant could read the same predecessor and fork the chain;
+        # the per-row hash (which now covers the change payload) is unaffected.
+        # A per-tenant advisory lock can be added if a strict single chain is
+        # required.
+        prev_result = await self.db.execute(
+            select(AuditLog.integrity_hash)
+            .where(
+                AuditLog.tenant_id == tenant_id,
+                AuditLog.id != log_entry.id,
+                AuditLog.integrity_hash.isnot(None),
+            )
+            .order_by(AuditLog.timestamp.desc(), AuditLog.id.desc())
+            .limit(1)
+        )
+        log_entry.previous_hash = prev_result.scalar_one_or_none() or GENESIS_HASH
 
         # Compute and store integrity hash after flush (ID is now assigned)
         log_entry.integrity_hash = log_entry.compute_integrity_hash()

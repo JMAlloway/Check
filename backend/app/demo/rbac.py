@@ -62,6 +62,10 @@ PERMISSION_NAMES: list[str] = [
     "image_connector:create",
     "image_connector:update",
     "image_connector:delete",
+    # Account context feed (Connector C) - SFTP item-context connectors
+    "item_context_connector:view",
+    "item_context_connector:manage",
+    "item_context_connector:import",
 ]
 
 # Common read-only access shared by every working role.
@@ -102,6 +106,8 @@ _SUPERVISOR = _SENIOR_REVIEWER + [
     "connector:view",
     "connector:approve",
     "image_connector:view",
+    "item_context_connector:view",
+    "item_context_connector:import",
 ]
 _ADMINISTRATOR = _SUPERVISOR + [
     "user:create",
@@ -116,6 +122,7 @@ _ADMINISTRATOR = _SUPERVISOR + [
     "image_connector:create",
     "image_connector:update",
     "image_connector:delete",
+    "item_context_connector:manage",
 ]
 _AUDITOR = _BASE_READ + [
     "report:export",

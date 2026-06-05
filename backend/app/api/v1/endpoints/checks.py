@@ -343,6 +343,8 @@ async def assign_check_item(
         },
     )
 
+    await db.commit()
+
     check_service = CheckService(db)
     return await check_service.get_check_item(item_id, current_user.id, current_user.tenant_id)
 
@@ -391,6 +393,8 @@ async def update_check_status(
         before_value={"status": old_status.value},
         after_value={"status": status.value},
     )
+
+    await db.commit()
 
     check_service = CheckService(db)
     return await check_service.get_check_item(item_id, current_user.id, current_user.tenant_id)

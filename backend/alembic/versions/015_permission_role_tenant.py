@@ -73,12 +73,12 @@ def downgrade() -> None:
     """Remove tenant_id and is_system columns from permissions and roles tables."""
 
     # === ROLES TABLE ===
-    op.create_constraint("roles_name_key", "roles", "unique", ["name"])
+    op.create_unique_constraint("roles_name_key", "roles", ["name"])
     op.drop_index("ix_roles_tenant_id", table_name="roles")
     op.drop_column("roles", "tenant_id")
 
     # === PERMISSIONS TABLE ===
-    op.create_constraint("permissions_name_key", "permissions", "unique", ["name"])
+    op.create_unique_constraint("permissions_name_key", "permissions", ["name"])
     op.drop_index("ix_permissions_tenant_id", table_name="permissions")
     op.drop_column("permissions", "is_system")
     op.drop_column("permissions", "tenant_id")

@@ -66,10 +66,14 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Metrics: DISABLED (set EXPOSE_METRICS=true to enable)")
 
-    # CRITICAL SAFETY CHECK: Demo mode must NEVER run in production
-    if settings.DEMO_MODE and settings.ENVIRONMENT == "production":
+    # CRITICAL SAFETY CHECK: Demo mode must NEVER run in any environment that
+    # may hold real data (production/pilot/staging/uat), not just exact
+    # "production". This matches the secret-validation and demo-guard env sets.
+    from app.demo import SECURE_ENVIRONMENTS
+
+    if settings.DEMO_MODE and settings.ENVIRONMENT.lower() in SECURE_ENVIRONMENTS:
         raise RuntimeError(
-            "FATAL: DEMO_MODE=true is not allowed in production environment! "
+            f"FATAL: DEMO_MODE=true is not allowed in the '{settings.ENVIRONMENT}' environment! "
             "Demo mode contains synthetic data and should only be used for demonstrations. "
             "Set ENVIRONMENT to 'development' or 'local' to enable demo mode."
         )

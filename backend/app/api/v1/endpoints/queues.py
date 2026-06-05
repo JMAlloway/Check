@@ -14,6 +14,7 @@ from app.core.rate_limit import RateLimits, user_limiter
 from app.models.audit import AuditAction
 from app.models.check import CheckItem, CheckStatus
 from app.models.queue import Queue, QueueAssignment
+from app.models.user import User
 from app.schemas.common import MessageResponse, PaginatedResponse
 from app.schemas.queue import (
     QueueAssignmentCreate,
@@ -192,9 +193,7 @@ async def update_queue(
     if queue_data.routing_criteria is not None:
         # Empty dict clears the criteria; otherwise store as JSON.
         queue.routing_criteria = (
-            json.dumps(queue_data.routing_criteria)
-            if queue_data.routing_criteria
-            else None
+            json.dumps(queue_data.routing_criteria) if queue_data.routing_criteria else None
         )
 
     audit_service = AuditService(db)
@@ -207,6 +206,8 @@ async def update_queue(
         ip_address=get_client_ip(request),
         description=f"Updated queue {queue.name}",
     )
+
+    await db.commit()
 
     return _queue_response(queue)
 
@@ -381,6 +382,21 @@ async def create_queue_assignment(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Queue not found",
+        )
+
+    # Verify the target user belongs to the same tenant before granting queue
+    # access. Without this, a queue:assign holder could grant can_review/
+    # can_approve on their tenant's queue to a user id from another tenant.
+    target_user = await db.execute(
+        select(User).where(
+            User.id == assignment_data.user_id,
+            User.tenant_id == current_user.tenant_id,
+        )
+    )
+    if not target_user.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
         )
 
     # Check for existing assignment

@@ -74,14 +74,34 @@ class AuthService:
             if ip_address and ip_address not in user.allowed_ips:
                 return None, "Access denied from this IP address"
 
-        # Reset failed attempts and update last login
+        # If MFA is enabled, the password is only the first factor. DO NOT reset
+        # the failed-attempt counter here, otherwise every password-correct
+        # attempt would zero out the counter and MFA codes could be brute-forced
+        # indefinitely. The caller must call register_failed_mfa() on a bad code
+        # and register_successful_login() once the code verifies.
+        if user.mfa_enabled and user.mfa_secret:
+            return user, None
+
+        # No MFA: a correct password is a complete successful login.
+        await self.register_successful_login(user)
+
+        return user, None
+
+    async def register_failed_mfa(self, user: User) -> None:
+        """Record a failed MFA attempt and lock the account if the threshold is
+        reached. MFA failures count toward the same lockout as bad passwords."""
+        user.failed_login_attempts += 1
+        if user.failed_login_attempts >= 3:
+            user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=60)
+        await self.db.commit()
+
+    async def register_successful_login(self, user: User) -> None:
+        """Clear lockout state and stamp the last-login time after a fully
+        successful authentication (password, plus MFA when enabled)."""
         user.failed_login_attempts = 0
         user.locked_until = None
         user.last_login = datetime.now(timezone.utc)
-
         await self.db.commit()
-
-        return user, None
 
     async def create_tokens(
         self,

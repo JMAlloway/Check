@@ -196,6 +196,10 @@ class AuditLog(Base, UUIDMixin):
 
     # Tamper-proofing: SHA-256 hash of critical fields for integrity verification
     integrity_hash: Mapped[str | None] = mapped_column(String(64))
+    # Hash of the preceding audit entry, forming a tamper-evident chain (set by
+    # AuditService.log). Genesis rows use a fixed sentinel. Added in migration
+    # 013; this column was previously missing from the model.
+    previous_hash: Mapped[str | None] = mapped_column(String(64))
 
     # Demo mode flag - marks synthetic demo audit entries
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -207,7 +211,12 @@ class AuditLog(Base, UUIDMixin):
     )
 
     def compute_integrity_hash(self) -> str:
-        """Compute SHA-256 hash of critical audit log fields for tamper detection."""
+        """Compute SHA-256 hash of critical audit log fields for tamper detection.
+
+        Covers the change payload (before/after/extra_data) and the previous
+        entry's hash, so altering a decision delta or splicing the chain breaks
+        verification - not just editing the top-level metadata.
+        """
         canonical = json.dumps(
             {
                 "id": str(self.id) if self.id else None,
@@ -218,6 +227,12 @@ class AuditLog(Base, UUIDMixin):
                 "resource_type": self.resource_type,
                 "resource_id": self.resource_id,
                 "description": self.description,
+                # Include the actual change payload so it is tamper-evident.
+                "before_value": self.before_value,
+                "after_value": self.after_value,
+                "extra_data": self.extra_data,
+                # Chain link to the preceding entry.
+                "previous_hash": self.previous_hash,
             },
             sort_keys=True,
             separators=(",", ":"),

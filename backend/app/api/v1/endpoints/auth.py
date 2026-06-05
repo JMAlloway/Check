@@ -10,6 +10,7 @@ from app.api.deps import CurrentUser, DBSession
 from app.audit.service import AuditService
 from app.core.client_ip import get_client_ip
 from app.core.config import settings
+from app.core.encryption import decrypt_field, encrypt_field, is_encrypted
 from app.core.rate_limit import limiter
 from app.core.security import get_password_hash, verify_password
 from app.models.audit import AuditAction
@@ -27,6 +28,18 @@ from app.schemas.auth import (
 from app.schemas.common import MessageResponse
 from app.schemas.user import CurrentUserResponse
 from app.services.auth import AuthService
+
+
+def _read_mfa_secret(stored: str) -> str:
+    """Return the plaintext TOTP secret from a stored value.
+
+    MFA secrets are stored encrypted (AES-256-GCM via encrypt_field). This
+    tolerates legacy rows that were written as plaintext before encryption was
+    applied, so existing enrollments keep working; those rows are upgraded the
+    next time MFA is re-enrolled.
+    """
+    return decrypt_field(stored) if is_encrypted(stored) else stored
+
 
 router = APIRouter()
 
@@ -126,8 +139,11 @@ async def login(
                 headers={"WWW-Authenticate": "Bearer, MFA-Required"},
             )
         # Verify TOTP code
-        totp = pyotp.TOTP(user.mfa_secret)
+        totp = pyotp.TOTP(_read_mfa_secret(user.mfa_secret))
         if not totp.verify(login_data.mfa_code, valid_window=1):
+            # Count MFA failures toward account lockout so a known password
+            # cannot be paired with unlimited TOTP guesses.
+            await auth_service.register_failed_mfa(user)
             await audit_service.log(
                 action=AuditAction.LOGIN_FAILED,
                 resource_type="user",
@@ -144,6 +160,10 @@ async def login(
                 detail="Invalid MFA code",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+
+        # MFA passed: this is now a fully successful login, so clear the
+        # deferred lockout/last-login bookkeeping.
+        await auth_service.register_successful_login(user)
 
     tokens = await auth_service.create_tokens(
         user=user,
@@ -421,8 +441,10 @@ async def setup_mfa(
     # Generate new TOTP secret
     secret = pyotp.random_base32()
 
-    # Store secret temporarily (not enabled yet until verified)
-    current_user.mfa_secret = secret
+    # Store the secret ENCRYPTED (not enabled yet until verified). Persisting
+    # the raw base32 seed would let anyone with DB read access reconstruct the
+    # TOTP and defeat MFA entirely.
+    current_user.mfa_secret = encrypt_field(secret)
     await db.commit()
 
     # Generate provisioning URI for QR code
@@ -473,7 +495,7 @@ async def verify_mfa(
         )
 
     # Verify the code
-    totp = pyotp.TOTP(current_user.mfa_secret)
+    totp = pyotp.TOTP(_read_mfa_secret(current_user.mfa_secret))
     if not totp.verify(verify_data.code, valid_window=1):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -522,7 +544,7 @@ async def disable_mfa(
         return MessageResponse(message="MFA disabled", success=True)
 
     # Verify the code before disabling
-    totp = pyotp.TOTP(current_user.mfa_secret)
+    totp = pyotp.TOTP(_read_mfa_secret(current_user.mfa_secret))
     if not totp.verify(verify_data.code, valid_window=1):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

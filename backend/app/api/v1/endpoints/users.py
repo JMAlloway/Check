@@ -288,6 +288,8 @@ async def update_user(
             metadata=changes,
         )
 
+    await db.commit()
+
     return UserResponse(
         id=user.id,
         email=user.email,

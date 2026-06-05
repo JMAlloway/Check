@@ -53,6 +53,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15  # Shortened for security (was 30)
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ALGORITHM: str = "HS256"
+    # Issuer claim asserted on, and verified for, auth JWTs (access/refresh).
+    JWT_ISSUER: str = "check-review-console"
 
     # Image signing - dedicated key for image URL tokens (separate from auth JWTs)
     # This allows independent rotation and limits blast radius of key compromise
@@ -97,6 +99,20 @@ class Settings(BaseSettings):
 
     # Audit settings
     AUDIT_LOG_RETENTION_YEARS: int = 7
+
+    # Item Context Connector (Connector C) SSRF guard.
+    # Optional comma-separated allowlist of SFTP hostnames that connectors may
+    # target. Empty = no explicit allowlist, but hosts resolving to internal/
+    # reserved addresses are always rejected (see _validate_sftp_host).
+    ITEM_CONTEXT_SFTP_ALLOWED_HOSTS: str = ""
+
+    @field_validator("ITEM_CONTEXT_SFTP_ALLOWED_HOSTS", mode="before")
+    @classmethod
+    def parse_sftp_allowed_hosts(cls, v: Any) -> str:
+        """Parse SFTP allowlist, stripping whitespace."""
+        if isinstance(v, str):
+            return v.strip()
+        return v or ""
 
     # Integration settings
     # Core-banking adapter selection: "mock" | "fiserv" | "jackhenry".
@@ -268,9 +284,15 @@ def _validate_production_secrets(s: Settings) -> None:
     - No known default values
     - No common placeholder patterns
     """
-    # Environments that require secure secrets (any non-development environment)
-    secure_environments = {"production", "pilot", "staging", "uat"}
-    if s.ENVIRONMENT.lower() not in secure_environments:
+    # Fail closed: enforce strong secrets in EVERY environment except the
+    # explicitly-recognized local/dev/test ones. Previously this was an
+    # allow-list of {production, pilot, staging, uat}, which meant an
+    # unrecognized or unset ENVIRONMENT (e.g. a "prod" typo, or forgetting to
+    # set it at all) would silently boot with the hardcoded default signing
+    # keys, letting anyone forge an admin token. Inverting the check removes
+    # that footgun.
+    dev_environments = {"development", "local", "dev", "test"}
+    if s.ENVIRONMENT.lower() in dev_environments:
         return
 
     # Secrets to validate with their minimum required length

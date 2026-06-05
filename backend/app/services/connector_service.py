@@ -507,12 +507,15 @@ class ConnectorService:
         if not bank_config:
             raise ConnectorError("Bank configuration not found or inactive")
 
-        # Get decisions with dual control verification
+        # Get decisions with dual control verification.
+        # CRITICAL: scope to the caller's tenant so a batch cannot include
+        # another tenant's approved decisions (cross-tenant data inclusion).
         decisions_result = await self.db.execute(
             select(Decision)
             .options(selectinload(Decision.check_item))
             .where(
                 Decision.id.in_(decision_ids),
+                Decision.tenant_id == tenant_id,
                 Decision.is_dual_control_required == True,
                 Decision.dual_control_approved_at.isnot(None),
             )
@@ -634,6 +637,7 @@ class ConnectorService:
     async def approve_batch(
         self,
         batch_id: str,
+        tenant_id: str,
         approver_user_id: str,
         approval_notes: str | None = None,
     ) -> CommitBatch:
@@ -642,7 +646,7 @@ class ConnectorService:
 
         Enforces dual control - approver must be different from creator.
         """
-        batch = await self._get_batch(batch_id)
+        batch = await self._get_batch(batch_id, tenant_id)
 
         if batch.status != BatchStatus.PENDING:
             raise BatchStateError(f"Batch is not pending approval (status: {batch.status})")
@@ -661,11 +665,12 @@ class ConnectorService:
     async def cancel_batch(
         self,
         batch_id: str,
+        tenant_id: str,
         user_id: str,
         reason: str,
     ) -> CommitBatch:
         """Cancel a batch before file generation."""
-        batch = await self._get_batch(batch_id)
+        batch = await self._get_batch(batch_id, tenant_id)
 
         if batch.status not in (BatchStatus.PENDING, BatchStatus.APPROVED):
             raise BatchStateError(f"Cannot cancel batch in status: {batch.status}")
@@ -682,13 +687,15 @@ class ConnectorService:
     # File Generation
     # -------------------------------------------------------------------------
 
-    async def generate_file(self, batch_id: str) -> tuple[str, bytes, str]:
+    async def generate_file(self, batch_id: str, tenant_id: str) -> tuple[str, bytes, str]:
         """
         Generate commit file for an approved batch.
 
         Returns: (file_name, file_content, checksum)
         """
-        batch = await self._get_batch(batch_id, include_records=True, include_config=True)
+        batch = await self._get_batch(
+            batch_id, tenant_id, include_records=True, include_config=True
+        )
 
         if batch.status != BatchStatus.APPROVED:
             raise BatchStateError(
@@ -737,10 +744,11 @@ class ConnectorService:
     async def mark_transmitted(
         self,
         batch_id: str,
+        tenant_id: str,
         transmission_id: str | None = None,
     ) -> CommitBatch:
         """Mark batch as transmitted to bank."""
-        batch = await self._get_batch(batch_id, include_records=True)
+        batch = await self._get_batch(batch_id, tenant_id, include_records=True)
 
         if batch.status != BatchStatus.GENERATED:
             raise BatchStateError(f"Batch not ready for transmission (status: {batch.status})")
@@ -763,6 +771,7 @@ class ConnectorService:
     async def process_acknowledgement(
         self,
         batch_id: str,
+        tenant_id: str,
         ack_data: dict[str, Any],
         user_id: str | None = None,
     ) -> BatchAcknowledgement:
@@ -779,7 +788,7 @@ class ConnectorService:
             ]
         }
         """
-        batch = await self._get_batch(batch_id, include_records=True)
+        batch = await self._get_batch(batch_id, tenant_id, include_records=True)
 
         if batch.status not in (BatchStatus.TRANSMITTED, BatchStatus.PARTIALLY_PROCESSED):
             raise BatchStateError(f"Batch not awaiting acknowledgement (status: {batch.status})")
@@ -983,9 +992,9 @@ class ConnectorService:
     # Query Methods
     # -------------------------------------------------------------------------
 
-    async def get_batch(self, batch_id: str) -> CommitBatch | None:
-        """Get batch by ID."""
-        return await self._get_batch(batch_id, include_records=True)
+    async def get_batch(self, batch_id: str, tenant_id: str) -> CommitBatch | None:
+        """Get batch by ID, scoped to the caller's tenant."""
+        return await self._get_batch(batch_id, tenant_id, include_records=True)
 
     async def list_batches(
         self,
@@ -1057,11 +1066,19 @@ class ConnectorService:
     async def resolve_record(
         self,
         record_id: str,
+        tenant_id: str,
         user_id: str,
         resolution_notes: str,
     ) -> CommitRecord:
-        """Manually resolve a failed record."""
-        result = await self.db.execute(select(CommitRecord).where(CommitRecord.id == record_id))
+        """Manually resolve a failed record, scoped to the caller's tenant."""
+        result = await self.db.execute(
+            select(CommitRecord)
+            .join(CommitBatch)
+            .where(
+                CommitRecord.id == record_id,
+                CommitBatch.tenant_id == tenant_id,
+            )
+        )
         record = result.scalar_one_or_none()
 
         if not record:
@@ -1085,11 +1102,21 @@ class ConnectorService:
     async def _get_batch(
         self,
         batch_id: str,
+        tenant_id: str,
         include_records: bool = False,
         include_config: bool = False,
     ) -> CommitBatch:
-        """Get batch by ID with optional eager loading."""
-        query = select(CommitBatch).where(CommitBatch.id == batch_id)
+        """Get batch by ID, scoped to the caller's tenant.
+
+        tenant_id is REQUIRED: commit batches move money to the core bank, so a
+        cross-tenant fetch would allow approving/transmitting another bank's
+        batch. A missing or mismatched tenant raises BatchNotFoundError (a 404,
+        not a 403, to avoid disclosing batch existence across tenants).
+        """
+        query = select(CommitBatch).where(
+            CommitBatch.id == batch_id,
+            CommitBatch.tenant_id == tenant_id,
+        )
 
         if include_records:
             query = query.options(selectinload(CommitBatch.records))

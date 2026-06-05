@@ -21,6 +21,7 @@ import { startProductTour } from '../../tour/productTour';
 import { useAuthStore } from '../../stores/authStore';
 import { useDemoStore } from '../../stores/demoStore';
 import { authApi } from '../../services/api';
+import { queryClient } from '../../queryClient';
 import DemoBanner, { DemoIndicator } from '../common/DemoBanner';
 import clsx from 'clsx';
 
@@ -63,8 +64,11 @@ export default function Layout({ children }: LayoutProps) {
     } catch {
       // Continue with logout even if server call fails
     }
-    // Clear client-side state
+    // Clear client-side state. Clear the React Query cache too, otherwise the
+    // previous user's cached checks/queues/dashboards would survive in memory
+    // and could be briefly shown to the next user on this browser session.
     logout();
+    queryClient.clear();
     navigate('/login');
   };
 

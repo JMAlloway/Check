@@ -132,9 +132,7 @@ async def get_dashboard_stats(
             select(func.count(CheckItem.id)).where(CheckItem.tenant_id == tenant_id)
         )
         routed_count = routed_result.scalar() or 0
-        result["daily_volume"] = get_daily_volume_context(
-            now.date(), routed_to_review=routed_count
-        )
+        result["daily_volume"] = get_daily_volume_context(now.date(), routed_to_review=routed_count)
 
     return result
 

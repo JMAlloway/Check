@@ -2777,8 +2777,10 @@ def main():
     print(f"Count: {args.count}")
     print("=" * 60)
 
-    if settings.ENVIRONMENT == "production":
-        print("ERROR: Cannot seed demo data in production environment!")
+    from app.demo import SECURE_ENVIRONMENTS
+
+    if settings.ENVIRONMENT.lower() in SECURE_ENVIRONMENTS:
+        print(f"ERROR: Cannot seed demo data in the '{settings.ENVIRONMENT}' environment!")
         return 1
 
     stats = asyncio.run(seed_demo_data(reset=args.reset, count=args.count))

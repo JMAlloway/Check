@@ -24,33 +24,54 @@ class PolicyEngine:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_active_policy(self, account_type: str | None = None) -> PolicyVersion | None:
-        """Get the currently active policy version."""
+    async def get_active_policy(
+        self, tenant_id: str, account_type: str | None = None
+    ) -> PolicyVersion | None:
+        """Get the currently active policy version for a tenant.
+
+        tenant_id is REQUIRED. Policies drive dual-control thresholds, risk
+        levels, and routing, so evaluating a check item against another
+        tenant's policy is both a data-isolation breach and a controls breach.
+        """
         query = (
             select(PolicyVersion)
             .join(Policy)
-            .options(selectinload(PolicyVersion.rules))
+            .options(
+                selectinload(PolicyVersion.rules),
+                selectinload(PolicyVersion.policy),
+            )
             .where(
+                Policy.tenant_id == tenant_id,
                 Policy.status == PolicyStatus.ACTIVE,
                 PolicyVersion.is_current == True,
                 PolicyVersion.effective_date <= datetime.now(timezone.utc),
             )
+            # Prefer default policy, then by most recent effective date
+            .order_by(Policy.is_default.desc(), PolicyVersion.effective_date.desc())
         )
 
-        # Filter by account type if specified
-        if account_type:
-            query = query.where(
-                Policy.applies_to_account_types.is_(None)
-                | Policy.applies_to_account_types.contains(account_type)
-            )
-
-        # Prefer default policy, then by most recent effective date
-        query = query.order_by(Policy.is_default.desc(), PolicyVersion.effective_date.desc())
-
         result = await self.db.execute(query)
-        # Use scalars().first() to safely get first matching policy
-        # (handles multiple matches gracefully)
-        return result.scalars().first()
+        candidates = result.scalars().all()
+
+        if not account_type:
+            return candidates[0] if candidates else None
+
+        # Account-type scoping is a proper JSON-array membership test.
+        # applies_to_account_types is a JSON-encoded list (e.g. '["consumer"]');
+        # a SQL substring match would wrongly select "non_consumer" for
+        # "consumer", so parse and test membership in Python instead.
+        for policy_version in candidates:
+            applies_to = policy_version.policy.applies_to_account_types
+            if not applies_to:
+                return policy_version  # applies to all account types
+            try:
+                allowed_types = json.loads(applies_to)
+            except (ValueError, TypeError):
+                allowed_types = []
+            if account_type in allowed_types:
+                return policy_version
+
+        return None
 
     async def evaluate(self, check_item: CheckItem) -> PolicyEvaluationResult:
         """
@@ -59,7 +80,9 @@ class PolicyEngine:
         Returns:
             PolicyEvaluationResult with triggered rules and required actions
         """
-        policy_version = await self.get_active_policy(check_item.account_type.value)
+        policy_version = await self.get_active_policy(
+            check_item.tenant_id, check_item.account_type.value
+        )
 
         if not policy_version:
             # Return default result if no policy is active

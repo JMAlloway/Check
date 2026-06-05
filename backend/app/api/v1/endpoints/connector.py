@@ -312,6 +312,8 @@ async def create_batch(
         },
     )
 
+    await db.commit()
+
     return _batch_to_response(batch)
 
 
@@ -326,7 +328,7 @@ async def get_batch(
     connector = ConnectorService(db)
 
     try:
-        batch = await connector.get_batch(batch_id)
+        batch = await connector.get_batch(batch_id, current_user.tenant_id)
     except BatchNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -353,7 +355,7 @@ async def get_batch_confirmation(
     connector = ConnectorService(db)
 
     try:
-        batch = await connector.get_batch(batch_id)
+        batch = await connector.get_batch(batch_id, current_user.tenant_id)
     except BatchNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -436,6 +438,7 @@ async def approve_batch(
     try:
         batch = await connector.approve_batch(
             batch_id=batch_id,
+            tenant_id=current_user.tenant_id,
             approver_user_id=current_user.id,
             approval_notes=approval.approval_notes,
         )
@@ -468,6 +471,8 @@ async def approve_batch(
         metadata={"notes": approval.approval_notes},
     )
 
+    await db.commit()
+
     return _batch_to_response(batch)
 
 
@@ -485,6 +490,7 @@ async def cancel_batch(
     try:
         batch = await connector.cancel_batch(
             batch_id=batch_id,
+            tenant_id=current_user.tenant_id,
             user_id=current_user.id,
             reason=cancel_data.reason,
         )
@@ -512,6 +518,8 @@ async def cancel_batch(
         metadata={"reason": cancel_data.reason},
     )
 
+    await db.commit()
+
     return _batch_to_response(batch)
 
 
@@ -535,8 +543,10 @@ async def generate_batch_file(
     connector = ConnectorService(db)
 
     try:
-        file_name, content, checksum = await connector.generate_file(batch_id)
-        batch = await connector.get_batch(batch_id)
+        file_name, content, checksum = await connector.generate_file(
+            batch_id, current_user.tenant_id
+        )
+        batch = await connector.get_batch(batch_id, current_user.tenant_id)
     except BatchNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -570,6 +580,8 @@ async def generate_batch_file(
         },
     )
 
+    await db.commit()
+
     return BatchFileResponse(
         batch_id=batch.id,
         batch_number=batch.batch_number,
@@ -591,7 +603,7 @@ async def download_batch_file(
     connector = ConnectorService(db)
 
     try:
-        batch = await connector.get_batch(batch_id)
+        batch = await connector.get_batch(batch_id, current_user.tenant_id)
     except BatchNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -618,7 +630,9 @@ async def download_batch_file(
 
     # Regenerate file (deterministic - will produce same content)
     try:
-        file_name, content, checksum = await connector.generate_file(batch_id)
+        file_name, content, checksum = await connector.generate_file(
+            batch_id, current_user.tenant_id
+        )
     except Exception:
         # If regeneration fails, the batch may have been modified
         raise HTTPException(
@@ -658,6 +672,7 @@ async def mark_batch_transmitted(
     try:
         batch = await connector.mark_transmitted(
             batch_id=batch_id,
+            tenant_id=current_user.tenant_id,
             transmission_id=transmission_id,
         )
     except BatchNotFoundError:
@@ -684,6 +699,8 @@ async def mark_batch_transmitted(
         metadata={"transmission_id": transmission_id},
     )
 
+    await db.commit()
+
     return _batch_to_response(batch)
 
 
@@ -706,6 +723,7 @@ async def process_acknowledgement(
     try:
         ack = await connector.process_acknowledgement(
             batch_id=batch_id,
+            tenant_id=current_user.tenant_id,
             ack_data=ack_data.model_dump(),
             user_id=current_user.id,
         )
@@ -736,6 +754,8 @@ async def process_acknowledgement(
             "pending": ack.pending_count,
         },
     )
+
+    await db.commit()
 
     return AcknowledgementResponse(
         id=ack.id,
@@ -847,6 +867,7 @@ async def resolve_failed_record(
     try:
         record = await connector.resolve_record(
             record_id=record_id,
+            tenant_id=current_user.tenant_id,
             user_id=current_user.id,
             resolution_notes=resolution.resolution_notes,
         )
@@ -868,6 +889,8 @@ async def resolve_failed_record(
         description=f"Manually resolved failed record",
         metadata={"notes": resolution.resolution_notes},
     )
+
+    await db.commit()
 
     return _record_to_summary(record)
 

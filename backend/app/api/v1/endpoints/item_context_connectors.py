@@ -12,16 +12,20 @@ Required permissions:
 - item_context_connector:import - Trigger imports
 """
 
+import ipaddress
+import socket
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
-from app.api.deps import CurrentUser, DBSession
+from app.api.deps import CurrentUser, DBSession, require_permission
 from app.audit.service import AuditService
+from app.core.config import settings
 from app.core.encryption import encrypt_value
 from app.models.audit import AuditAction
 from app.models.item_context_connector import (
@@ -38,6 +42,69 @@ from app.services.item_context_service import ItemContextImportService
 from app.services.sftp_service import SFTPService
 
 router = APIRouter()
+
+# Authorization dependencies. Every route below requires an explicit
+# item_context_connector permission; previously these routes only required
+# authentication, which let any signed-in user of any role manage SFTP
+# connectors (incl. credentials) and trigger outbound connections (SSRF).
+ViewUser = Annotated[object, Depends(require_permission("item_context_connector", "view"))]
+ManageUser = Annotated[object, Depends(require_permission("item_context_connector", "manage"))]
+ImportUser = Annotated[object, Depends(require_permission("item_context_connector", "import"))]
+
+
+def _validate_sftp_host(host: str) -> None:
+    """Reject SFTP hosts that target internal/reserved networks (SSRF guard).
+
+    If ITEM_CONTEXT_SFTP_ALLOWED_HOSTS is configured (comma-separated
+    hostnames), the host must be on that allowlist. Regardless of the
+    allowlist, any host that resolves to a loopback/private/link-local/
+    reserved address is rejected so a connector cannot be pointed at internal
+    infrastructure (cloud metadata endpoints, databases, etc.).
+
+    Note: this is a synchronous DNS lookup and must be called via a
+    threadpool from async endpoints to avoid blocking the event loop. It
+    mitigates but does not fully eliminate DNS-rebinding; the transport layer
+    should re-validate the connected peer where possible.
+    """
+    host = (host or "").strip()
+    if not host:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SFTP host is required")
+
+    allow = [
+        h.strip().lower() for h in settings.ITEM_CONTEXT_SFTP_ALLOWED_HOSTS.split(",") if h.strip()
+    ]
+    if allow and host.lower() not in allow:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="SFTP host is not on the configured allowlist",
+        )
+
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"SFTP host could not be resolved: {host}",
+        )
+
+    for info in infos:
+        addr = info[4][0]
+        try:
+            ip = ipaddress.ip_address(addr)
+        except ValueError:
+            continue
+        if (
+            ip.is_loopback
+            or ip.is_private
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="SFTP host resolves to a non-routable/internal address and is not allowed",
+            )
 
 
 # =============================================================================
@@ -305,7 +372,7 @@ class FieldMappingTemplateResponse(BaseModel):
 @router.get("", response_model=ConnectorListResponse)
 async def list_connectors(
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: ViewUser,  # noqa: E501 (was: any authenticated user)
     skip: int = 0,
     limit: int = 50,
 ):
@@ -337,10 +404,13 @@ async def list_connectors(
 async def create_connector(
     request: ConnectorCreateRequest,
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: ManageUser,  # noqa: E501 (was: any authenticated user)
 ):
     """Create a new item context connector."""
     tenant_id = current_user.tenant_id
+
+    # SSRF guard: reject hosts that resolve to internal/reserved networks.
+    await run_in_threadpool(_validate_sftp_host, request.sftp_host)
 
     # Check for duplicate name
     existing = await db.execute(
@@ -428,7 +498,7 @@ async def create_connector(
 async def get_connector(
     connector_id: str,
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: ViewUser,  # noqa: E501 (was: any authenticated user)
 ):
     """Get a specific connector by ID."""
     connector = await _get_connector_or_404(db, connector_id, current_user.tenant_id)
@@ -440,13 +510,17 @@ async def update_connector(
     connector_id: str,
     request: ConnectorUpdateRequest,
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: ManageUser,  # noqa: E501 (was: any authenticated user)
 ):
     """Update a connector."""
     connector = await _get_connector_or_404(db, connector_id, current_user.tenant_id)
 
     # Update fields
     update_data = request.model_dump(exclude_unset=True)
+
+    # SSRF guard: re-validate the host if it is being changed.
+    if update_data.get("sftp_host"):
+        await run_in_threadpool(_validate_sftp_host, update_data["sftp_host"])
 
     # Handle encrypted fields
     if "sftp_password" in update_data:
@@ -494,7 +568,7 @@ async def update_connector(
 async def delete_connector(
     connector_id: str,
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: ManageUser,  # noqa: E501 (was: any authenticated user)
 ):
     """Delete a connector."""
     connector = await _get_connector_or_404(db, connector_id, current_user.tenant_id)
@@ -523,10 +597,14 @@ async def delete_connector(
 async def test_connection(
     connector_id: str,
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: ManageUser,  # noqa: E501 (was: any authenticated user)
 ):
     """Test SFTP connection for a connector."""
     connector = await _get_connector_or_404(db, connector_id, current_user.tenant_id)
+
+    # SSRF guard: a stored host could predate this check, so re-validate before
+    # opening an outbound connection.
+    await run_in_threadpool(_validate_sftp_host, connector.sftp_host)
 
     sftp = SFTPService(connector)
     result = await sftp.test_connection()
@@ -550,7 +628,7 @@ async def test_connection(
 async def trigger_import(
     connector_id: str,
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: ImportUser,  # noqa: E501 (was: any authenticated user)
     background_tasks: BackgroundTasks,
     file_limit: int | None = None,
 ):
@@ -566,6 +644,10 @@ async def trigger_import(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Connector is disabled. Enable it before triggering imports.",
         )
+
+    # SSRF guard: re-validate the stored host before the background import opens
+    # an outbound connection.
+    await run_in_threadpool(_validate_sftp_host, connector.sftp_host)
 
     # Create a pending import record
     import_record = ItemContextImport(
@@ -601,7 +683,7 @@ async def trigger_import(
 async def list_imports(
     connector_id: str,
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: ViewUser,  # noqa: E501 (was: any authenticated user)
     skip: int = 0,
     limit: int = 50,
 ):
@@ -635,7 +717,7 @@ async def get_import(
     connector_id: str,
     import_id: str,
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: ViewUser,  # noqa: E501 (was: any authenticated user)
 ):
     """Get details of a specific import."""
     connector = await _get_connector_or_404(db, connector_id, current_user.tenant_id)
@@ -658,7 +740,7 @@ async def get_import_errors(
     connector_id: str,
     import_id: str,
     db: DBSession,
-    current_user: CurrentUser,
+    current_user: ViewUser,  # noqa: E501 (was: any authenticated user)
     skip: int = 0,
     limit: int = 100,
 ) -> list[ImportRecordResponse]:

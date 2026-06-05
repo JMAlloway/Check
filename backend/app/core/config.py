@@ -98,6 +98,20 @@ class Settings(BaseSettings):
     # Audit settings
     AUDIT_LOG_RETENTION_YEARS: int = 7
 
+    # Item Context Connector (Connector C) SSRF guard.
+    # Optional comma-separated allowlist of SFTP hostnames that connectors may
+    # target. Empty = no explicit allowlist, but hosts resolving to internal/
+    # reserved addresses are always rejected (see _validate_sftp_host).
+    ITEM_CONTEXT_SFTP_ALLOWED_HOSTS: str = ""
+
+    @field_validator("ITEM_CONTEXT_SFTP_ALLOWED_HOSTS", mode="before")
+    @classmethod
+    def parse_sftp_allowed_hosts(cls, v: Any) -> str:
+        """Parse SFTP allowlist, stripping whitespace."""
+        if isinstance(v, str):
+            return v.strip()
+        return v or ""
+
     # Integration settings
     # Core-banking adapter selection: "mock" | "fiserv" | "jackhenry".
     # "fiserv"/"jackhenry" run the simulated adapters (synthetic data, real

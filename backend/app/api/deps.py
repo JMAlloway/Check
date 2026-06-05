@@ -47,6 +47,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def get_current_user(
+    request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
 ) -> User:
@@ -79,6 +80,12 @@ async def get_current_user(
 
     if user is None:
         raise credentials_exception
+
+    # Expose the authenticated user to the per-user / per-tenant rate limiters.
+    # Dependencies resolve before slowapi evaluates its key function, so this
+    # makes user_limiter/tenant_limiter key on identity instead of silently
+    # falling back to the (often shared, behind-proxy) client IP.
+    request.state.user = user
 
     return user
 

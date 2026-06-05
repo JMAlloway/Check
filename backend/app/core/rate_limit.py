@@ -18,9 +18,20 @@ from typing import Optional
 
 from fastapi import Request
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 
+from app.core.client_ip import get_client_ip
 from app.core.config import settings
+
+
+def _ip_key(request: Request) -> str:
+    """Trusted-proxy-aware client IP key.
+
+    slowapi's default get_remote_address uses request.client.host, which behind
+    a reverse proxy / load balancer is the proxy IP for every client - turning
+    a per-IP limit into a single shared bucket (brute-force bypass + lockout
+    DoS). get_client_ip honours TRUSTED_PROXY_IPS to recover the real client.
+    """
+    return get_client_ip(request)
 
 
 def get_user_identifier(request: Request) -> str:
@@ -30,13 +41,13 @@ def get_user_identifier(request: Request) -> str:
     Falls back to IP address if user not authenticated.
     Uses format: user:{user_id} or ip:{ip_address}
     """
-    # Try to get user from request state (set by auth middleware)
+    # Try to get user from request state (set by get_current_user)
     user = getattr(request.state, "user", None)
     if user and hasattr(user, "id"):
         return f"user:{user.id}"
 
     # Fall back to IP address
-    return f"ip:{get_remote_address(request)}"
+    return f"ip:{_ip_key(request)}"
 
 
 def get_tenant_identifier(request: Request) -> str:
@@ -52,7 +63,7 @@ def get_tenant_identifier(request: Request) -> str:
         return f"tenant:{user.tenant_id}"
 
     # Fall back to IP address
-    return f"ip:{get_remote_address(request)}"
+    return f"ip:{_ip_key(request)}"
 
 
 def get_user_and_tenant_identifier(request: Request) -> str:
@@ -66,7 +77,7 @@ def get_user_and_tenant_identifier(request: Request) -> str:
     if user and hasattr(user, "id") and hasattr(user, "tenant_id"):
         return f"tenant:{user.tenant_id}:user:{user.id}"
 
-    return f"ip:{get_remote_address(request)}"
+    return f"ip:{_ip_key(request)}"
 
 
 # =============================================================================
@@ -74,7 +85,7 @@ def get_user_and_tenant_identifier(request: Request) -> str:
 # =============================================================================
 
 # IP-based limiter (for unauthenticated endpoints)
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=_ip_key)
 
 # User-based limiter (for authenticated endpoints)
 user_limiter = Limiter(key_func=get_user_identifier)

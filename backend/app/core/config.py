@@ -39,11 +39,22 @@ class Settings(BaseSettings):
                 return False
         return v
 
-    # Number of demo review-queue items to seed. Sized to a realistic daily
-    # exception queue for a ~$2B-asset community bank (the bulk of presented
-    # volume clears straight through and is represented by the daily-volume
-    # backdrop rather than per-item rows).
-    DEMO_DATA_COUNT: int = 250
+    # Size of the OPEN review queue to seed (items a person still has to action:
+    # NEW / IN_REVIEW / PENDING_DUAL_CONTROL / ESCALATED). Sized to a realistic
+    # daily exception queue for a ~$2B-asset community bank: ~267 routed to
+    # review out of ~10k presented (≈97.3% straight-through). The bulk of
+    # presented volume clears straight through and is represented by the
+    # deterministic daily-volume backdrop rather than per-item rows.
+    DEMO_DATA_COUNT: int = 267
+
+    # Number of already-decided historical items to seed (APPROVED/RETURNED/
+    # REJECTED) so Reports, decision history, and the automation QA spot-check
+    # have a realistic body of real data to aggregate over.
+    DEMO_HISTORY_COUNT: int = 700
+
+    # Fixed RNG seed for demo seeding so reseeding produces the SAME numbers
+    # every time (stable dashboards/reports across reseeds).
+    DEMO_RANDOM_SEED: int = 20240117
 
     # API
     API_V1_PREFIX: str = "/api/v1"

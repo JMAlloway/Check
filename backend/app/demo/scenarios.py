@@ -520,6 +520,28 @@ DEMO_CREDENTIALS = {
 import datetime as _dt
 import random as _rnd
 
+# Share of presented items routed to a human review queue (the exception rate).
+# ~2.67% routed => ~97.33% straight-through, which for a ~267-item exception
+# queue implies ~10,000 items presented per normal business day.
+DEMO_EXCEPTION_RATE = 0.0267
+DEMO_STP_RATE = round(1 - DEMO_EXCEPTION_RATE, 4)  # 0.9733
+# Baseline items presented on a normal mid-week day for a ~$2B community bank.
+DEMO_BASE_PRESENTED = 10000
+# Relative presented volume by weekday (Mon heavy, weekends light).
+_WEEKDAY_FACTOR = {0: 1.12, 1: 1.04, 2: 1.0, 3: 1.0, 4: 1.06, 5: 0.32, 6: 0.16}
+
+
+def _presented_for_date(target_date: _dt.date) -> int:
+    """Deterministic presented-volume for a date.
+
+    Seeded by the date only, so the value is stable for a given day (and across
+    reseeds) but varies realistically day to day. The wobble is kept tight so
+    the headline reads like a real, steady daily volume rather than noise.
+    """
+    rng = _rnd.Random(target_date.toordinal())
+    factor = _WEEKDAY_FACTOR[target_date.weekday()]
+    return int(round(DEMO_BASE_PRESENTED * factor * rng.uniform(0.985, 1.015)))
+
 
 def get_daily_volume_context(
     target_date: _dt.date | None = None,
@@ -527,36 +549,32 @@ def get_daily_volume_context(
 ) -> dict:
     """Return an illustrative whole-bank item-volume snapshot for a date.
 
-    When ``routed_to_review`` is supplied (e.g. the live count of items actually
-    routed to the review queue) the whole-bank figures are derived from it so the
-    dashboard's "Today across the bank" numbers stay consistent with the real
-    queue volume: presented = routed / (1 - straight-through rate). In production
-    these would come from actual ingestion metrics; here they are anchored to the
-    seeded data so the demo never shows a contradictory story.
+    A single exception-rate model is used everywhere so the dashboard and the
+    reports never tell a contradictory story:
+      straight-through rate = DEMO_STP_RATE (fixed, ~97.3%)
+      presented = routed / exception_rate  (when anchored to the live queue)
+                = deterministic per-date baseline (for historical days)
+
+    When ``routed_to_review`` is supplied (the live count of items in the review
+    queue) the whole-bank figures are anchored to it, so "Today across the bank"
+    stays consistent with the real queue (~267 routed => ~10k presented).
     """
     target_date = target_date or _dt.date.today()
-    rng = _rnd.Random(target_date.toordinal())
-    # ~96-98% of presented items clear straight through without a human.
-    stp_rate = round(rng.uniform(0.958, 0.978), 4)
 
     if routed_to_review is not None:
-        # Anchor the whole-bank volume to the real exception count.
         routed = max(int(routed_to_review), 0)
-        presented = round(routed / (1 - stp_rate)) if routed > 0 else 0
+        presented = round(routed / DEMO_EXCEPTION_RATE) if routed > 0 else 0
         straight_through = presented - routed
     else:
-        weekday = target_date.weekday()  # 0=Mon .. 6=Sun
-        # Weekends present far fewer items; Mondays run heavy.
-        weekday_factor = {0: 1.18, 1: 1.05, 2: 1.0, 3: 1.0, 4: 1.08, 5: 0.35, 6: 0.18}[weekday]
-        presented = int(8200 * weekday_factor * rng.uniform(0.9, 1.12))
-        straight_through = int(presented * stp_rate)
-        routed = presented - straight_through
+        presented = _presented_for_date(target_date)
+        routed = round(presented * DEMO_EXCEPTION_RATE)
+        straight_through = presented - routed
 
     return {
         "date": target_date.isoformat(),
         "presented": presented,
         "straight_through_cleared": straight_through,
-        "straight_through_rate": stp_rate,
+        "straight_through_rate": DEMO_STP_RATE,
         "routed_to_review": routed,
     }
 

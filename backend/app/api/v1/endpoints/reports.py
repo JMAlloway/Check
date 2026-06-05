@@ -41,7 +41,7 @@ async def get_dashboard_stats(
                 [
                     CheckStatus.NEW,
                     CheckStatus.IN_REVIEW,
-                    CheckStatus.PENDING_APPROVAL,
+                    CheckStatus.PENDING_DUAL_CONTROL,
                     CheckStatus.ESCALATED,
                 ]
             ),
@@ -67,7 +67,7 @@ async def get_dashboard_stats(
             CheckItem.tenant_id == tenant_id,
             CheckItem.sla_breached == True,
             CheckItem.status.in_(
-                [CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]
+                [CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_DUAL_CONTROL]
             ),
         )
     )
@@ -81,7 +81,7 @@ async def get_dashboard_stats(
                 CheckItem.tenant_id == tenant_id,
                 CheckItem.risk_level == risk,
                 CheckItem.status.in_(
-                    [CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL]
+                    [CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_DUAL_CONTROL]
                 ),
             )
         )
@@ -125,14 +125,13 @@ async def get_dashboard_stats(
     # In demo mode, frame the review queue against whole-bank daily volume. This
     # is illustrative context (not per-item rows) showing that the queue is the
     # small exception slice of a much larger straight-through-cleared volume.
-    # Anchor "routed to review" to the real number of items in the system so the
-    # headline volume stays consistent with the queue the user is looking at.
+    # Anchor "routed to review" to the live OPEN queue (the exception slice) so
+    # the headline volume matches the queue the user is looking at: ~267 routed
+    # to review out of ~10k presented (~97.3% straight-through).
     if settings.DEMO_MODE:
-        routed_result = await db.execute(
-            select(func.count(CheckItem.id)).where(CheckItem.tenant_id == tenant_id)
+        result["daily_volume"] = get_daily_volume_context(
+            now.date(), routed_to_review=pending_count
         )
-        routed_count = routed_result.scalar() or 0
-        result["daily_volume"] = get_daily_volume_context(now.date(), routed_to_review=routed_count)
 
     return result
 

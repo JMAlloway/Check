@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CheckHistory } from '../../types';
 import { checkApi, resolveImageUrl } from '../../services/api';
+import { formatDate } from '../../utils/date';
 import clsx from 'clsx';
 
 interface CheckHistoryPanelProps {
@@ -82,7 +83,7 @@ export default function CheckHistoryPanel({
                       )}
                     </div>
                     <div className="text-sm text-gray-500">
-                      {new Date(item.check_date).toLocaleDateString()}
+                      {formatDate(item.check_date)}
                     </div>
                     {item.payee_name && (
                       <div className="text-sm text-gray-600 truncate">

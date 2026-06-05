@@ -11,6 +11,7 @@ import { fraudApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { humanizeLabel } from '../utils/labels';
+import { formatCurrency } from '../utils/currency';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import type { FraudEventListItem } from '../types';
 
@@ -25,7 +26,7 @@ function titleCase(s: string): string {
 }
 
 function currency(v: string): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(parseFloat(v));
+  return formatCurrency(parseFloat(v));
 }
 
 function WithdrawModal({
@@ -248,7 +249,7 @@ export default function FraudEventsPage() {
           submitting
             ? [
                 { label: 'Type', value: humanizeLabel(submitting.fraud_type) },
-                { label: 'Amount', value: `$${submitting.amount.toLocaleString()}` },
+                { label: 'Amount', value: currency(submitting.amount) },
               ]
             : undefined
         }

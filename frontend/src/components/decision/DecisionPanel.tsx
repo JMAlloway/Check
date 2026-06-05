@@ -6,6 +6,7 @@ import { CheckItem, ReasonCode, DecisionAction } from '../../types';
 import { decisionApi } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
 import ConfirmationModal from '../common/ConfirmationModal';
+import { formatCurrency } from '../../utils/currency';
 import clsx from 'clsx';
 
 // Keyboard shortcut mapping for actions
@@ -243,7 +244,7 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
   const getConfirmationDetails = () => {
     const details = [
       { label: 'Account', value: item.account_number_masked },
-      { label: 'Amount', value: `$${item.amount.toLocaleString()}` },
+      { label: 'Amount', value: formatCurrency(item.amount) },
       { label: 'Action', value: selectedAction?.toUpperCase() || '' },
     ];
 
@@ -412,7 +413,7 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
               </div>
             ) : (
               <div className="text-sm text-amber-600 py-2">
-                No reason codes available. Please run demo seeder.
+                No reason codes are configured for this action.
               </div>
             )}
           </div>
@@ -516,6 +517,7 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
             <span className="ml-2 font-mono">R</span><span className="mx-0.5">Return</span>
             <span className="ml-2 font-mono">J</span><span className="mx-0.5">Reject</span>
             <span className="ml-2 font-mono">E</span><span className="mx-0.5">Escalate</span>
+            <span className="ml-2 font-mono">I</span><span className="mx-0.5">More Info</span>
           </div>
         </div>
         </div>

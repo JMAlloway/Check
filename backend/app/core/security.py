@@ -35,7 +35,12 @@ def create_access_token(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
 
-    to_encode = {"exp": expire, "sub": str(subject), "type": "access"}
+    to_encode = {
+        "exp": expire,
+        "sub": str(subject),
+        "type": "access",
+        "iss": settings.JWT_ISSUER,
+    }
     if additional_claims:
         to_encode.update(additional_claims)
 
@@ -46,15 +51,31 @@ def create_access_token(
 def create_refresh_token(subject: str | int) -> str:
     """Create a JWT refresh token."""
     expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
+    to_encode = {
+        "exp": expire,
+        "sub": str(subject),
+        "type": "refresh",
+        "iss": settings.JWT_ISSUER,
+    }
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
 
 def decode_token(token: str) -> dict[str, Any] | None:
-    """Decode and validate a JWT token."""
+    """Decode and validate a JWT token.
+
+    Enforces signature, a pinned algorithm, presence + validity of exp, and the
+    issuer claim. The access-vs-refresh distinction is enforced by callers via
+    the "type" claim.
+    """
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            issuer=settings.JWT_ISSUER,
+            options={"require_exp": True},
+        )
         return payload
     except JWTError:
         return None

@@ -53,6 +53,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15  # Shortened for security (was 30)
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ALGORITHM: str = "HS256"
+    # Issuer claim asserted on, and verified for, auth JWTs (access/refresh).
+    JWT_ISSUER: str = "check-review-console"
 
     # Image signing - dedicated key for image URL tokens (separate from auth JWTs)
     # This allows independent rotation and limits blast radius of key compromise

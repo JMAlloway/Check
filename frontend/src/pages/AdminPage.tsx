@@ -1494,14 +1494,18 @@ function PolicyFormModal({
   }>>(initialData?.rules ?? []);
 
   const [showAddRule, setShowAddRule] = useState(false);
-  const [newRule, setNewRule] = useState({
+  // When set, the rule form is editing the existing rule at this index rather
+  // than adding a new one.
+  const [editingRuleIdx, setEditingRuleIdx] = useState<number | null>(null);
+  const emptyRule = {
     name: '',
     description: '',
     rule_type: 'routing',
     priority: 1,
     is_enabled: true,
     conditions: [] as RuleCondition[],
-  });
+  };
+  const [newRule, setNewRule] = useState(emptyRule);
 
   const [newCondition, setNewCondition] = useState<RuleCondition>({
     field: 'amount',
@@ -1525,21 +1529,40 @@ function PolicyFormModal({
     });
   };
 
-  const handleAddRule = () => {
-    setRules([...rules, { ...newRule }]);
-    setNewRule({
-      name: '',
-      description: '',
-      rule_type: 'routing',
-      priority: rules.length + 2,
-      is_enabled: true,
-      conditions: [],
-    });
+  const resetRuleForm = () => {
+    setNewRule({ ...emptyRule, priority: rules.length + 2 });
+    setEditingRuleIdx(null);
     setShowAddRule(false);
+  };
+
+  // Save the rule form: replace the rule being edited, or append a new one.
+  const handleSaveRule = () => {
+    if (editingRuleIdx !== null) {
+      setRules(rules.map((r, i) => (i === editingRuleIdx ? { ...newRule } : r)));
+    } else {
+      setRules([...rules, { ...newRule }]);
+    }
+    resetRuleForm();
+  };
+
+  // Load an existing rule into the form for editing.
+  const handleEditRule = (index: number) => {
+    const r = rules[index];
+    setNewRule({
+      name: r.name,
+      description: r.description ?? '',
+      rule_type: r.rule_type,
+      priority: r.priority,
+      is_enabled: r.is_enabled,
+      conditions: (r.conditions ?? []).map((c) => ({ ...c })),
+    });
+    setEditingRuleIdx(index);
+    setShowAddRule(true);
   };
 
   const handleRemoveRule = (index: number) => {
     setRules(rules.filter((_, i) => i !== index));
+    if (editingRuleIdx === index) resetRuleForm();
   };
 
   const getFieldConfig = (fieldName: string) => {
@@ -1640,7 +1663,11 @@ function PolicyFormModal({
               <label className="block text-sm font-medium text-gray-700">Policy Rules</label>
               <button
                 type="button"
-                onClick={() => setShowAddRule(true)}
+                onClick={() => {
+                  setNewRule({ ...emptyRule, priority: rules.length + 2 });
+                  setEditingRuleIdx(null);
+                  setShowAddRule(true);
+                }}
                 className="text-sm text-primary-600 hover:text-primary-700"
               >
                 + Add Rule
@@ -1678,13 +1705,22 @@ function PolicyFormModal({
                         </div>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveRule(idx)}
-                      className="text-red-600 hover:text-red-700 text-sm"
-                    >
-                      Remove
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleEditRule(idx)}
+                        className="text-primary-600 hover:text-primary-700 text-sm"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveRule(idx)}
+                        className="text-red-600 hover:text-red-700 text-sm"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1693,7 +1729,9 @@ function PolicyFormModal({
             {/* Add Rule Form */}
             {showAddRule && (
               <div className="mt-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                <h4 className="text-sm font-medium text-gray-900 mb-3">Add Rule</h4>
+                <h4 className="text-sm font-medium text-gray-900 mb-3">
+                  {editingRuleIdx !== null ? 'Edit Rule' : 'Add Rule'}
+                </h4>
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -1841,18 +1879,18 @@ function PolicyFormModal({
                   <div className="flex justify-end gap-2 pt-2">
                     <button
                       type="button"
-                      onClick={() => setShowAddRule(false)}
+                      onClick={resetRuleForm}
                       className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
-                      onClick={handleAddRule}
+                      onClick={handleSaveRule}
                       disabled={!newRule.name || newRule.conditions.length === 0}
                       className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
                     >
-                      Add Rule
+                      {editingRuleIdx !== null ? 'Update Rule' : 'Add Rule'}
                     </button>
                   </div>
                 </div>

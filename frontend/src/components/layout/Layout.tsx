@@ -230,9 +230,9 @@ export default function Layout({ children }: LayoutProps) {
             <div className="flex items-center gap-x-4 lg:gap-x-6">
               {/* Guided tour */}
               <button
-                onClick={() => startProductTour()}
+                onClick={() => startProductTour(location.pathname)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                title="Take a guided tour"
+                title="Take a guided tour of this page"
               >
                 <SparklesIcon className="h-4 w-4 text-bank-gold" aria-hidden="true" />
                 <span className="hidden sm:inline">Take a tour</span>

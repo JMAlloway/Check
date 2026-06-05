@@ -521,12 +521,12 @@ import datetime as _dt
 import random as _rnd
 
 # Share of presented items routed to a human review queue (the exception rate).
-# ~2.67% routed => ~97.33% straight-through, which for a ~267-item exception
-# queue implies ~10,000 items presented per normal business day.
-DEMO_EXCEPTION_RATE = 0.0267
+# ~2.671% routed => ~97.33% straight-through, which for a 267-item exception
+# queue implies ~9,996 items presented per normal business day (just shy of 10k).
+DEMO_EXCEPTION_RATE = 0.02671
 DEMO_STP_RATE = round(1 - DEMO_EXCEPTION_RATE, 4)  # 0.9733
 # Baseline items presented on a normal mid-week day for a ~$2B community bank.
-DEMO_BASE_PRESENTED = 10000
+DEMO_BASE_PRESENTED = 9996
 # Relative presented volume by weekday (Mon heavy, weekends light).
 _WEEKDAY_FACTOR = {0: 1.12, 1: 1.04, 2: 1.0, 3: 1.0, 4: 1.06, 5: 0.32, 6: 0.16}
 

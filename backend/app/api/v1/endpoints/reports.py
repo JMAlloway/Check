@@ -14,7 +14,7 @@ from app.core.rate_limit import RateLimits, user_limiter
 from app.demo.scenarios import get_daily_volume_context, get_daily_volume_series
 from app.models.audit import AuditAction, AuditLog
 from app.models.check import CheckItem, CheckStatus, RiskLevel
-from app.models.decision import Decision, DecisionAction
+from app.models.decision import Decision, DecisionAction, DecisionType
 
 router = APIRouter()
 
@@ -100,12 +100,14 @@ async def get_dashboard_stats(
         if count > 0:
             status_counts[status_val.value] = count
 
-    # Dual control pending
+    # Dual control pending - count check items awaiting a second-level approval
+    # (PENDING_DUAL_CONTROL status). This must match what the Approvals queue
+    # shows; counting Decision rows double-counts items with multiple recorded
+    # recommendations and contradicts the Approvals list.
     dual_control_result = await db.execute(
-        select(func.count(Decision.id)).where(
-            Decision.tenant_id == tenant_id,
-            Decision.is_dual_control_required == True,
-            Decision.dual_control_approved_at.is_(None),
+        select(func.count(CheckItem.id)).where(
+            CheckItem.tenant_id == tenant_id,
+            CheckItem.status == CheckStatus.PENDING_DUAL_CONTROL,
         )
     )
     dual_control_pending = dual_control_result.scalar() or 0
@@ -190,6 +192,26 @@ async def get_throughput_report(
     # exception queue's row counts.
     if settings.DEMO_MODE:
         backdrop = {v["date"]: v for v in get_daily_volume_series(days, now.date())}
+        # Anchor TODAY's bar to the live open-review queue (the same count the
+        # dashboard uses) so the throughput "today" entry matches the dashboard
+        # "presented today" regardless of weekday. Historical days keep their
+        # deterministic, date-seeded baseline.
+        today_iso = now.date().isoformat()
+        pending_result = await db.execute(
+            select(func.count(CheckItem.id)).where(
+                CheckItem.tenant_id == tenant_id,
+                CheckItem.status.in_(
+                    [
+                        CheckStatus.NEW,
+                        CheckStatus.IN_REVIEW,
+                        CheckStatus.PENDING_DUAL_CONTROL,
+                        CheckStatus.ESCALATED,
+                    ]
+                ),
+            )
+        )
+        pending_count = pending_result.scalar() or 0
+        backdrop[today_iso] = get_daily_volume_context(now.date(), routed_to_review=pending_count)
         for day in daily_data:
             ctx = backdrop.get(day["date"])
             if ctx:
@@ -215,12 +237,21 @@ async def get_decision_report(
     # CRITICAL: Filter by tenant_id for multi-tenant security
     tenant_id = current_user.tenant_id
 
+    # Count ONE decision per item: the terminal/approver decision. Dual-control
+    # items record two decisions (a review recommendation + an approval), so
+    # counting every Decision row double-counts them and inflates totals beyond
+    # the number of items actually decided. Filtering to the APPROVAL_DECISION
+    # yields exactly one final decision per decided item and reconciles the
+    # totals & approval_rate with the dashboard's processed counts.
+    final_decision = Decision.decision_type == DecisionType.APPROVAL_DECISION
+
     # Decision action breakdown
     action_counts = {}
     for action in DecisionAction:
         count_result = await db.execute(
             select(func.count(Decision.id)).where(
                 Decision.tenant_id == tenant_id,
+                final_decision,
                 Decision.action == action,
                 Decision.created_at >= start_date,
             )
@@ -233,6 +264,7 @@ async def get_decision_report(
     total_final = await db.execute(
         select(func.count(Decision.id)).where(
             Decision.tenant_id == tenant_id,
+            final_decision,
             Decision.action.in_(
                 [DecisionAction.APPROVE, DecisionAction.RETURN, DecisionAction.REJECT]
             ),
@@ -244,6 +276,7 @@ async def get_decision_report(
     approved = await db.execute(
         select(func.count(Decision.id)).where(
             Decision.tenant_id == tenant_id,
+            final_decision,
             Decision.action == DecisionAction.APPROVE,
             Decision.created_at >= start_date,
         )
@@ -275,11 +308,17 @@ async def get_reviewer_performance(
     # CRITICAL: Filter by tenant_id for multi-tenant security
     tenant_id = current_user.tenant_id
 
+    # Count one terminal decision per item (see get_decision_report) so a single
+    # dual-control item isn't credited to two reviewers and the totals reconcile
+    # with the dashboard.
+    final_decision = Decision.decision_type == DecisionType.APPROVAL_DECISION
+
     # Get all users who made decisions in the period (within this tenant)
     users_result = await db.execute(
         select(Decision.user_id, func.count(Decision.id).label("count"))
         .where(
             Decision.tenant_id == tenant_id,
+            final_decision,
             Decision.created_at >= start_date,
         )
         .group_by(Decision.user_id)
@@ -306,6 +345,7 @@ async def get_reviewer_performance(
                 select(Decision.action, func.count(Decision.id))
                 .where(
                     Decision.tenant_id == tenant_id,
+                    final_decision,
                     Decision.user_id == user_id,
                     Decision.created_at >= start_date,
                 )

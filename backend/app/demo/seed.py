@@ -100,6 +100,12 @@ class DemoSeeder:
         """Seed all demo data."""
         require_non_production()
 
+        # Deterministic seeding: reseeding produces identical data (and therefore
+        # identical dashboard/report numbers) every time. Without this the queue
+        # size, SLA breaches, risk mix, and volume backdrop all drifted on each
+        # reseed, which made the demo look inconsistent.
+        random.seed(settings.DEMO_RANDOM_SEED)
+
         stats = {
             "users": 0,
             "queues": 0,
@@ -1418,15 +1424,13 @@ mwIDAQAB
             DemoScenario.HIGH_RISK_HISTORY: 3,
         }
 
-        # Status distribution for workflow demonstration
-        status_distribution = {
+        # Composition of the OPEN review queue (the items a person still has to
+        # action). These ratios are normalised to exactly self.count items.
+        open_status_ratio = {
             CheckStatus.NEW: 20,
             CheckStatus.IN_REVIEW: 15,
             CheckStatus.PENDING_DUAL_CONTROL: 15,
             CheckStatus.ESCALATED: 5,
-            CheckStatus.APPROVED: 25,
-            CheckStatus.REJECTED: 10,
-            CheckStatus.RETURNED: 10,
         }
 
         # Once an item is decided, the outcome correlates with its risk. Real
@@ -1442,7 +1446,23 @@ mwIDAQAB
             RiskLevel.CRITICAL: (8, 27, 65),
         }
 
-        for i in range(self.count):
+        # Build an explicit, exact status list: a fixed-size OPEN queue plus a
+        # body of DECIDED history. Using exact counts (rather than per-item
+        # random draws) keeps the queue size - and therefore the dashboard's
+        # "routed to review" and whole-bank backdrop numbers - stable across
+        # reseeds. The DECIDED placeholders get their terminal outcome
+        # (approved/returned/rejected) re-derived per risk further below.
+        statuses: list[CheckStatus] = []
+        open_weight_total = sum(open_status_ratio.values())
+        for st, w in open_status_ratio.items():
+            statuses.extend([st] * round(self.count * w / open_weight_total))
+        while len(statuses) < self.count:
+            statuses.append(CheckStatus.NEW)
+        statuses = statuses[: self.count]
+        statuses.extend([CheckStatus.APPROVED] * settings.DEMO_HISTORY_COUNT)
+        random.shuffle(statuses)
+
+        for i, status in enumerate(statuses):
             # Select scenario based on weights
             scenario = random.choices(
                 list(scenario_weights.keys()),
@@ -1452,12 +1472,6 @@ mwIDAQAB
 
             # Select account
             account = random.choice(DEMO_ACCOUNTS)
-
-            # Select status based on distribution
-            status = random.choices(
-                list(status_distribution.keys()),
-                weights=list(status_distribution.values()),
-            )[0]
 
             # Generate amount. For routine items, derive it from the account's
             # own average check size with a right-skewed (log-normal) spread so

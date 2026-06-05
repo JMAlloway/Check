@@ -9,7 +9,7 @@ const TIER_RANK: Record<string, number> = { low: 0, medium: 1, high: 2, critical
 const OPEN_STATUSES = ['new', 'in_review', 'escalated', 'pending_approval', 'pending_dual_control'];
 const DECIDED_STATUSES = ['approved', 'rejected', 'returned'];
 
-const SAMPLE_SIZE = 200;
+const SAMPLE_SIZE = 500; // backend cap; covers the full open queue + ample decided history
 
 interface AutoClearConfig {
   autoClearMaxTier: AutoClearTier;
@@ -90,7 +90,9 @@ export interface QaSampleItem {
   agreed: boolean; // reviewer also approved -> auto-clear would have been correct
 }
 
-const QA_SAMPLE_SIZE = 15;
+// QA spot-check sample size. Sized like a real monthly governance sample
+// rather than a token handful, so the pass-rate is statistically meaningful.
+const QA_SAMPLE_SIZE = 60;
 
 export function useAutomationSimulation(): SimulationResult & { roi: RoiResult } {
   const { autoClearMaxTier, amountCap, annualVolume, avgHandleTimeSec, loadedCostPerMin, annualFraudPrevented } =

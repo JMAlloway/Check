@@ -123,6 +123,19 @@ export default function CheckImageViewer({
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't hijack keystrokes while the user is typing (e.g. a decision note).
+      // Without this, single-letter viewer shortcuts (f/m/r) and digit/zoom keys
+      // were swallowing characters from the notes textarea.
+      const t = e.target as HTMLElement | null;
+      if (
+        t instanceof HTMLInputElement ||
+        t instanceof HTMLTextAreaElement ||
+        t instanceof HTMLSelectElement ||
+        (t && t.isContentEditable)
+      ) {
+        return;
+      }
+
       if (e.key === '+' || e.key === '=') {
         e.preventDefault();
         handleZoomIn();

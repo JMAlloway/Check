@@ -17,6 +17,7 @@ import { checkApi, auditApi, resolveImageUrl } from '../services/api';
 import { CheckItem, CheckHistory, ROIRegion } from '../types';
 import { useReviewSettings } from '../stores/reviewSettingsStore';
 import { useAuthStore } from '../stores/authStore';
+import { useResizableWidth } from '../hooks/useResizableWidth';
 
 // Image URL refresh interval (60 seconds - before 90s TTL expires)
 const IMAGE_URL_REFRESH_INTERVAL = 60 * 1000;
@@ -51,6 +52,13 @@ export default function CheckReviewPage() {
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showViewsModal, setShowViewsModal] = useState(false);
+
+  // User-resizable width for the Item Context column (the rest reacts to it).
+  const {
+    width: contextWidth,
+    containerRef: layoutRef,
+    onMouseDown: onContextResize,
+  } = useResizableWidth({ storageKey: 'cr_item_context_width', defaultWidth: 340, min: 280, max: 640 });
   const canViewAudit = useAuthStore((s) => s.hasPermission('audit', 'view'));
   const canAssign = useAuthStore((s) => s.hasPermission('check_item', 'assign'));
 
@@ -302,10 +310,26 @@ export default function CheckReviewPage() {
           supporting panels (history, network, decision) directly below them.
           Keeping the image in its own column stops the side-by-side
           comparison from overlapping the context/history cards. */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
-        {/* Left: Item context, full height alongside the right column */}
-        <div className="lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-110px)] lg:overflow-y-auto">
+      <div
+        ref={layoutRef}
+        className="grid grid-cols-1 gap-4 lg:[grid-template-columns:var(--ctx-w)_minmax(0,1fr)]"
+        style={{ ['--ctx-w' as string]: `${contextWidth}px` }}
+      >
+        {/* Left: Item context, full height alongside the right column. The width
+            is user-resizable via the drag handle on its right edge (lg+ only). */}
+        <div className="relative lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-110px)] lg:overflow-y-auto">
           <CheckContextPanel item={item} />
+          {/* Resize handle - sits on the column's right edge */}
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize item context"
+            title="Drag to resize"
+            onMouseDown={onContextResize}
+            className="absolute top-0 -right-2 z-10 hidden h-full w-3 cursor-col-resize items-center justify-center lg:flex group"
+          >
+            <div className="h-12 w-1 rounded-full bg-gray-300 transition-colors group-hover:bg-primary-500" />
+          </div>
         </div>
 
         {/* Right: check image(s) then the supporting panels */}
@@ -349,8 +373,14 @@ export default function CheckReviewPage() {
             </div>
           </div>
 
-          {/* Supporting panels, directly below the image */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {/* Decision / Review Recommendation panel - the primary action, kept
+              directly under the image so it is always visible without needing a
+              maximised window (previously it was the 3rd cell of a wrapping grid
+              and fell below the fold on smaller screens). */}
+          <DecisionPanel item={item} onDecisionMade={handleDecisionMade} />
+
+          {/* Secondary context panels below the decision */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {/* History Panel */}
             <CheckHistoryPanel
               itemId={item.id}
@@ -363,9 +393,6 @@ export default function CheckReviewPage() {
 
             {/* Network Intelligence Panel */}
             <NetworkIntelligencePanel checkItemId={item.id} />
-
-            {/* Decision Panel */}
-            <DecisionPanel item={item} onDecisionMade={handleDecisionMade} />
           </div>
         </div>
       </div>

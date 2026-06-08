@@ -337,6 +337,124 @@ class ItemContextImportService:
 
         return imports
 
+    async def run_demo_import(
+        self,
+        connector: ItemContextConnector,
+        triggered_by: str = "manual",
+        triggered_by_user_id: str | None = None,
+        file_limit: int | None = None,
+    ) -> ItemContextImport:
+        """Run an import in demo mode without a real SFTP server.
+
+        Synthesizes a context feed file for a sample of this tenant's existing
+        check items (using the connector's own field_mapping) and runs it through
+        the exact same parse/match/enrich path as a real SFTP import - only the
+        transport (a local temp file vs. SFTP download) differs. This lets the
+        demo show "Run import now" actually enriching items and producing import
+        history.
+        """
+        import csv
+        import os
+        import random
+        import tempfile
+
+        started_at = datetime.now(timezone.utc)
+        mapping = connector.field_mapping or {}
+
+        def _col(field: str) -> str | None:
+            # field_mapping values are dicts ({"name": column, "type": ...}); be
+            # tolerant of a bare string column too.
+            spec = mapping.get(field)
+            if isinstance(spec, dict):
+                return spec.get("name")
+            return spec
+
+        match_column = _col(connector.match_field) or "item_id"
+        # context fields we can actually enrich (intersection with CONTEXT_FIELDS)
+        enrich_fields = [
+            f for f in mapping if f != connector.match_field and f in CONTEXT_FIELDS and _col(f)
+        ]
+        columns = [match_column] + [_col(f) for f in enrich_fields]
+
+        sample_limit = file_limit or 150
+        result = await self.db.execute(
+            select(CheckItem.external_item_id)
+            .where(
+                CheckItem.tenant_id == connector.tenant_id,
+                CheckItem.external_item_id.isnot(None),
+            )
+            .limit(sample_limit)
+        )
+        external_ids = [row[0] for row in result.all()]
+
+        def _synth(field: str) -> str:
+            ftype = CONTEXT_FIELDS[field]["type"]
+            if ftype == "int":
+                if field == "account_tenure_days":
+                    return str(random.randint(30, 4000))
+                if field == "check_frequency_30d":
+                    return str(random.randint(0, 25))
+                return str(random.randint(0, 5))
+            if ftype == "decimal":
+                return f"{random.uniform(500, 95000):.2f}"
+            return f"REL-{random.randint(10000, 99999)}"
+
+        file_name = (connector.file_pattern or "account_context_*.csv").replace(
+            "*", started_at.strftime("%Y%m%d%H%M%S")
+        )
+        fd, local_path = tempfile.mkstemp(suffix=".csv", prefix="demo_context_")
+        os.close(fd)
+        with open(local_path, "w", newline="", encoding=connector.file_encoding or "utf-8") as fh:
+            writer = csv.writer(fh)
+            if connector.has_header_row:
+                writer.writerow(columns)
+            for ext_id in external_ids:
+                row = {match_column: ext_id}
+                for field in enrich_fields:
+                    row[_col(field)] = _synth(field)
+                writer.writerow([row.get(col, "") for col in columns])
+
+        import_record = ItemContextImport(
+            id=str(uuid.uuid4()),
+            connector_id=connector.id,
+            tenant_id=connector.tenant_id,
+            file_name=file_name,
+            file_path=f"(demo)/{file_name}",
+            status=ImportStatus.PENDING,
+            triggered_by=triggered_by,
+            triggered_by_user_id=triggered_by_user_id,
+            started_at=started_at,
+        )
+        self.db.add(import_record)
+        await self.db.commit()
+
+        try:
+            await self._parse_and_apply(connector, import_record, local_path)
+            if import_record.error_records > 0 or import_record.invalid_records > 0:
+                import_record.status = (
+                    ImportStatus.PARTIAL
+                    if import_record.applied_records > 0
+                    else ImportStatus.FAILED
+                )
+            else:
+                import_record.status = ImportStatus.COMPLETED
+        except Exception as e:  # pragma: no cover - defensive
+            import_record.status = ImportStatus.FAILED
+            import_record.error_message = str(e)
+        finally:
+            if os.path.exists(local_path):
+                os.remove(local_path)
+
+        import_record.completed_at = datetime.now(timezone.utc)
+        import_record.duration_seconds = int(
+            (import_record.completed_at - started_at).total_seconds()
+        )
+        connector.last_import_at = import_record.completed_at
+        connector.last_import_file = file_name
+        connector.last_import_records = import_record.total_records
+        await self.db.commit()
+        return import_record
+
     async def _process_file(
         self,
         connector: ItemContextConnector,

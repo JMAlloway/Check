@@ -160,7 +160,13 @@ class ItemContextConnector(Base, UUIDMixin, TimestampMixin):
         comment="Glob pattern for files to process (e.g., 'CONTEXT_*.csv')",
     )
     file_format: Mapped[FileFormat] = mapped_column(
-        SQLEnum(FileFormat, values_callable=lambda x: [e.value for e in x]),
+        # Distinct PG type name to avoid colliding with app.models.connector's
+        # FileFormat enum (both would otherwise map to a "fileformat" type).
+        SQLEnum(
+            FileFormat,
+            name="item_context_file_format",
+            values_callable=lambda x: [e.value for e in x],
+        ),
         nullable=False,
         default=FileFormat.CSV,
     )
@@ -344,7 +350,15 @@ class ItemContextImportRecord(Base, UUIDMixin, TimestampMixin):
 
     # Status
     status: Mapped[RecordStatus] = mapped_column(
-        SQLEnum(RecordStatus, values_callable=lambda x: [e.value for e in x]), nullable=False
+        # Distinct PG type name: app.models.connector also defines a RecordStatus
+        # enum, and without an explicit name both map to a "recordstatus" type,
+        # colliding so one enum's values reject the other's.
+        SQLEnum(
+            RecordStatus,
+            name="item_context_record_status",
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        nullable=False,
     )
 
     # Matching identifiers from file

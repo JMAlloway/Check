@@ -110,39 +110,15 @@ def upgrade() -> None:
     metadata = _import_metadata()
     metadata.create_all(bind=bind)
 
-    # 3. Audit immutability: write-once enforcement on audit_logs and item_views.
-    bind.execute(
-        text(
-            """
-            CREATE OR REPLACE FUNCTION prevent_audit_modification()
-            RETURNS TRIGGER AS $$
-            BEGIN
-                IF TG_OP = 'UPDATE' THEN
-                    RAISE EXCEPTION 'UPDATE operations are not permitted on % table. Audit records are immutable.', TG_TABLE_NAME
-                        USING ERRCODE = 'restrict_violation';
-                ELSIF TG_OP = 'DELETE' THEN
-                    RAISE EXCEPTION 'DELETE operations are not permitted on % table. Audit records are immutable.', TG_TABLE_NAME
-                        USING ERRCODE = 'restrict_violation';
-                END IF;
-                RETURN NULL;
-            END;
-            $$ LANGUAGE plpgsql;
-            """
-        )
-    )
-    for tbl in _AUDIT_TRIGGER_TABLES:
-        bind.execute(
-            text(
-                f"CREATE TRIGGER {tbl}_prevent_update BEFORE UPDATE ON {tbl} "
-                "FOR EACH ROW EXECUTE FUNCTION prevent_audit_modification()"
-            )
-        )
-        bind.execute(
-            text(
-                f"CREATE TRIGGER {tbl}_prevent_delete BEFORE DELETE ON {tbl} "
-                "FOR EACH ROW EXECUTE FUNCTION prevent_audit_modification()"
-            )
-        )
+    # 3. Audit immutability: write-once enforcement on audit_logs and item_views
+    #    (UPDATE always blocked; DELETE allowed only for an authorized retention
+    #    purge that opts in via the app.allow_audit_purge session flag). The DDL
+    #    is single-sourced in app.db.audit_triggers so the dev create_all path
+    #    and the test fixtures install exactly the same constraints.
+    from app.db.audit_triggers import audit_immutability_ddl
+
+    for statement in audit_immutability_ddl():
+        bind.execute(text(statement))
 
 
 def downgrade() -> None:

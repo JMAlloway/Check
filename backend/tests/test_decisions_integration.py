@@ -502,6 +502,76 @@ class TestDecisionHistory:
         data = response.json()
         assert len(data) == 3
 
+    @pytest.mark.asyncio
+    async def test_get_decision_history_tolerates_reduced_evidence_snapshot(
+        self, client, db_session, test_tenant_id, reviewer_headers, test_user_id
+    ):
+        """History must not 500 on integrity-only evidence snapshots.
+
+        Decisions recorded through the review flow store a full EvidenceSnapshot,
+        but other paths (the demo seed's hash-chain sealing, legacy rows) store a
+        reduced, integrity-only dict that lacks the rich context fields. The
+        endpoint must surface those as ``evidence_snapshot: null`` instead of
+        raising a 500 when rehydrating into the schema.
+        """
+        item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
+            id="check-reduced-evi",
+            tenant_id=test_tenant_id,
+            external_item_id="EXT-REDUCED",
+            account_id="acct-reduced",
+            amount=Decimal("1000.00"),
+            status=CheckStatus.APPROVED,
+            risk_level=RiskLevel.LOW,
+            item_type=ItemType.ON_US,
+            presented_date=datetime.now(timezone.utc),
+        )
+        db_session.add(item)
+        db_session.add(
+            User(
+                id=test_user_id,
+                tenant_id=test_tenant_id,
+                email="reduceduser@example.com",
+                username="reduceduser",
+                full_name="Reduced User",
+                hashed_password="hashed",
+                is_active=True,
+            )
+        )
+        # Reduced/sealed snapshot shape as written by the demo seed: carries a
+        # valid cryptographic seal but none of the full-schema context fields.
+        db_session.add(
+            Decision(
+                id="decision-reduced",
+                tenant_id=test_tenant_id,
+                check_item_id="check-reduced-evi",
+                user_id=test_user_id,
+                decision_type=DecisionType.REVIEW_RECOMMENDATION,
+                action=DecisionAction.APPROVE,
+                evidence_snapshot={
+                    "decision_id": "decision-reduced",
+                    "check_item_id": "check-reduced-evi",
+                    "action": "approve",
+                    "amount": "1000.00",
+                    "evidence_hash": "abc123",
+                    "previous_evidence_hash": None,
+                },
+            )
+        )
+        await db_session.commit()
+
+        response = client.get(
+            "/api/v1/decisions/check-reduced-evi/history",
+            headers=reviewer_headers,
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.text
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["evidence_snapshot"] is None
+
 
 class TestReasonCodes:
     """Tests for reason codes."""

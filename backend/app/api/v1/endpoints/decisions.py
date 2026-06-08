@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -49,6 +50,25 @@ def _safe_json_loads(value: str | None) -> list:
         return result if isinstance(result, list) else []
     except (json.JSONDecodeError, TypeError):
         return []
+
+
+def _parse_evidence_snapshot(raw: dict | None) -> EvidenceSnapshot | None:
+    """Best-effort rehydration of a stored evidence snapshot.
+
+    Decisions recorded through the review flow store a full ``EvidenceSnapshot``
+    (check context, policy evaluation, AI context, images). Other paths store a
+    reduced, integrity-only dict instead - e.g. the demo seed's hash-chain
+    sealing, or legacy rows predating the full schema. Those still carry a valid
+    cryptographic seal (provable via ``/verify-evidence-chain``) but lack the
+    rich context fields, so they cannot be rehydrated into the full schema.
+    Surface them as ``None`` rather than 500ing the history/detail views.
+    """
+    if not raw:
+        return None
+    try:
+        return EvidenceSnapshot(**raw)
+    except ValidationError:
+        return None
 
 
 def build_evidence_snapshot(
@@ -545,9 +565,7 @@ async def create_decision(
             )
 
     # Parse evidence snapshot back to schema for response
-    evidence_response = None
-    if decision.evidence_snapshot:
-        evidence_response = EvidenceSnapshot(**decision.evidence_snapshot)
+    evidence_response = _parse_evidence_snapshot(decision.evidence_snapshot)
 
     return DecisionResponse(
         id=decision.id,
@@ -837,10 +855,8 @@ async def get_decision_history(
         # Username from eager-loaded relationship
         username = d.user.username if d.user else None
 
-        # Parse evidence snapshot if present
-        evidence_response = None
-        if d.evidence_snapshot:
-            evidence_response = EvidenceSnapshot(**d.evidence_snapshot)
+        # Parse evidence snapshot if present (tolerant of reduced/legacy shapes)
+        evidence_response = _parse_evidence_snapshot(d.evidence_snapshot)
 
         responses.append(
             DecisionResponse(

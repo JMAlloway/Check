@@ -18,7 +18,7 @@ interface AutoClearConfig {
 
 /**
  * The straight-through eligibility rule. Dual control is a hard guardrail (a
- * genuine two-person control). AI detection flags are advisory and are already
+ * genuine two-person control). Risk signals are advisory and are already
  * reflected in the item's risk tier, so they don't unconditionally block —
  * consistent with how the review screen treats them.
  */

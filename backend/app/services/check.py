@@ -573,7 +573,7 @@ class CheckService:
                             severity=flag_def.get("severity", "warning"),
                             confidence=item.ai_confidence if item.ai_confidence else None,
                             explanation=flag_def.get(
-                                "explanation", f"AI-detected risk indicator: {flag_code}"
+                                "explanation", f"Rule-based risk indicator: {flag_code}"
                             ),
                         )
                     )

@@ -354,7 +354,7 @@ async def export_archived_items_csv(
             "Decision Date",
             "Reviewer ID",
             "Decision Notes",
-            "AI Assisted",
+            "Risk Signals Reviewed",
             "Dual Control Required",
             "Created At",
             "Updated At",

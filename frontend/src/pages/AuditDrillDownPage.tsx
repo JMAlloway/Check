@@ -12,7 +12,18 @@ interface UserOption {
   full_name?: string;
 }
 
+// Display overrides for action codes whose humanized form would otherwise be
+// inaccurate. The stored enum values are unchanged (audit immutability); only
+// the rendered label differs. The detection engine is deterministic/rules-based,
+// so these are surfaced as "Risk Recommendation …" rather than "AI …".
+const ACTION_LABEL_OVERRIDES: Record<string, string> = {
+  ai_recommendation_accepted: 'Risk Recommendation Accepted',
+  ai_recommendation_rejected: 'Risk Recommendation Rejected',
+  ai_recommendation_overridden: 'Risk Recommendation Overridden',
+};
+
 function titleCase(s: string): string {
+  if (ACTION_LABEL_OVERRIDES[s]) return ACTION_LABEL_OVERRIDES[s];
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 

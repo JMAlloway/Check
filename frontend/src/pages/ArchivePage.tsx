@@ -737,7 +737,7 @@ export default function ArchivePage() {
                       </span>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase">AI Recommendation</p>
+                      <p className="text-xs text-gray-500 uppercase">Risk Recommendation</p>
                       <p className="text-sm font-medium">{itemDetail.item.ai_recommendation || '-'}</p>
                     </div>
                     <div>
@@ -773,7 +773,7 @@ export default function ArchivePage() {
                               </span>
                               {decision.ai_assisted && (
                                 <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                                  AI Assisted
+                                  Risk Signals Reviewed
                                 </span>
                               )}
                               {decision.is_dual_control_required && (

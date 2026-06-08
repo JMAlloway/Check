@@ -204,6 +204,12 @@ export default function NetworkIntelligencePanel({ checkItemId }: NetworkIntelli
         <h3 className="text-sm font-semibold text-gray-900 flex items-center">
           <ShieldExclamationIcon className="h-4 w-4 mr-2 text-gray-400" />
           Network Intelligence
+          <span
+            className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-purple-100 text-purple-700"
+            title="Cross-institution fraud sharing is a roadmap capability. Demo data illustrates the intended experience; no live consortium is connected."
+          >
+            Preview · Roadmap
+          </span>
         </h3>
         {alertSummary?.highest_severity && (
           <SeverityBadge severity={alertSummary.highest_severity} />

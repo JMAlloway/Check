@@ -406,23 +406,23 @@ function FAQTab() {
   const faqs = [
     {
       q: 'What does the risk level indicator mean?',
-      a: 'Risk levels are assessed based on multiple factors including amount, account tenure, AI analysis, and network alerts. LOW = standard processing, MEDIUM = careful review, HIGH = may require dual control, CRITICAL = immediate attention needed.'
+      a: 'Risk levels are assessed by a deterministic rules engine using multiple factors including amount, account tenure, risk signals, and network alerts (roadmap). LOW = standard processing, MEDIUM = careful review, HIGH = may require dual control, CRITICAL = immediate attention needed.'
     },
     {
       q: 'Why is dual control required for some items?',
-      a: 'Dual control is triggered by high-value checks (above threshold), high-risk indicators, network fraud alerts, AI overrides, or policy rules. It ensures two sets of eyes review sensitive decisions.'
+      a: 'Dual control is triggered by high-value checks (above threshold), high-risk indicators, network fraud alerts (roadmap), overridden risk signals, or policy rules. It ensures two sets of eyes review sensitive decisions.'
     },
     {
       q: 'What should I do if I see a network fraud alert?',
-      a: 'Review the alert details carefully. Cross-reference with the account history and check details. If the concern is legitimate, return the check with an appropriate fraud reason code. If it appears to be a false positive, escalate to an approver who can dismiss it.'
+      a: 'Network fraud alerts (cross-institution sharing) are a roadmap capability — the screens and demo data illustrate the intended experience, with no live consortium connected. When live: review the alert details, cross-reference with account history and check details, return the check with an appropriate fraud reason code if the concern is legitimate, or escalate to an approver who can dismiss a false positive.'
     },
     {
       q: 'How long are holds typically placed?',
       a: 'Hold periods vary: Reg CC standard holds are 2-5 business days depending on check type. Exception holds can be longer (up to 7 days for new accounts). Case-by-case holds are determined by the reviewer based on specific circumstances.'
     },
     {
-      q: 'Can I override an AI recommendation?',
-      a: 'Reviewers cannot override AI recommendations directly. If you disagree with an AI flag, escalate the item or contact an Approver. Approvers can override AI with documented justification.'
+      q: 'Can I override a risk-based recommendation?',
+      a: 'Reviewers cannot override the system recommendation directly. If you disagree with a risk signal, escalate the item or contact an Approver. Approvers can override with documented justification, which is recorded in the audit trail.'
     },
     {
       q: 'What happens when I escalate an item?',

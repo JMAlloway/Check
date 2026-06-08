@@ -257,8 +257,8 @@ export default function AutomationPage() {
                   <span className="ml-auto font-semibold text-gray-900">{sim.reviewCount}</span>
                 </div>
                 <p className="pt-2 text-xs text-gray-500">
-                  {sim.guardrailHeld} item(s) held for dual control. AI flags are advisory and inform
-                  the risk tier.
+                  {sim.guardrailHeld} item(s) held for dual control. Risk signals are advisory and
+                  inform the risk tier.
                 </p>
               </div>
             </div>

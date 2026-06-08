@@ -492,7 +492,7 @@ class DemoSeeder:
                         "risk_level_threshold": "high",
                     },
                     {
-                        "name": "AI Flag Review Required",
+                        "name": "Risk Signal Review Required",
                         "rule_type": RuleType.REQUIRE_REASON,
                         "priority": 80,
                         "conditions": json.dumps(

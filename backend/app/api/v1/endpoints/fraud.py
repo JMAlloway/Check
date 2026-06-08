@@ -40,6 +40,24 @@ def get_tenant_id(current_user: CurrentUser) -> str:
     return getattr(current_user, "tenant_id", DEFAULT_TENANT_ID)
 
 
+async def _fraud_event_response(
+    fraud_service: "FraudService", event_id: str, tenant_id: str
+) -> FraudEventResponse:
+    """Build a FraudEventResponse with shared_artifact eagerly loaded.
+
+    Write endpoints must not touch event.shared_artifact directly on an object
+    returned by a write method: that relationship is unloaded, so accessing it
+    triggers a lazy load in a sync context (greenlet error -> 500). Re-fetching
+    via get_fraud_event (which selectinloads the relationship) mirrors the read
+    path and is safe.
+    """
+    event = await fraud_service.get_fraud_event(event_id, tenant_id)
+    return FraudEventResponse(
+        **event.__dict__,
+        has_shared_artifact=event.shared_artifact is not None,
+    )
+
+
 # ============================================================================
 # Fraud Event Endpoints
 # ============================================================================
@@ -81,10 +99,8 @@ async def create_fraud_event(
         description=f"Created fraud event for {data.fraud_type.value}",
     )
 
-    return FraudEventResponse(
-        **event.__dict__,
-        has_shared_artifact=event.shared_artifact is not None,
-    )
+    await db.commit()
+    return await _fraud_event_response(fraud_service, event.id, tenant_id)
 
 
 @router.get("/fraud-events", response_model=PaginatedResponse[FraudEventListResponse])
@@ -185,10 +201,8 @@ async def update_fraud_event(
             detail="Fraud event not found",
         )
 
-    return FraudEventResponse(
-        **event.__dict__,
-        has_shared_artifact=event.shared_artifact is not None,
-    )
+    await db.commit()
+    return await _fraud_event_response(fraud_service, event.id, tenant_id)
 
 
 @router.post("/fraud-events/{event_id}/submit", response_model=FraudEventResponse)
@@ -234,10 +248,8 @@ async def submit_fraud_event(
         description=f"Submitted fraud event with sharing level {event.sharing_level}",
     )
 
-    return FraudEventResponse(
-        **event.__dict__,
-        has_shared_artifact=event.shared_artifact is not None,
-    )
+    await db.commit()
+    return await _fraud_event_response(fraud_service, event.id, tenant_id)
 
 
 @router.post("/fraud-events/{event_id}/withdraw", response_model=FraudEventResponse)
@@ -282,10 +294,8 @@ async def withdraw_fraud_event(
         description=f"Withdrew fraud event: {data.reason[:100]}",
     )
 
-    return FraudEventResponse(
-        **event.__dict__,
-        has_shared_artifact=event.shared_artifact is not None,
-    )
+    await db.commit()
+    return await _fraud_event_response(fraud_service, event.id, tenant_id)
 
 
 # ============================================================================
@@ -361,6 +371,7 @@ async def dismiss_network_alert(
             detail=str(e),
         )
 
+    await db.commit()
     return await fraud_service._build_alert_response(alert)
 
 
@@ -466,6 +477,7 @@ async def update_tenant_fraud_config(
         after_value=data.model_dump(exclude_unset=True),
     )
 
+    await db.commit()
     return TenantFraudConfigResponse.model_validate(config)
 
 

@@ -16,7 +16,7 @@ from app.core.rate_limit import RateLimits, limiter, user_limiter
 from app.core.security import verify_signed_url
 from app.integrations.adapters.factory import get_adapter
 from app.models.audit import AuditAction
-from app.models.check import CheckImage
+from app.models.check import CheckImage, CheckItem
 from app.models.image_token import ImageAccessToken
 from app.models.user import User
 
@@ -76,6 +76,66 @@ SECURE_IMAGE_HEADERS = {
     # CRITICAL: Prevent token leakage via Referrer header
     "Referrer-Policy": "no-referrer",
 }
+
+
+_DEMO_IMAGE_PREFIX = "DEMO-IMG-"
+
+
+def _parse_demo_resource(resource_id: str) -> tuple[str, str] | None:
+    """Split a demo image resource id into (check_item_id, side) or return None.
+
+    Demo image ids are minted as ``DEMO-IMG-{check_item_id}-{front|back}``.
+    """
+    if not resource_id.startswith(_DEMO_IMAGE_PREFIX):
+        return None
+    core = resource_id[len(_DEMO_IMAGE_PREFIX) :]
+    for side in ("front", "back"):
+        suffix = f"-{side}"
+        if core.endswith(suffix):
+            return core[: -len(suffix)], side
+    return None
+
+
+async def _render_demo_check_image(
+    db, resource_id: str, tenant_id: str, thumbnail: bool
+) -> bytes | None:
+    """Render a demo check image from the item's own synthetic data.
+
+    Returns PNG bytes when ``resource_id`` is a demo image for an item in this
+    tenant, else None so the caller falls back to the adapter. This is what makes
+    the served check match the item's payee/amount/MICR/date instead of a
+    generic placeholder.
+    """
+    parsed = _parse_demo_resource(resource_id)
+    if parsed is None:
+        return None
+    item_id, side = parsed
+
+    result = await db.execute(
+        select(CheckItem).where(CheckItem.id == item_id, CheckItem.tenant_id == tenant_id)
+    )
+    item = result.scalar_one_or_none()
+    if item is None:
+        return None
+
+    try:
+        from app.demo.images import build_demo_check_image
+
+        check_date = item.check_date.strftime("%m/%d/%Y") if item.check_date else ""
+        return build_demo_check_image(
+            image_type=side,
+            check_number=item.check_number,
+            amount=item.amount,
+            payee_name=item.payee_name,
+            memo=item.memo,
+            check_date=check_date,
+            account_number_masked=item.account_number_masked,
+            routing_number=item.routing_number or getattr(item, "micr_routing", None),
+            thumbnail=thumbnail,
+        )
+    except Exception:
+        # Never let image rendering break the request; fall back to the adapter.
+        return None
 
 
 @router.get("/secure/{token}")
@@ -143,6 +203,28 @@ async def get_secure_image(
 
     adapter = get_adapter()
     audit_service = AuditService(db)
+
+    # Demo images render from the item's own synthetic data so the check matches
+    # its metadata (payee/amount/MICR/date). Falls through to the adapter for
+    # non-demo resources or if the item can't be found.
+    demo_bytes = await _render_demo_check_image(
+        db, resource_id, user.tenant_id, thumbnail=(is_thumbnail or thumbnail)
+    )
+    if demo_bytes is not None:
+        await audit_service.log(
+            action=AuditAction.IMAGE_VIEWED,
+            resource_type="check_image_thumbnail" if (is_thumbnail or thumbnail) else "check_image",
+            resource_id=resource_id,
+            user_id=user.id,
+            username=user.username,
+            ip_address=get_client_ip(request),
+            description="User viewed check image via signed URL",
+        )
+        return Response(
+            content=demo_bytes,
+            media_type="image/png",
+            headers=SECURE_IMAGE_HEADERS,
+        )
 
     if is_thumbnail or thumbnail:
         image_data = await adapter.get_thumbnail(resource_id)

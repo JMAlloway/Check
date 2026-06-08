@@ -1961,12 +1961,19 @@ mwIDAQAB
                 file_pattern=spec["file_pattern"],
                 file_format=FileFormat.CSV,
                 has_header_row=True,
+                # Map CheckItem context field -> source file column. Keys must be
+                # valid CONTEXT_FIELDS (so they enrich the matched item); values
+                # are {"name": column, "type": ...} as the FileParser expects.
                 field_mapping={
-                    "external_item_id": "item_id",
-                    "account_tenure_days": "tenure_days",
-                    "average_balance": "avg_balance",
+                    "external_item_id": {"name": "item_id"},
+                    "account_tenure_days": {"name": "tenure_days", "type": "int"},
+                    "current_balance": {"name": "current_balance", "type": "decimal"},
+                    "average_balance_30d": {"name": "avg_balance_30d", "type": "decimal"},
+                    "avg_check_amount_30d": {"name": "avg_check_30d", "type": "decimal"},
+                    "check_frequency_30d": {"name": "check_freq_30d", "type": "int"},
                 },
                 match_field="external_item_id",
+                match_by_external_item_id=True,
                 schedule_enabled=True,
                 schedule_cron=spec["cron"],
                 last_import_at=last_import_at,

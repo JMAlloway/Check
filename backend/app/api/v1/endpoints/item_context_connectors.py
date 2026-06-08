@@ -645,6 +645,26 @@ async def trigger_import(
             detail="Connector is disabled. Enable it before triggering imports.",
         )
 
+    # Demo mode: there is no real SFTP server, so synthesize a context feed and
+    # run it through the real parse/match/enrich path synchronously (it is small
+    # and fast), returning the actual import result.
+    if settings.DEMO_MODE:
+        service = ItemContextImportService(db)
+        import_record = await service.run_demo_import(
+            connector=connector,
+            triggered_by="api",
+            triggered_by_user_id=current_user.id,
+            file_limit=file_limit,
+        )
+        return ImportTriggerResponse(
+            import_id=import_record.id,
+            status=import_record.status,
+            message=(
+                f"Imported {import_record.applied_records} of "
+                f"{import_record.total_records} records."
+            ),
+        )
+
     # SSRF guard: re-validate the stored host before the background import opens
     # an outbound connection.
     await run_in_threadpool(_validate_sftp_host, connector.sftp_host)

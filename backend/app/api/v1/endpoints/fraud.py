@@ -431,12 +431,12 @@ async def get_network_trends(
 @router.get("/config", response_model=TenantFraudConfigResponse)
 async def get_tenant_fraud_config(
     db: DBSession,
-    current_user: Annotated[object, Depends(require_role("admin"))],
+    current_user: Annotated[object, Depends(require_role("administrator"))],
 ):
     """
     Get tenant fraud sharing configuration.
 
-    Required role: admin
+    Required role: administrator
     """
     tenant_id = get_tenant_id(current_user)
     fraud_service = FraudService(db)
@@ -449,12 +449,12 @@ async def get_tenant_fraud_config(
 async def update_tenant_fraud_config(
     data: TenantFraudConfigUpdate,
     db: DBSession,
-    current_user: Annotated[object, Depends(require_role("admin"))],
+    current_user: Annotated[object, Depends(require_role("administrator"))],
 ):
     """
     Update tenant fraud sharing configuration.
 
-    Required role: admin
+    Required role: administrator
     """
     tenant_id = get_tenant_id(current_user)
     fraud_service = FraudService(db)

@@ -311,12 +311,17 @@ class CSVGenerator(FileGenerator):
             row = self._format_record(record)
             writer.writerow(row)
 
-        # Trailer row (record count, totals)
+        # Trailer row (record count, totals). Only set keys that are actually in
+        # field_names: csv.DictWriter rejects any dict key not in fieldnames, so
+        # adding record_count/total_amount unconditionally crashes generation
+        # when the config's fields don't include them.
         if self.config.include_trailer_row:
             total_amount = sum(r.transaction_amount for r in records)
             trailer = {field_names[0]: "TRAILER"} if field_names else {}
-            trailer["record_count"] = str(len(records)) if "record_count" in field_names else ""
-            trailer["total_amount"] = f"{total_amount:.2f}" if "total_amount" in field_names else ""
+            if "record_count" in field_names:
+                trailer["record_count"] = str(len(records))
+            if "total_amount" in field_names:
+                trailer["total_amount"] = f"{total_amount:.2f}"
             writer.writerow(trailer)
 
         content = output.getvalue()
@@ -706,20 +711,7 @@ class ConnectorService:
             batch.status = BatchStatus.GENERATING
             await self.db.flush()
 
-            # Get generator for this bank's format
-            generator = get_file_generator(batch.bank_config)
-
-            # Generate file content
-            content = generator.generate(batch, batch.records)
-            file_name = generator.get_file_name(batch)
-            checksum = generate_file_checksum(content)
-
-            # Verify determinism - regenerating should produce same hash
-            # (Batch hash should match if records haven't changed)
-            record_hashes = [r.decision_hash for r in batch.records]
-            regenerated_batch_hash = generate_batch_hash(record_hashes)
-            if regenerated_batch_hash != batch.batch_hash:
-                raise FileGenerationError("Batch hash mismatch - records may have changed")
+            file_name, content, checksum = self._render_batch_file(batch)
 
             # Update batch
             batch.status = BatchStatus.GENERATED
@@ -740,6 +732,43 @@ class ConnectorService:
             batch.status = BatchStatus.FAILED
             await self.db.flush()
             raise FileGenerationError(f"File generation failed: {str(e)}") from e
+
+    def _render_batch_file(self, batch: CommitBatch) -> tuple[str, bytes, str]:
+        """Render a batch to (file_name, content, checksum) without changing state.
+
+        Pure/deterministic: used both by generate_file (the APPROVED->GENERATED
+        transition) and by get_file_content (re-rendering an already-generated
+        batch for download). It verifies the batch hash so tampering is caught.
+        """
+        generator = get_file_generator(batch.bank_config)
+        # Render in a deterministic record order so regenerating the file for
+        # download produces byte-identical content (the checksum must match the
+        # one stored at generation time). Relationship load order is not
+        # guaranteed, so sort explicitly by sequence number.
+        ordered_records = sorted(batch.records, key=lambda r: r.sequence_number)
+        content = generator.generate(batch, ordered_records)
+        file_name = generator.get_file_name(batch)
+        checksum = generate_file_checksum(content)
+
+        record_hashes = [r.decision_hash for r in ordered_records]
+        if generate_batch_hash(record_hashes) != batch.batch_hash:
+            raise FileGenerationError("Batch hash mismatch - records may have changed")
+
+        return file_name, content, checksum
+
+    async def get_file_content(self, batch_id: str, tenant_id: str) -> tuple[str, bytes, str]:
+        """Re-render a generated batch's file for download (no state change).
+
+        Works for any batch whose file has been generated (GENERATED and later
+        statuses), unlike generate_file which only runs the APPROVED->GENERATED
+        transition.
+        """
+        batch = await self._get_batch(
+            batch_id, tenant_id, include_records=True, include_config=True
+        )
+        if batch.file_generated_at is None:
+            raise BatchStateError("File not yet generated")
+        return self._render_batch_file(batch)
 
     async def mark_transmitted(
         self,

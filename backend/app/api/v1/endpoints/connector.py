@@ -12,6 +12,7 @@ All operations require authentication and appropriate permissions.
 No direct core writes - files are picked up by bank middleware.
 """
 
+import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated
@@ -24,6 +25,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import CurrentUser, DBSession, require_permission
 from app.audit.service import AuditService
 from app.core.client_ip import get_client_ip
+from app.core.config import settings
 from app.models.audit import AuditAction
 from app.models.connector import (
     BankConnectorConfig,
@@ -566,7 +568,7 @@ async def generate_batch_file(
     # Audit log
     audit_service = AuditService(db)
     await audit_service.log(
-        action=AuditAction.EXPORT,
+        action=AuditAction.DATA_EXPORTED,
         resource_type="commit_batch",
         resource_id=batch.id,
         user_id=current_user.id,
@@ -628,9 +630,11 @@ async def download_batch_file(
             detail="File not yet generated",
         )
 
-    # Regenerate file (deterministic - will produce same content)
+    # Re-render deterministically for download. Must NOT use generate_file here:
+    # that runs the APPROVED->GENERATED transition and would reject (or reset) a
+    # batch that is already transmitted/acknowledged/completed.
     try:
-        file_name, content, checksum = await connector.generate_file(
+        file_name, content, checksum = await connector.get_file_content(
             batch_id, current_user.tenant_id
         )
     except Exception:
@@ -755,6 +759,107 @@ async def process_acknowledgement(
         },
     )
 
+    await db.commit()
+
+    return AcknowledgementResponse(
+        id=ack.id,
+        batch_id=ack.batch_id,
+        ack_file_name=ack.ack_file_name,
+        ack_file_received_at=ack.ack_file_received_at,
+        status=ack.status,
+        bank_reference_id=ack.bank_reference_id,
+        bank_batch_id=ack.bank_batch_id,
+        total_records=ack.total_records,
+        accepted_count=ack.accepted_count,
+        rejected_count=ack.rejected_count,
+        pending_count=ack.pending_count,
+        processed_at=ack.processed_at,
+        processed_by_user_id=ack.processed_by_user_id,
+        created_at=ack.created_at,
+        updated_at=ack.updated_at,
+    )
+
+
+@router.post("/batches/{batch_id}/simulate-acknowledgement", response_model=AcknowledgementResponse)
+async def simulate_acknowledgement(
+    request: Request,
+    batch_id: str,
+    db: DBSession,
+    current_user: Annotated[object, Depends(require_permission("connector", "approve"))],
+    reject_count: int = 0,
+):
+    """Demo-only: synthesize a bank acknowledgement to close the commit loop.
+
+    A real deployment receives an acknowledgement file from the core; in the demo
+    there is no bank, so this builds an ack for the transmitted batch's records
+    (optionally rejecting the first ``reject_count`` to show partial processing)
+    and runs it through the normal acknowledgement path. Demo mode only.
+    """
+    if not settings.DEMO_MODE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acknowledgement simulation is only available in demo mode",
+        )
+
+    connector = ConnectorService(db)
+
+    records = list(
+        (
+            await db.execute(
+                select(CommitRecord)
+                .where(CommitRecord.batch_id == batch_id)
+                .order_by(CommitRecord.sequence_number)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not records:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Batch has no records")
+
+    ack_records = []
+    for i, r in enumerate(records):
+        rejected = i < reject_count
+        ack_records.append(
+            {
+                "decision_hash": r.decision_hash,
+                "status": "rejected" if rejected else "accepted",
+                "core_ref": None if rejected else f"CORE-{uuid.uuid4().hex[:10].upper()}",
+                "error_category": "business_rule" if rejected else None,
+                "error_code": "ACCT_FROZEN" if rejected else None,
+                "error": "Account frozen at core" if rejected else None,
+            }
+        )
+
+    overall = "accepted" if reject_count == 0 else "partially_processed"
+    ack_data = {
+        "status": overall,
+        "bank_reference_id": f"SIMACK-{uuid.uuid4().hex[:12].upper()}",
+        "bank_batch_id": None,
+        "records": ack_records,
+    }
+
+    try:
+        ack = await connector.process_acknowledgement(
+            batch_id=batch_id,
+            tenant_id=current_user.tenant_id,
+            ack_data=ack_data,
+            user_id=current_user.id,
+        )
+    except BatchStateError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    audit_service = AuditService(db)
+    await audit_service.log(
+        action=AuditAction.UPDATE,
+        resource_type="commit_batch",
+        resource_id=batch_id,
+        user_id=current_user.id,
+        username=current_user.username,
+        ip_address=get_client_ip(request),
+        description=f"Simulated bank acknowledgement: {ack.status.value}",
+        metadata={"accepted": ack.accepted_count, "rejected": ack.rejected_count},
+    )
     await db.commit()
 
     return AcknowledgementResponse(

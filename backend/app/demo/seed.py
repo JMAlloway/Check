@@ -50,7 +50,10 @@ from app.models.connector import (
     BankConnectorConfig,
     BatchStatus,
     CommitBatch,
+    CommitDecisionType,
+    CommitRecord,
     DeliveryMethod,
+    RecordStatus,
 )
 from app.models.decision import Decision, DecisionAction, DecisionType, ReasonCode
 from app.models.fraud import (
@@ -2084,9 +2087,26 @@ mwIDAQAB
         return count
 
     async def _seed_commit_batches(self) -> int:
-        """Seed Connector B (outbound commit) config and a few commit batches."""
+        """Seed Connector B (outbound commit): config + functional commit batches.
+
+        Batches are built with real CommitRecords (and a correct batch_hash) from
+        seeded decisions, then advanced through the actual ConnectorService
+        lifecycle (approve -> generate -> transmit -> acknowledge). This means the
+        demo's batches genuinely generate downloadable files and reconcile, rather
+        than being display-only shells.
+        """
+        from sqlalchemy.orm import selectinload
+
+        from app.services.connector_service import (
+            ConnectorService,
+            generate_batch_hash,
+            generate_decision_hash,
+        )
+
         owner = self.demo_users.get("system_admin", self.demo_users.get("administrator"))
-        if owner is None:
+        # Dual control: the approver must differ from the creator.
+        approver = self.demo_users.get("administrator") or self.demo_users.get("supervisor")
+        if owner is None or approver is None or approver.id == owner.id:
             return 0
 
         tenant_id = "DEMO-TENANT-000000000000000000000000"
@@ -2098,10 +2118,22 @@ mwIDAQAB
             tenant_id=tenant_id,
             bank_id="DEMO-CORE-001",
             bank_name="Demo Community Bank — Core",
+            # Field layout the CSV/fixed-width generators use. "source" names map
+            # to ConnectorService._format_record; record_count/total_amount are
+            # filled on the trailer row.
             field_config={
-                "account_number": "acct",
-                "amount": "amount",
-                "decision": "decision_code",
+                "fields": [
+                    {"name": "sequence_number", "source": "sequence_number"},
+                    {"name": "item_id", "source": "item_id"},
+                    {"name": "account_number", "source": "account_number"},
+                    {"name": "routing_number", "source": "routing_number"},
+                    {"name": "amount", "source": "transaction_amount"},
+                    {"name": "decision", "source": "decision_type"},
+                    {"name": "decision_timestamp", "source": "decision_timestamp"},
+                    {"name": "decision_hash", "source": "decision_hash"},
+                    {"name": "record_count", "source": "record_count"},
+                    {"name": "total_amount", "source": "total_amount"},
+                ]
             },
             delivery_config={"host": "sftp.core.demo-bank.example", "path": "/inbound/commits/"},
             delivery_method=DeliveryMethod.SFTP,
@@ -2110,82 +2142,147 @@ mwIDAQAB
         self.db.add(config)
         await self.db.flush()
 
+        action_to_type = {
+            DecisionAction.APPROVE: CommitDecisionType.RELEASE,
+            DecisionAction.RETURN: CommitDecisionType.RETURN,
+            DecisionAction.REJECT: CommitDecisionType.REJECT,
+            DecisionAction.HOLD: CommitDecisionType.HOLD,
+            DecisionAction.ESCALATE: CommitDecisionType.ESCALATE,
+        }
+
         # Three batches: one pending approval, one transmitted/awaiting ack, one
-        # completed (acknowledged), so the dashboard and list are populated.
+        # completed (acknowledged).
         batch_specs = [
-            {
-                "suffix": "0003",
-                "status": BatchStatus.PENDING,
-                "total_records": 42,
-                "total_amount": Decimal("185420.55"),
-                "release": 30,
-                "hold": 5,
-                "ret": 4,
-                "rej": 3,
-                "created_at": today,
-                "approved_at": None,
-                "transmitted_at": None,
-                "ack_status": None,
-                "records_accepted": None,
-            },
+            {"suffix": "0003", "count": 42, "advance_to": "pending", "created_at": today},
             {
                 "suffix": "0002",
-                "status": BatchStatus.TRANSMITTED,
-                "total_records": 55,
-                "total_amount": Decimal("243110.10"),
-                "release": 41,
-                "hold": 7,
-                "ret": 4,
-                "rej": 3,
+                "count": 55,
+                "advance_to": "transmitted",
                 "created_at": today - timedelta(hours=3),
-                "approved_at": today - timedelta(hours=2, minutes=30),
-                "transmitted_at": today - timedelta(hours=2),
-                "ack_status": AcknowledgementStatus.PENDING,
-                "records_accepted": None,
             },
             {
                 "suffix": "0001",
-                "status": BatchStatus.COMPLETED,
-                "total_records": 60,
-                "total_amount": Decimal("301775.00"),
-                "release": 48,
-                "hold": 6,
-                "ret": 4,
-                "rej": 2,
+                "count": 60,
+                "advance_to": "completed",
                 "created_at": today - timedelta(days=1),
-                "approved_at": today - timedelta(days=1) + timedelta(minutes=30),
-                "transmitted_at": today - timedelta(days=1) + timedelta(hours=1),
-                "ack_status": AcknowledgementStatus.ACCEPTED,
-                "records_accepted": 60,
             },
         ]
 
+        # Pull distinct seeded decisions (with their check item) to back the
+        # records. decision_hash is unique per decision, so distinct decisions
+        # keep record hashes unique across all batches.
+        total_needed = sum(s["count"] for s in batch_specs)
+        result = await self.db.execute(
+            select(Decision)
+            .options(selectinload(Decision.check_item))
+            .where(Decision.check_item_id.isnot(None))
+            .limit(total_needed * 2)
+        )
+        pairs = [(d, d.check_item) for d in result.scalars().all() if d.check_item is not None]
+        if len(pairs) < total_needed:
+            return 0  # not enough decisions to build functional batches
+
+        svc = ConnectorService(self.db)
+        cursor = 0
         count = 0
+
         for spec in batch_specs:
+            slice_pairs = pairs[cursor : cursor + spec["count"]]
+            cursor += spec["count"]
+
             batch = CommitBatch(
                 id=str(uuid.uuid4()),
                 tenant_id=tenant_id,
                 batch_number=f"BATCH-20260603-{spec['suffix']}",
                 bank_config_id=config.id,
-                status=spec["status"],
-                total_records=spec["total_records"],
-                total_amount=spec["total_amount"],
-                release_count=spec["release"],
-                hold_count=spec["hold"],
-                return_count=spec["ret"],
-                reject_count=spec["rej"],
-                has_high_risk_items=True,
-                high_risk_count=random.randint(1, 4),
+                status=BatchStatus.PENDING,
+                total_records=len(slice_pairs),
                 created_by_user_id=owner.id,
                 created_at=spec["created_at"],
-                approved_at=spec["approved_at"],
-                approver_user_id=owner.id if spec["approved_at"] else None,
-                transmitted_at=spec["transmitted_at"],
-                ack_status=spec["ack_status"],
-                records_accepted=spec["records_accepted"],
             )
             self.db.add(batch)
+            await self.db.flush()
+
+            record_hashes: list[str] = []
+            total_amount = Decimal("0.00")
+            counts = {t.value: 0 for t in CommitDecisionType}
+            high_risk = 0
+
+            for seq, (decision, check) in enumerate(slice_pairs, start=1):
+                dtype = action_to_type.get(decision.action, CommitDecisionType.RELEASE)
+                counts[dtype.value] = counts.get(dtype.value, 0) + 1
+                decision_ts = decision.dual_control_approved_at or decision.created_at
+                dhash = generate_decision_hash(
+                    decision_id=decision.id,
+                    check_item_id=check.id,
+                    decision_type=dtype.value,
+                    amount=check.amount,
+                    decision_timestamp=decision_ts,
+                )
+                record_hashes.append(dhash)
+                if check.risk_level in (RiskLevel.HIGH, RiskLevel.CRITICAL):
+                    high_risk += 1
+                self.db.add(
+                    CommitRecord(
+                        batch_id=batch.id,
+                        sequence_number=seq,
+                        decision_id=decision.id,
+                        check_item_id=check.id,
+                        decision_hash=dhash,
+                        status=RecordStatus.PENDING,
+                        decision_type=dtype,
+                        bank_id=config.bank_id,
+                        account_number_masked=check.account_number_masked,
+                        routing_number=check.routing_number,
+                        item_id=check.external_item_id,
+                        transaction_amount=check.amount,
+                        micr_line=check.micr_line,
+                        reviewer_user_id=decision.user_id,
+                        approver_user_id=decision.dual_control_approver_id or approver.id,
+                        decision_timestamp=decision_ts,
+                    )
+                )
+                total_amount += check.amount
+
+            batch.total_amount = total_amount
+            batch.release_count = counts.get(CommitDecisionType.RELEASE.value, 0)
+            batch.hold_count = counts.get(CommitDecisionType.HOLD.value, 0)
+            batch.return_count = counts.get(CommitDecisionType.RETURN.value, 0)
+            batch.reject_count = counts.get(CommitDecisionType.REJECT.value, 0)
+            batch.escalate_count = counts.get(CommitDecisionType.ESCALATE.value, 0)
+            batch.has_high_risk_items = high_risk > 0
+            batch.high_risk_count = high_risk
+            batch.batch_hash = generate_batch_hash(record_hashes)
+            await self.db.flush()
             count += 1
+
+            # Advance through the real lifecycle so the batch is genuinely in the
+            # target state (downloadable file, real acknowledgement).
+            if spec["advance_to"] in ("transmitted", "completed"):
+                await svc.approve_batch(
+                    batch_id=batch.id,
+                    tenant_id=tenant_id,
+                    approver_user_id=approver.id,
+                    approval_notes="Demo approval for transmission",
+                )
+                await svc.generate_file(batch.id, tenant_id)
+                await svc.mark_transmitted(
+                    batch.id, tenant_id, transmission_id=f"TX-{uuid.uuid4().hex[:10].upper()}"
+                )
+            if spec["advance_to"] == "completed":
+                await svc.process_acknowledgement(
+                    batch_id=batch.id,
+                    tenant_id=tenant_id,
+                    ack_data={
+                        "status": "accepted",
+                        "bank_reference_id": f"ACK-{uuid.uuid4().hex[:12].upper()}",
+                        "records": [
+                            {"decision_hash": h, "status": "accepted", "core_ref": f"CORE-{i}"}
+                            for i, h in enumerate(record_hashes)
+                        ],
+                    },
+                    user_id=owner.id,
+                )
 
         await self.db.flush()
         return count

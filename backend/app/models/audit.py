@@ -139,6 +139,12 @@ class AuditAction(str, Enum):
     INTEGRATION_SYNC_COMPLETED = "integration_sync_completed"
     INTEGRATION_SYNC_FAILED = "integration_sync_failed"
 
+    # Generic CRUD (used by resource endpoints that don't have a more specific
+    # action, e.g. the Connector B commit-batch lifecycle).
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"
+
 
 class AuditLog(Base, UUIDMixin):
     """

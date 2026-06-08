@@ -158,6 +158,11 @@ class FraudService:
         result = await self.db.execute(
             select(FraudEvent)
             .options(selectinload(FraudEvent.shared_artifact))
+            # populate_existing so an already-identity-mapped event (e.g. one
+            # just mutated in this session by a write endpoint) has its
+            # shared_artifact relationship refreshed from the DB rather than
+            # keeping a stale/unloaded value.
+            .execution_options(populate_existing=True)
             .where(
                 FraudEvent.id == event_id,
                 FraudEvent.tenant_id == tenant_id,
@@ -316,7 +321,13 @@ class FraudService:
                 routing_number=check_item.routing_number or check_item.micr_routing,
                 payee_name=check_item.payee_name,
                 check_number=check_item.check_number,
-                amount_bucket=event.amount_bucket.value,
+                # PgEnum columns come back as str when loaded from the DB, but as
+                # an enum when freshly constructed in-memory; handle both.
+                amount_bucket=(
+                    event.amount_bucket.value
+                    if hasattr(event.amount_bucket, "value")
+                    else event.amount_bucket
+                ),
                 date_bucket=event.event_date.strftime("%Y-%m"),
                 account_number=(
                     check_item.micr_account if config.allow_account_indicator_sharing else None

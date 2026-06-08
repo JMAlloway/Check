@@ -32,6 +32,7 @@ class DemoCheckImageData:
     account_number_masked: str
     routing_number: str
     image_type: str  # "front" or "back"
+    bank_name: str | None = None  # falls back to a deterministic demo bank
 
 
 class DemoImageGenerator:
@@ -80,7 +81,8 @@ class DemoImageGenerator:
         )
 
         # Bank name area (top left)
-        draw.text((50, 30), "DEMO COMMUNITY BANK", fill=self.TEXT_COLOR, font=font_large)
+        bank_name = data.bank_name or "DEMO COMMUNITY BANK"
+        draw.text((50, 30), bank_name, fill=self.TEXT_COLOR, font=font_large)
         draw.text((50, 65), "123 Demo Street", fill=self.TEXT_COLOR, font=font_small)
         draw.text((50, 85), "Demo City, DS 12345", fill=self.TEXT_COLOR, font=font_small)
 
@@ -133,8 +135,11 @@ class DemoImageGenerator:
         # Demo signature scribble
         self._draw_demo_signature(draw, 700, 310)
 
-        # MICR line at bottom
-        micr_text = f"⑆{data.routing_number}⑆ ⑈{data.account_number_masked.replace('*', '0')}⑈ {data.check_number}"
+        # MICR line at bottom. Real MICR uses transit/on-us symbols, but the
+        # bundled mono font has no glyphs for them (they render as tofu boxes),
+        # so use ASCII separators that still read as a MICR line in the demo.
+        account_digits = data.account_number_masked.replace("*", "0")
+        micr_text = f"C{data.routing_number}C  A{account_digits}A  {data.check_number}"
         draw.text((100, self.HEIGHT - 80), micr_text, fill=self.MICR_COLOR, font=font_micr)
 
         # Add DEMO watermark
@@ -202,48 +207,40 @@ class DemoImageGenerator:
         return buffer.getvalue()
 
     def _add_watermark(self, img: Image.Image, draw: ImageDraw.ImageDraw):
-        """Add DEMO watermark to the image."""
+        """Mark the image as synthetic without obscuring it.
+
+        A faint, rotated "DEMO" sits behind the check content (light gray, low
+        alpha) so the image still reads as a realistic check in a sales demo,
+        while a small footer line keeps it honest that this is synthetic data
+        with no real PII.
+        """
         try:
             font_watermark = ImageFont.truetype(
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 72
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 64
             )
         except (OSError, IOError):
             font_watermark = ImageFont.load_default()
 
-        # Create watermark layer
-        watermark = Image.new("RGBA", img.size, (255, 255, 255, 0))
-        watermark_draw = ImageDraw.Draw(watermark)
-
-        # Draw diagonal DEMO text
-        text = "DEMO - NOT A REAL CHECK"
-
-        # Position in center, rotated
-        watermark_draw.text(
-            (self.WIDTH // 2 - 300, self.HEIGHT // 2 - 30),
-            text,
-            fill=(200, 50, 50, 100),
-            font=font_watermark,
+        # Faint, rotated single "DEMO" composited behind the content.
+        layer = Image.new("RGBA", (360, 120), (255, 255, 255, 0))
+        ImageDraw.Draw(layer).text((0, 0), "DEMO", fill=(120, 120, 140, 28), font=font_watermark)
+        layer = layer.rotate(28, expand=True)
+        img.paste(
+            layer,
+            (self.WIDTH // 2 - layer.width // 2, self.HEIGHT // 2 - layer.height // 2),
+            layer,
         )
 
-        # Composite
-        img.paste(watermark, (0, 0), watermark)
-
-        # Also add corner watermarks
+        # Subtle, honest footer marker.
         try:
-            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
+            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 13)
         except (OSError, IOError):
             font_small = ImageFont.load_default()
 
         draw.text(
-            (20, self.HEIGHT - 30),
-            "DEMO DATA - FOR DEMONSTRATION ONLY",
-            fill=(150, 150, 150),
-            font=font_small,
-        )
-        draw.text(
-            (self.WIDTH - 250, self.HEIGHT - 30),
-            "NO REAL PII",
-            fill=(150, 150, 150),
+            (20, self.HEIGHT - 26),
+            "Demo — synthetic check, no real PII",
+            fill=(170, 170, 175),
             font=font_small,
         )
 
@@ -261,51 +258,95 @@ class DemoImageGenerator:
         for i in range(len(points) - 1):
             draw.line([points[i], points[i + 1]], fill=self.TEXT_COLOR, width=2)
 
+    _ONES = [
+        "zero",
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "ten",
+        "eleven",
+        "twelve",
+        "thirteen",
+        "fourteen",
+        "fifteen",
+        "sixteen",
+        "seventeen",
+        "eighteen",
+        "nineteen",
+    ]
+    _TENS = [
+        "",
+        "",
+        "twenty",
+        "thirty",
+        "forty",
+        "fifty",
+        "sixty",
+        "seventy",
+        "eighty",
+        "ninety",
+    ]
+
+    def _three_digits_to_words(self, n: int) -> str:
+        """Spell a number in 0..999."""
+        parts: list[str] = []
+        if n >= 100:
+            parts.append(f"{self._ONES[n // 100]} hundred")
+            n %= 100
+        if n >= 20:
+            tens = self._TENS[n // 10]
+            ones = n % 10
+            parts.append(f"{tens}-{self._ONES[ones]}" if ones else tens)
+        elif n > 0:
+            parts.append(self._ONES[n])
+        return " ".join(parts)
+
     def _amount_to_words(self, amount: Decimal) -> str:
-        """Convert amount to words (simplified)."""
+        """Render the legal (written) amount line, e.g. 'Five thousand and 00/100'."""
         dollars = int(amount)
-        cents = int((amount - dollars) * 100)
+        cents = int(round((amount - dollars) * 100))
 
-        # Simple word conversion for demo
-        word_map = {
-            0: "zero",
-            1: "one",
-            2: "two",
-            3: "three",
-            4: "four",
-            5: "five",
-            6: "six",
-            7: "seven",
-            8: "eight",
-            9: "nine",
-            10: "ten",
-            11: "eleven",
-            12: "twelve",
-            13: "thirteen",
-            14: "fourteen",
-            15: "fifteen",
-            16: "sixteen",
-            17: "seventeen",
-            18: "eighteen",
-            19: "nineteen",
-            20: "twenty",
-            30: "thirty",
-            40: "forty",
-            50: "fifty",
-            60: "sixty",
-            70: "seventy",
-            80: "eighty",
-            90: "ninety",
-        }
-
-        if dollars < 1000:
-            return f"**{dollars:,} and {cents}/100 DOLLARS**"
-        elif dollars < 1000000:
-            thousands = dollars // 1000
-            remainder = dollars % 1000
-            return f"**{thousands:,} thousand {remainder:,} and {cents}/100**"
+        if dollars == 0:
+            words = "zero"
         else:
-            return f"**{dollars:,} and {cents}/100 DOLLARS**"
+            groups = [("", 1), ("thousand", 1_000), ("million", 1_000_000)]
+            segments: list[str] = []
+            for label, scale in reversed(groups):
+                count = (dollars // scale) % 1000
+                if count:
+                    spelled = self._three_digits_to_words(count)
+                    segments.append(f"{spelled} {label}".strip())
+            words = " ".join(segments)
+
+        # Capitalize like a written check and append the cents fraction.
+        return f"{words.capitalize()} and {cents:02d}/100"
+
+
+# A small roster of fictional banks so demo checks vary instead of all reading
+# the same name. Chosen deterministically from the routing number so a given
+# account always shows the same bank.
+DEMO_BANK_NAMES = [
+    "DEMO COMMUNITY BANK",
+    "FIRST DEMO NATIONAL BANK",
+    "RIVERBEND DEMO BANK & TRUST",
+    "SUMMIT DEMO CREDIT UNION",
+    "HARBOR DEMO SAVINGS BANK",
+    "PRAIRIE DEMO STATE BANK",
+]
+
+
+def demo_bank_name_for(routing_number: str | None) -> str:
+    """Pick a stable demo bank name for a routing number."""
+    if not routing_number:
+        return DEMO_BANK_NAMES[0]
+    digits = "".join(ch for ch in routing_number if ch.isdigit()) or "0"
+    return DEMO_BANK_NAMES[int(digits) % len(DEMO_BANK_NAMES)]
 
 
 def generate_demo_check_image(data: DemoCheckImageData) -> bytes:
@@ -316,6 +357,48 @@ def generate_demo_check_image(data: DemoCheckImageData) -> bytes:
         return generator.generate_check_front(data)
     else:
         return generator.generate_check_back(data)
+
+
+def build_demo_check_image(
+    *,
+    image_type: str,
+    check_number: str | None,
+    amount: Decimal,
+    payee_name: str | None,
+    memo: str | None,
+    check_date: str,
+    account_number_masked: str | None,
+    routing_number: str | None,
+    bank_name: str | None = None,
+    thumbnail: bool = False,
+) -> bytes:
+    """Render a check image (front/back) from an item's fields.
+
+    Wraps DemoCheckImageData construction so callers (e.g. the image-serving
+    endpoint) can pass a CheckItem's data directly. When ``thumbnail`` is set the
+    full-resolution render is downscaled, keeping the layout proportional.
+    """
+    data = DemoCheckImageData(
+        check_number=str(check_number or "1001"),
+        amount=Decimal(amount),
+        payee_name=payee_name or "Payee",
+        memo=memo or "",
+        check_date=check_date,
+        account_number_masked=account_number_masked or "****0000",
+        routing_number=routing_number or "000000000",
+        image_type=image_type,
+        bank_name=bank_name or demo_bank_name_for(routing_number),
+    )
+    image_bytes = generate_demo_check_image(data)
+
+    if thumbnail:
+        thumb = Image.open(io.BytesIO(image_bytes))
+        thumb.thumbnail((400, 200))
+        buffer = io.BytesIO()
+        thumb.save(buffer, format="PNG")
+        return buffer.getvalue()
+
+    return image_bytes
 
 
 def get_demo_image_base64(data: DemoCheckImageData) -> str:

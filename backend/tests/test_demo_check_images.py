@@ -6,11 +6,7 @@ synthetic data (payee/amount/MICR), without needing the full request stack.
 
 from decimal import Decimal
 
-from app.demo.images import (
-    DemoImageGenerator,
-    build_demo_check_image,
-    demo_bank_name_for,
-)
+from app.demo.images import DemoImageGenerator, build_demo_check_image, demo_bank_name_for
 
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 

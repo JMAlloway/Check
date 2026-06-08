@@ -168,6 +168,11 @@ MATRIX = [
     # image intake connector: supervisor+ only
     ("reviewer", "/api/v1/image-connectors/", 403),
     ("administrator", "/api/v1/image-connectors/", 200),
+    # tenant fraud config: administrator role (+ superuser) only
+    ("administrator", "/api/v1/fraud/config", 200),
+    ("supervisor", "/api/v1/fraud/config", 403),
+    ("auditor", "/api/v1/fraud/config", 403),
+    ("system_admin", "/api/v1/fraud/config", 200),
 ]
 
 

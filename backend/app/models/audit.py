@@ -214,6 +214,13 @@ class AuditLog(Base, UUIDMixin):
         Index("ix_audit_logs_resource", "resource_type", "resource_id"),
         Index("ix_audit_logs_user_action", "user_id", "action"),
         Index("ix_audit_logs_timestamp_action", "timestamp", "action"),
+        # GIN index for efficient JSONB containment queries on the change payload.
+        Index(
+            "ix_audit_logs_extra_data_gin",
+            "extra_data",
+            postgresql_using="gin",
+            postgresql_ops={"extra_data": "jsonb_path_ops"},
+        ),
     )
 
     def compute_integrity_hash(self) -> str:
@@ -292,4 +299,13 @@ class ItemView(Base, UUIDMixin, TimestampMixin):
     # Demo mode flag - marks synthetic demo views
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    __table_args__ = (Index("ix_item_views_check_user", "check_item_id", "user_id"),)
+    __table_args__ = (
+        Index("ix_item_views_check_user", "check_item_id", "user_id"),
+        # GIN index for efficient JSONB containment queries on interaction data.
+        Index(
+            "ix_item_views_interaction_summary_gin",
+            "interaction_summary",
+            postgresql_using="gin",
+            postgresql_ops={"interaction_summary": "jsonb_path_ops"},
+        ),
+    )

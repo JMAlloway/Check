@@ -70,8 +70,13 @@ class ImageAccessToken(Base, UUIDMixin, TimestampMixin):
 
     __table_args__ = (
         # Composite index for finding unused tokens for an image
-        # Note: single-column indexes are created via index=True on columns
         Index("ix_image_access_tokens_image_unused", "image_id", "used_at"),
+        # Single-column lookup indexes. Declared here (the model is the source of
+        # truth) so create_all and the squashed baseline migration both produce
+        # them; previously they existed only in migration 011.
+        Index("ix_image_access_tokens_tenant_id", "tenant_id"),
+        Index("ix_image_access_tokens_image_id", "image_id"),
+        Index("ix_image_access_tokens_expires_at", "expires_at"),
     )
 
     @property

@@ -119,6 +119,13 @@ async def lifespan(app: FastAPI):
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_roles_system_name "
                 "ON roles (name) WHERE tenant_id IS NULL",
             ]
+            # Audit-immutability triggers. create_all never creates these, so a
+            # dev database historically ran without them while production (via
+            # Alembic) had them - a parity gap that hid audit write/delete bugs.
+            # Install the same triggers here so dev matches production.
+            from app.db.audit_triggers import audit_immutability_ddl
+
+            reconcile_ddl.extend(audit_immutability_ddl())
             for stmt in reconcile_ddl:
                 try:
                     await conn.execute(text(stmt))

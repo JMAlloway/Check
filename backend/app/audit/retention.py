@@ -254,8 +254,11 @@ class RetentionService:
                             },
                         )
 
-            # Delete the batch
+            # Delete the batch. audit_logs is immutable via DB triggers; this
+            # authorized retention purge opts in with a transaction-local flag
+            # (reset on commit, so it must be set per batch).
             ids_to_delete = [log.id for log in batch]
+            await self.db.execute(text("SET LOCAL app.allow_audit_purge = 'on'"))
             await self.db.execute(delete(AuditLog).where(AuditLog.id.in_(ids_to_delete)))
             await self.db.commit()
 
@@ -311,6 +314,9 @@ class RetentionService:
             if not ids:
                 break
 
+            # item_views is immutable via DB triggers; authorize this purge with
+            # the transaction-local flag (reset on commit, so set per batch).
+            await self.db.execute(text("SET LOCAL app.allow_audit_purge = 'on'"))
             await self.db.execute(delete(ItemView).where(ItemView.id.in_(ids)))
             await self.db.commit()
 

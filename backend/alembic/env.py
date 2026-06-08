@@ -11,8 +11,15 @@ from alembic import context
 from app.core.config import settings
 from app.db.session import Base
 
+# Some tables are not re-exported from app.models.__init__ and are only imported
+# at runtime by their endpoints/services. They must be imported here too, or
+# autogenerate sees them as missing from the metadata and proposes dropping them.
 # Import all models to register them with Base.metadata
 from app.models import *  # noqa: F401, F403
+from app.models import image_token  # noqa: F401  (image_access_tokens)
+from app.security import (  # noqa: F401  (security_incidents, incident_updates, breach_notifications)
+    models as _security_models,
+)
 
 config = context.config
 

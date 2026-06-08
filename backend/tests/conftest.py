@@ -31,6 +31,7 @@ from app.api.deps import get_current_user, get_db, security
 from app.core.config import settings
 from app.core.rate_limit import limiter, tenant_limiter, user_limiter
 from app.core.security import create_access_token, decode_token, get_password_hash
+from app.db.audit_triggers import audit_immutability_ddl
 from app.db.enums import create_enum_types
 from app.db.session import Base
 from app.main import app
@@ -72,6 +73,10 @@ async def _reset_schema(conn) -> None:
     await conn.execute(text("CREATE SCHEMA public"))
     await create_enum_types(conn)
     await conn.run_sync(Base.metadata.create_all)
+    # Install the audit-immutability triggers so tests run against the same
+    # write-once constraints as production (and the dev create_all path).
+    for statement in audit_immutability_ddl():
+        await conn.execute(text(statement))
 
 
 @pytest_asyncio.fixture(scope="function")

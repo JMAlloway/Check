@@ -242,39 +242,38 @@ class TestAuditActionEnum:
 
 
 class TestMigrationFile:
-    """Tests to verify migration file structure."""
+    """Tests to verify the image_access_tokens schema.
+
+    The per-table migrations were squashed into a single baseline generated from
+    the models, so these assert on the model metadata (the source of truth) and
+    on the baseline migration's downgrade rather than a per-feature migration
+    file.
+    """
 
     def test_migration_creates_required_indexes(self):
-        """Migration should create indexes for performance."""
-        import os
+        """The model declares the performance indexes, so the schema has them."""
+        from app.db.session import Base
 
-        migration_path = os.path.join(
-            os.path.dirname(__file__), "..", "alembic", "versions", "011_one_time_image_tokens.py"
-        )
+        table = Base.metadata.tables["image_access_tokens"]
+        index_names = {ix.name for ix in table.indexes}
 
-        with open(migration_path, "r") as f:
-            migration_content = f.read()
-
-        # Verify required indexes are created
-        assert "ix_image_access_tokens_tenant_id" in migration_content
-        assert "ix_image_access_tokens_image_id" in migration_content
-        assert "ix_image_access_tokens_expires_at" in migration_content
+        assert "ix_image_access_tokens_tenant_id" in index_names
+        assert "ix_image_access_tokens_image_id" in index_names
+        assert "ix_image_access_tokens_expires_at" in index_names
 
     def test_migration_has_downgrade(self):
-        """Migration should have a working downgrade function."""
+        """The squashed baseline migration must have a downgrade."""
         import os
 
-        migration_path = os.path.join(
-            os.path.dirname(__file__), "..", "alembic", "versions", "011_one_time_image_tokens.py"
+        baseline_path = os.path.join(
+            os.path.dirname(__file__), "..", "alembic", "versions", "0001_baseline_schema.py"
         )
 
-        with open(migration_path, "r") as f:
-            migration_content = f.read()
+        with open(baseline_path, "r") as f:
+            baseline_content = f.read()
 
-        # Verify downgrade drops indexes and table
-        assert "def downgrade()" in migration_content
-        assert "op.drop_index" in migration_content
-        assert "op.drop_table" in migration_content
+        assert "def downgrade()" in baseline_content
+        assert "drop_all" in baseline_content
 
 
 class TestSecurityHeaders:

@@ -3,6 +3,7 @@
 import json
 from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -59,7 +60,12 @@ class AuditService:
         Returns:
             The created AuditLog entry
         """
+        # Assign the id up front so the integrity hash (which covers the id) can
+        # be computed BEFORE the row is inserted. audit_logs carries DB-level
+        # immutability triggers (no UPDATE/DELETE), so the hash must be set on
+        # INSERT - a post-insert UPDATE would be rejected by the trigger.
         log_entry = AuditLog(
+            id=str(uuid4()),
             tenant_id=tenant_id,  # Multi-tenant isolation
             timestamp=datetime.now(timezone.utc),
             user_id=user_id,
@@ -76,33 +82,31 @@ class AuditService:
             session_id=session_id,
         )
 
-        self.db.add(log_entry)
-        await self.db.flush()
-
         # Link this entry to the previous one in the same tenant to form a
-        # tamper-evident chain. Genesis rows use a fixed sentinel.
+        # tamper-evident chain. Genesis rows use a fixed sentinel. The lookup
+        # runs before this row is inserted, so it sees only prior entries.
         #
-        # NOTE: the DB-level UPDATE/DELETE triggers (migration 004) are the
-        # primary tamper control. This chain adds detection of deletion/
-        # reordering on top. Without serialization, two concurrent inserts in
-        # the same tenant could read the same predecessor and fork the chain;
-        # the per-row hash (which now covers the change payload) is unaffected.
-        # A per-tenant advisory lock can be added if a strict single chain is
-        # required.
+        # NOTE: the DB-level UPDATE/DELETE triggers (the audit-immutability
+        # triggers in the baseline migration) are the primary tamper control.
+        # This chain adds detection of deletion/reordering on top. Without
+        # serialization, two concurrent inserts in the same tenant could read
+        # the same predecessor and fork the chain; the per-row hash (which
+        # covers the change payload) is unaffected. A per-tenant advisory lock
+        # can be added if a strict single chain is required.
         prev_result = await self.db.execute(
             select(AuditLog.integrity_hash)
             .where(
                 AuditLog.tenant_id == tenant_id,
-                AuditLog.id != log_entry.id,
                 AuditLog.integrity_hash.isnot(None),
             )
             .order_by(AuditLog.timestamp.desc(), AuditLog.id.desc())
             .limit(1)
         )
         log_entry.previous_hash = prev_result.scalar_one_or_none() or GENESIS_HASH
-
-        # Compute and store integrity hash after flush (ID is now assigned)
         log_entry.integrity_hash = log_entry.compute_integrity_hash()
+
+        # Single INSERT with the hash already populated (no UPDATE).
+        self.db.add(log_entry)
         await self.db.flush()
 
         return log_entry

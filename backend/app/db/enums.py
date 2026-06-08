@@ -39,7 +39,6 @@ FRAUD_ENUM_TYPES: dict[str, list[str]] = {
         "over_50000",
     ],
     "fraud_event_status": ["draft", "submitted", "withdrawn"],
-    "match_severity": ["low", "medium", "high"],
 }
 
 

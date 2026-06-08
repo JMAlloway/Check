@@ -2304,50 +2304,68 @@ mwIDAQAB
         return count
 
     async def _seed_audit_events(self) -> int:
-        """Create audit trail events."""
-        count = 0
+        """Create audit trail events.
+
+        Builds the rows first, then threads a tamper-evident hash chain in
+        timestamp order (previous_hash -> integrity_hash), so the seeded audit
+        trail is as verifiable as one produced by AuditService at runtime. The
+        hashes are set on INSERT because audit_logs carries DB-level
+        immutability triggers that reject any post-insert UPDATE.
+        """
+        from app.audit.service import GENESIS_HASH
+
+        logs: list[AuditLog] = []
 
         for check in self.demo_checks[:20]:  # Limit to first 20 for performance
             # Login event
             reviewer = self.demo_users.get("reviewer", self.demo_users.get("system_admin"))
             login_time = check.presented_date - timedelta(minutes=random.randint(5, 60))
 
-            audit_log = AuditLog(
-                id=str(uuid.uuid4()),
-                tenant_id="DEMO-TENANT-000000000000000000000000",
-                timestamp=login_time,
-                user_id=reviewer.id,
-                username=reviewer.username,
-                ip_address="127.0.0.1",
-                action=AuditAction.LOGIN,
-                resource_type="session",
-                resource_id=f"DEMO-SESSION-{uuid.uuid4().hex[:8]}",
-                description="Demo user login",
-                is_demo=True,  # Mark as demo data
+            logs.append(
+                AuditLog(
+                    id=str(uuid.uuid4()),
+                    tenant_id="DEMO-TENANT-000000000000000000000000",
+                    timestamp=login_time,
+                    user_id=reviewer.id,
+                    username=reviewer.username,
+                    ip_address="127.0.0.1",
+                    action=AuditAction.LOGIN,
+                    resource_type="session",
+                    resource_id=f"DEMO-SESSION-{uuid.uuid4().hex[:8]}",
+                    description="Demo user login",
+                    is_demo=True,  # Mark as demo data
+                )
             )
-            self.db.add(audit_log)
-            count += 1
 
             # View check event
             view_time = login_time + timedelta(minutes=random.randint(1, 30))
-            view_log = AuditLog(
-                id=str(uuid.uuid4()),
-                tenant_id="DEMO-TENANT-000000000000000000000000",
-                timestamp=view_time,
-                user_id=reviewer.id,
-                username=reviewer.username,
-                ip_address="127.0.0.1",
-                action=AuditAction.ITEM_VIEWED,
-                resource_type="check_item",
-                resource_id=check.id,
-                description=f"Viewed check {check.external_item_id}",
-                is_demo=True,  # Mark as demo data
+            logs.append(
+                AuditLog(
+                    id=str(uuid.uuid4()),
+                    tenant_id="DEMO-TENANT-000000000000000000000000",
+                    timestamp=view_time,
+                    user_id=reviewer.id,
+                    username=reviewer.username,
+                    ip_address="127.0.0.1",
+                    action=AuditAction.ITEM_VIEWED,
+                    resource_type="check_item",
+                    resource_id=check.id,
+                    description=f"Viewed check {check.external_item_id}",
+                    is_demo=True,  # Mark as demo data
+                )
             )
-            self.db.add(view_log)
-            count += 1
+
+        # Thread the chain in (timestamp, id) order, matching how the chain is
+        # verified, so previous_hash always points at the prior entry's hash.
+        prev_hash = GENESIS_HASH
+        for log in sorted(logs, key=lambda entry: (entry.timestamp, entry.id)):
+            log.previous_hash = prev_hash
+            log.integrity_hash = log.compute_integrity_hash()
+            prev_hash = log.integrity_hash
+            self.db.add(log)
 
         await self.db.flush()
-        return count
+        return len(logs)
 
     async def _seed_fraud_events(self) -> int:
         """Create fraud events for network intelligence demonstration."""

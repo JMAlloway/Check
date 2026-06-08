@@ -21,7 +21,11 @@ from app.models.user import Role, User
 # Security audit logger - separate from general logging for SIEM integration
 auth_logger = logging.getLogger("security.auth")
 
-security = HTTPBearer()
+# auto_error=False so a missing/blank Authorization header yields credentials=None
+# (handled below as 401 Unauthorized) instead of FastAPI's default 403 Forbidden.
+# 401 is the correct status for "not authenticated"; 403 is reserved for
+# authenticated-but-not-permitted.
+security = HTTPBearer(auto_error=False)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -49,7 +53,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def get_current_user(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
 ) -> User:
     """Get the current authenticated user."""
     credentials_exception = HTTPException(
@@ -57,6 +61,10 @@ async def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    # No (or malformed) Authorization header: not authenticated -> 401.
+    if credentials is None:
+        raise credentials_exception
 
     token = credentials.credentials
     payload = decode_token(token)

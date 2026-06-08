@@ -65,7 +65,10 @@ fraud_event_status_db = PgEnum(
     "draft", "submitted", "withdrawn", name="fraud_event_status", create_type=False
 )
 
-match_severity_db = PgEnum("low", "medium", "high", name="match_severity", create_type=False)
+# NOTE: severity values ("low"/"medium"/"high") are stored as VARCHAR(10), not a
+# native enum. The match_severity enum was dropped in migration 017 because
+# asyncpg cannot bind VARCHAR parameters into a native enum column on write.
+# See NetworkMatchAlert.severity and TenantFraudConfig.minimum_alert_severity.
 
 
 class FraudType(str, Enum):

@@ -69,17 +69,27 @@ PERMISSION_NAMES: list[str] = [
 ]
 
 # Common read-only access shared by every working role.
+# NOTE: user/role/permission visibility is intentionally NOT here. Front-line
+# reviewers have no need to see the staff directory (emails, roles, last-login)
+# or the RBAC catalog, so those reads are granted from senior_reviewer upward
+# (who assign/escalate work) and to auditors (read-only oversight). This keeps
+# the reviewer role least-privilege.
 _BASE_READ = [
     "check_item:view",
     "check_image:view",
     "queue:view",
-    "user:view",
-    "role:view",
-    "permission:view",
     "policy:view",
     "report:view",
     "fraud:view",
     "archive:view",
+]
+
+# Directory + RBAC catalog reads. Needed to assign/escalate items to people and
+# for oversight; not granted to plain reviewers.
+_DIRECTORY_READ = [
+    "user:view",
+    "role:view",
+    "permission:view",
 ]
 
 # role name -> permission names. Higher roles are supersets of lower ones.
@@ -87,11 +97,15 @@ _REVIEWER = _BASE_READ + [
     "check_item:review",
     "fraud:create",  # front-line reviewers can report suspected fraud
 ]
-_SENIOR_REVIEWER = _REVIEWER + [
-    "check_item:approve",  # second-approver for dual control
-    "check_item:assign",
-    "fraud:submit",
-]
+_SENIOR_REVIEWER = (
+    _REVIEWER
+    + _DIRECTORY_READ
+    + [
+        "check_item:approve",  # second-approver for dual control
+        "check_item:assign",  # assigning work requires seeing the directory
+        "fraud:submit",
+    ]
+)
 _SUPERVISOR = _SENIOR_REVIEWER + [
     "check_item:update",
     "check_item:sync",
@@ -124,12 +138,16 @@ _ADMINISTRATOR = _SUPERVISOR + [
     "image_connector:delete",
     "item_context_connector:manage",
 ]
-_AUDITOR = _BASE_READ + [
-    "report:export",
-    "audit:view",
-    "audit:export",
-    "archive:export",
-]
+_AUDITOR = (
+    _BASE_READ
+    + _DIRECTORY_READ
+    + [
+        "report:export",
+        "audit:view",
+        "audit:export",
+        "archive:export",
+    ]
+)
 
 ROLE_PERMISSIONS: dict[str, list[str]] = {
     # de-dup while preserving order

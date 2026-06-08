@@ -246,9 +246,18 @@ def client(override_get_db) -> Generator[TestClient, None, None]:
     app.dependency_overrides[get_db] = override_get_db
 
     async def _resolve_current_user(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
+        credentials: HTTPAuthorizationCredentials | None = Depends(security),
         db: AsyncSession = Depends(get_db),
     ) -> User:
+        # security uses auto_error=False, so a missing/blank Authorization header
+        # yields None here. Mirror the real get_current_user: that is 401
+        # Unauthorized, not a dereference of None.
+        if credentials is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         payload = decode_token(credentials.credentials)
         if payload is None or payload.get("type") != "access" or not payload.get("sub"):
             raise HTTPException(

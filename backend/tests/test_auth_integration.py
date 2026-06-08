@@ -153,7 +153,9 @@ class TestLogoutFlow:
         """Test logout without authentication."""
         response = client.post("/api/v1/auth/logout")
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        # Missing credentials -> 401 Unauthorized (not 403 Forbidden, which is
+        # reserved for authenticated-but-not-permitted).
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 class TestTokenRefresh:
@@ -256,7 +258,8 @@ class TestCurrentUser:
         """Test getting current user without auth."""
         response = client.get("/api/v1/auth/me")
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        # Missing credentials -> 401 Unauthorized (not 403 Forbidden).
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 class TestMFASetup:

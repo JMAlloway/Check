@@ -378,15 +378,16 @@ async def seed_database():
             description="View queue, review checks, make decisions",
             is_system=True,
         )
+        # Least-privilege: front-line reviewers do NOT get user/role/permission
+        # visibility. Seeing the staff directory (emails, roles, last-login) and
+        # the RBAC catalog is reserved for senior_reviewer+ (who assign work) and
+        # auditors (oversight).
         reviewer_role.permissions = [
             perm_lookup[n]
             for n in [
                 "check_item:view",
                 "check_item:review",
                 "queue:view",
-                "user:view",
-                "role:view",
-                "permission:view",
                 "policy:view",
                 "report:view",
                 "fraud:view",

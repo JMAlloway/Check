@@ -501,10 +501,10 @@ class AuditService:
         """
         if success:
             audit_action = AuditAction.AI_INFERENCE_COMPLETED
-            description = f"AI inference completed: {inference_type}"
+            description = f"Risk assessment completed: {inference_type}"
         else:
             audit_action = AuditAction.AI_INFERENCE_FAILED
-            description = f"AI inference failed: {inference_type} - {error}"
+            description = f"Risk assessment failed: {inference_type} - {error}"
 
         return await self.log(
             action=audit_action,
@@ -538,12 +538,12 @@ class AuditService:
         ip_address: str | None = None,
     ) -> AuditLog:
         """
-        Log user action on AI recommendation.
+        Log user action on the risk-based recommendation.
 
         Captures whether the user:
-        - Accepted the AI recommendation
-        - Rejected the AI recommendation
-        - Overrode the AI recommendation with a different action
+        - Accepted the risk-based recommendation
+        - Rejected the risk-based recommendation
+        - Overrode the risk-based recommendation with a different action
         """
         if user_action == ai_recommendation:
             audit_action = AuditAction.AI_RECOMMENDATION_ACCEPTED
@@ -560,7 +560,7 @@ class AuditService:
             username=username,
             ip_address=ip_address,
             tenant_id=tenant_id,
-            description=f"User {audit_action.value.replace('ai_recommendation_', '')}: AI recommended {ai_recommendation}, user chose {user_action}",
+            description=f"User {audit_action.value.replace('ai_recommendation_', '')}: risk assessment recommended {ai_recommendation}, user chose {user_action}",
             metadata={
                 "recommendation_type": recommendation_type,
                 "ai_recommendation": ai_recommendation,

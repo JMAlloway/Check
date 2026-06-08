@@ -458,8 +458,8 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
                 className="mt-1 rounded border-gray-300 text-primary-600"
               />
               <span className="ml-2 text-sm text-blue-800">
-                <strong>Advisory:</strong> I have reviewed the {item.ai_flags.length} detection flag(s)
-                for this item. I understand detection rules are advisory only and the final decision is mine.
+                <strong>Advisory:</strong> I have reviewed the {item.ai_flags.length} risk signal(s)
+                for this item. I understand risk signals are advisory only and the final decision is mine.
               </span>
             </label>
           </div>

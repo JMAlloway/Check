@@ -149,9 +149,9 @@ class DemoAIProvider:
             ],
             # Explicitly mark as advisory
             "advisory_notice": (
-                "This AI analysis is for ADVISORY purposes only. "
+                "This risk assessment is for ADVISORY purposes only. "
                 "All decisions must be made by authorized human reviewers. "
-                "AI output should never be the sole basis for a decision."
+                "Risk signals should never be the sole basis for a decision."
             ),
             # Never auto-approve
             "auto_decision_eligible": False,

@@ -297,33 +297,33 @@ class AIService:
         ai_analysis: AIAnalysisResult | None,
     ) -> tuple[bool, str | None]:
         """
-        Validate that AI output was properly acknowledged before decision.
+        Validate that risk signals were properly acknowledged before decision.
 
-        GUARDRAIL: If AI was used, the reviewer must have:
-        1. Explicitly acknowledged AI assistance (ai_assisted=True)
-        2. Reviewed the AI-generated flags
+        GUARDRAIL: If the risk assessment raised signals, the reviewer must have:
+        1. Explicitly acknowledged the risk assessment (ai_assisted=True)
+        2. Reviewed the risk signals that were raised
 
         Returns:
             (is_valid, error_message)
         """
         if not ai_analysis:
-            # No AI analysis performed - nothing to validate
+            # No risk assessment performed - nothing to validate
             if ai_assisted:
-                return False, "AI assisted marked but no AI analysis found"
+                return False, "Risk assessment acknowledged but no assessment was performed"
             return True, None
 
-        # If AI analysis exists, reviewer must acknowledge
+        # If a risk assessment exists, reviewer must acknowledge it
         if not ai_assisted:
             return (
                 False,
-                "AI analysis was performed but not acknowledged. Set ai_assisted=True to proceed.",
+                "A risk assessment was performed but not acknowledged before the decision.",
             )
 
-        # If AI generated flags, they should be reviewed
+        # If the assessment raised signals, they should be reviewed
         if ai_analysis.flags and not ai_flags_reviewed:
             return (
                 False,
-                f"AI generated {len(ai_analysis.flags)} flags that must be reviewed before decision",
+                f"The risk assessment raised {len(ai_analysis.flags)} signal(s) that must be reviewed before a decision",
             )
 
         return True, None

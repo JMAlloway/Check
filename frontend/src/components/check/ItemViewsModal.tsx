@@ -17,7 +17,7 @@ function flags(v: ItemView): string {
   if (v.zoom_used) f.push('zoom');
   if (v.magnifier_used) f.push('magnifier');
   if (v.history_compared) f.push('history');
-  if (v.ai_assists_viewed) f.push('AI assists');
+  if (v.ai_assists_viewed) f.push('risk signals');
   return f.join(' · ') || 'no interactions recorded';
 }
 

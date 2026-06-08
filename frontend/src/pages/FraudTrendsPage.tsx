@@ -231,9 +231,18 @@ export default function FraudTrendsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Network Fraud Trends</h1>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            Network Fraud Trends
+            <span
+              className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-purple-100 text-purple-700"
+              title="Cross-institution fraud sharing is a roadmap capability. Demo data illustrates the intended experience; no live consortium is connected."
+            >
+              Preview · Roadmap
+            </span>
+          </h1>
           <p className="text-gray-600 mt-1">
             Aggregated fraud intelligence across participating institutions
+            <span className="text-gray-400"> (roadmap — illustrative demo data)</span>
           </p>
           <Link
             to="/fraud/events"

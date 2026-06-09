@@ -69,6 +69,25 @@ const TABS: TabDef[] = [
   },
 ];
 
+const EMPTY_STATE_COPY: Record<TabKey, { title: string; hint: string }> = {
+  pending: {
+    title: 'The queue is clear.',
+    hint: 'All presented items have been triaged. New items will appear here as they arrive, or adjust the filters above.',
+  },
+  sla: {
+    title: 'No SLA breaches.',
+    hint: 'Every pending item is within its review window.',
+  },
+  dual: {
+    title: 'Nothing awaiting dual control.',
+    hint: 'Items appear here when a recommendation needs a second approver.',
+  },
+  processed: {
+    title: 'No processed items match the current filters.',
+    hint: 'Try widening the date range or clearing the risk filters above.',
+  },
+};
+
 const SORTS: { value: string; label: string; sort_by: string; sort_order: string }[] = [
   { value: 'priority_desc', label: 'Priority (high→low)', sort_by: 'priority', sort_order: 'desc' },
   { value: 'sla_due_at_asc', label: 'SLA due (soonest)', sort_by: 'sla_due_at', sort_order: 'asc' },
@@ -325,7 +344,10 @@ export default function QueuePage() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
           </div>
         ) : items.length === 0 ? (
-          <div className="p-10 text-center text-gray-500">No items in {tab.label}.</div>
+          <div className="p-10 text-center text-gray-500">
+            <p className="font-medium text-gray-700">{EMPTY_STATE_COPY[activeTab].title}</p>
+            <p className="mt-1 text-sm">{EMPTY_STATE_COPY[activeTab].hint}</p>
+          </div>
         ) : (
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">

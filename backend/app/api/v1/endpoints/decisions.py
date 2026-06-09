@@ -214,6 +214,10 @@ async def create_decision(
     """
     # Get the check item with images for evidence snapshot
     # CRITICAL: Filter by tenant_id for multi-tenant security
+    # CRITICAL: Lock the row (SELECT ... FOR UPDATE) for the duration of the
+    # transaction so concurrent decisions on the same item serialize. Without
+    # this, two approvers could both read PENDING_DUAL_CONTROL and both record
+    # an approval, bypassing dual control.
     result = await db.execute(
         select(CheckItem)
         .options(selectinload(CheckItem.images))
@@ -221,6 +225,7 @@ async def create_decision(
             CheckItem.id == decision_data.check_item_id,
             CheckItem.tenant_id == current_user.tenant_id,
         )
+        .with_for_update()
     )
     item = result.scalar_one_or_none()
 

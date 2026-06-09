@@ -1,17 +1,24 @@
 """Audit logging service."""
 
+import hashlib
 import json
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit import AuditAction, AuditLog, ItemView
 
 # Fixed sentinel used as previous_hash for the first entry in a tenant's chain.
 GENESIS_HASH = "0" * 64
+
+
+def _audit_chain_lock_key(tenant_id: str | None) -> int:
+    """Stable signed 64-bit advisory-lock key for a tenant's audit chain."""
+    digest = hashlib.sha256(f"audit_chain:{tenant_id}".encode()).digest()
+    return int.from_bytes(digest[:8], "big", signed=True)
 
 
 class AuditService:
@@ -88,11 +95,20 @@ class AuditService:
         #
         # NOTE: the DB-level UPDATE/DELETE triggers (the audit-immutability
         # triggers in the baseline migration) are the primary tamper control.
-        # This chain adds detection of deletion/reordering on top. Without
-        # serialization, two concurrent inserts in the same tenant could read
-        # the same predecessor and fork the chain; the per-row hash (which
-        # covers the change payload) is unaffected. A per-tenant advisory lock
-        # can be added if a strict single chain is required.
+        # This chain adds detection of deletion/reordering on top.
+        #
+        # A per-tenant transaction-scoped advisory lock serializes concurrent
+        # inserts so the chain cannot fork (two writers reading the same
+        # predecessor). The lock is released automatically at commit/rollback.
+        # Advisory locks are PostgreSQL-only; on other dialects (e.g. SQLite
+        # in local dev) writes are already serialized by the database itself.
+        bind = self.db.get_bind()
+        if bind is not None and bind.dialect.name == "postgresql":
+            await self.db.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": _audit_chain_lock_key(tenant_id)},
+            )
+
         prev_result = await self.db.execute(
             select(AuditLog.integrity_hash)
             .where(

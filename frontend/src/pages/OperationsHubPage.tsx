@@ -161,7 +161,7 @@ function CapabilityCard({ capability }: { capability: Capability }) {
   } else if (isLoading) {
     status = 'Loading…';
   } else if (isError) {
-    status = 'Preview — UI coming soon';
+    status = 'Preview — dedicated screen in development';
   } else {
     status = capability.summarize ? capability.summarize(data) : 'Available';
     tone = 'live';

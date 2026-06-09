@@ -24,19 +24,13 @@ const RISK_HEX: Record<string, string> = {
   unclassified: '#9ca3af',
 };
 
-// Get today's date in ISO format for filtering (America/New_York timezone as default for bank)
+// Get today's date in ISO format for filtering, using the viewer's local
+// timezone so "today" matches what the user sees on their clock.
 function getTodayDateRange(): { from: string; to: string } {
   const now = new Date();
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  const parts = formatter.formatToParts(now);
-  const year = parts.find(p => p.type === 'year')?.value;
-  const month = parts.find(p => p.type === 'month')?.value;
-  const day = parts.find(p => p.type === 'day')?.value;
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
   const todayStr = `${year}-${month}-${day}`;
   return {
     from: `${todayStr}T00:00:00`,

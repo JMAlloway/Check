@@ -8,9 +8,13 @@ interface DemoBannerProps {
   dismissible?: boolean;
 }
 
+const DISMISS_KEY = 'demo_banner_dismissed';
+
 export default function DemoBanner({ variant = 'full', dismissible = true }: DemoBannerProps) {
   const { status, fetchDemoStatus, isDemoMode } = useDemoStore();
-  const [dismissed, setDismissed] = useState(false);
+  // Persist dismissal for the browser session so the banner doesn't reappear
+  // on every page refresh.
+  const [dismissed, setDismissed] = useState(() => sessionStorage.getItem(DISMISS_KEY) === '1');
 
   useEffect(() => {
     fetchDemoStatus();
@@ -67,7 +71,10 @@ export default function DemoBanner({ variant = 'full', dismissible = true }: Dem
             {dismissible && (
               <button
                 type="button"
-                onClick={() => setDismissed(true)}
+                onClick={() => {
+                  sessionStorage.setItem(DISMISS_KEY, '1');
+                  setDismissed(true);
+                }}
                 className="rounded-md p-1.5 text-amber-600 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
               >
                 <XMarkIcon className="h-5 w-5" />

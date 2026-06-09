@@ -262,7 +262,7 @@ The repository includes GitHub Actions workflows:
 
 ### Production Deployment
 
-See `docs/DEPLOYMENT.md` and `docs/PILOT_RUNBOOK.md` for detailed instructions.
+See [docs/deployment/DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md) and [docs/deployment/PILOT_RUNBOOK.md](docs/deployment/PILOT_RUNBOOK.md) for detailed instructions.
 
 ```bash
 # Use production compose file
@@ -291,14 +291,16 @@ Comprehensive documentation is available in the `docs/` directory:
 
 | Document | Description |
 |----------|-------------|
-| `CHECK_REVIEW_CONSOLE_TECHNICAL_GUIDE.md` | Complete technical specification |
-| `BANK_ONBOARDING_GUIDE.md` | Step-by-step bank integration guide |
-| `CONNECTOR_SETUP.md` | Image Intake / Decision Commit / Account Context connector configuration (Connectors A–C) |
-| `SECURITY_ARCHITECTURE.md` | Security design and controls |
-| `RBAC.md` | Role-based access control details |
-| `AUDIT_EVIDENCE_MODEL.md` | Audit trail and evidence sealing |
-| `PILOT_RUNBOOK.md` | Production deployment checklist |
-| `DISASTER_RECOVERY_DRILL.md` | DR testing procedures |
+| [Technical Guide](docs/architecture/CHECK_REVIEW_CONSOLE_TECHNICAL_GUIDE.md) | Complete technical specification |
+| [Bank Onboarding Guide](docs/deployment/BANK_ONBOARDING_GUIDE.md) | Step-by-step bank integration guide |
+| [Connector Setup](docs/connectors/CONNECTOR_SETUP.md) | Image Intake / Decision Commit / Account Context connector configuration (Connectors A–C) |
+| [Security Architecture](docs/architecture/SECURITY_ARCHITECTURE.md) | Security design and controls |
+| [RBAC](docs/security/RBAC.md) | Role-based access control details |
+| [Audit Evidence Model](docs/architecture/AUDIT_EVIDENCE_MODEL.md) | Audit trail and evidence sealing |
+| [Pilot Runbook](docs/deployment/PILOT_RUNBOOK.md) | Production deployment checklist |
+| [Disaster Recovery Drill](docs/deployment/DISASTER_RECOVERY_DRILL.md) | DR testing procedures |
+
+See the [docs index](docs/README.md) for the full documentation tree.
 
 ## Contributing
 

@@ -518,6 +518,8 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
             <span className="ml-2 font-mono">J</span><span className="mx-0.5">Reject</span>
             <span className="ml-2 font-mono">E</span><span className="mx-0.5">Escalate</span>
             <span className="ml-2 font-mono">I</span><span className="mx-0.5">More Info</span>
+            <span className="ml-2 font-mono">P</span><span className="mx-0.5">Prev</span>
+            <span className="ml-2 font-mono">N</span><span className="mx-0.5">Next</span>
           </div>
         </div>
         </div>

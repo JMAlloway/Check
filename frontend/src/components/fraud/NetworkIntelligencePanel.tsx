@@ -206,9 +206,9 @@ export default function NetworkIntelligencePanel({ checkItemId }: NetworkIntelli
           Network Intelligence
           <span
             className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-purple-100 text-purple-700"
-            title="Cross-institution fraud sharing is a roadmap capability. Demo data illustrates the intended experience; no live consortium is connected."
+            title="Cross-institution fraud intelligence is in development. This preview uses representative data to show the planned experience."
           >
-            Preview · Roadmap
+            Early Preview
           </span>
         </h3>
         {alertSummary?.highest_severity && (

@@ -81,9 +81,7 @@ def upgrade() -> None:
     bind.execute(text("DELETE FROM check_history WHERE tenant_id IS NULL"))
     bind.execute(text("ALTER TABLE check_history ALTER COLUMN tenant_id SET NOT NULL"))
     bind.execute(
-        text(
-            "CREATE INDEX IF NOT EXISTS ix_check_history_tenant_id ON check_history (tenant_id)"
-        )
+        text("CREATE INDEX IF NOT EXISTS ix_check_history_tenant_id ON check_history (tenant_id)")
     )
     bind.execute(
         text(
@@ -104,8 +102,7 @@ def upgrade() -> None:
     # --- 3. Missing FK indexes --------------------------------------------
     bind.execute(
         text(
-            "CREATE INDEX IF NOT EXISTS ix_decisions_check_item_id "
-            "ON decisions (check_item_id)"
+            "CREATE INDEX IF NOT EXISTS ix_decisions_check_item_id " "ON decisions (check_item_id)"
         )
     )
     bind.execute(
@@ -145,9 +142,7 @@ def upgrade() -> None:
                 {"name": name},
             ).fetchone()
             if not exists:
-                bind.execute(
-                    text(f"ALTER TABLE {table} ADD CONSTRAINT {name} CHECK ({expr})")
-                )
+                bind.execute(text(f"ALTER TABLE {table} ADD CONSTRAINT {name} CHECK ({expr})"))
 
 
 def downgrade() -> None:

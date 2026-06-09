@@ -19,6 +19,7 @@ import { useReviewSettings } from '../stores/reviewSettingsStore';
 import { useAuthStore } from '../stores/authStore';
 import { useResizableWidth } from '../hooks/useResizableWidth';
 import { formatDate } from '../utils/date';
+import { logError } from '../utils/log';
 
 // Image URL refresh interval (60 seconds - before 90s TTL expires)
 const IMAGE_URL_REFRESH_INTERVAL = 60 * 1000;
@@ -64,12 +65,12 @@ export default function CheckReviewPage() {
   const canAssign = useAuthStore((s) => s.hasPermission('check_item', 'assign'));
   const canReportFraud = useAuthStore((s) => s.hasPermission('fraud', 'create'));
 
-  const { data: item, isLoading, error } = useQuery<CheckItem>({
+  const { data: item, isLoading, error, refetch } = useQuery<CheckItem>({
     queryKey: ['checkItem', itemId],
     queryFn: () => checkApi.getItem(itemId!),
     enabled: !!itemId,
-    // Refetch every 60s to get fresh signed image URLs (TTL is 90s)
-    // This ensures images stay accessible during long review sessions
+    // Refetch periodically to get fresh signed image URLs before they expire
+    // (signed URL TTL is 5 minutes; see IMAGE_SIGNED_URL_TTL_SECONDS)
     refetchInterval: IMAGE_URL_REFRESH_INTERVAL,
     // Only refetch when window is focused (save bandwidth when tab is hidden)
     refetchIntervalInBackground: false,
@@ -150,7 +151,7 @@ export default function CheckReviewPage() {
 
       toast.success('Audit packet downloaded');
     } catch (error) {
-      console.error('Failed to generate packet:', error);
+      logError('Failed to generate packet:', error);
       toast.error('Failed to generate audit packet');
     } finally {
       setIsGeneratingPacket(false);
@@ -166,10 +167,24 @@ export default function CheckReviewPage() {
   }
 
   if (error || !item) {
+    const httpStatus = (error as { response?: { status?: number } } | null)?.response?.status;
+    const message =
+      httpStatus === 404
+        ? 'This check item could not be found. It may have been processed or removed.'
+        : 'Something went wrong while loading this check item.';
     return (
       <div className="text-center py-12">
-        <p className="text-red-600">Failed to load check item</p>
-        <Link to="/queue" className="text-primary-600 hover:underline mt-2 block">
+        <p className="text-red-600">{message}</p>
+        {httpStatus !== 404 && (
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="mt-3 px-4 py-2 text-sm font-medium rounded-md bg-primary-600 text-white hover:bg-primary-700"
+          >
+            Try Again
+          </button>
+        )}
+        <Link to="/queue" className="text-primary-600 hover:underline mt-3 block">
           Return to Queue
         </Link>
       </div>

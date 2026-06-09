@@ -98,9 +98,10 @@ class Settings(BaseSettings):
 
     # Image handling
     IMAGE_CACHE_TTL_SECONDS: int = 300
-    # Short TTL for signed URLs - treated as bearer tokens, not user-bound
-    # Frontend must refresh URLs before expiry for long review sessions
-    IMAGE_SIGNED_URL_TTL_SECONDS: int = 90  # 90 seconds - security/usability balance
+    # Short TTL for signed URLs - treated as bearer tokens, not user-bound.
+    # 5 minutes covers a typical single-item review without forcing mid-review
+    # refreshes; the frontend can still re-mint for longer sessions.
+    IMAGE_SIGNED_URL_TTL_SECONDS: int = 300
     MAX_IMAGE_SIZE_MB: int = 10
 
     # Queue settings

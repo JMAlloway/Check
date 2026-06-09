@@ -27,6 +27,7 @@ import { userApi, queueAdminApi, queueApi, policyApi, auditLogApi, imageConnecto
 import { format } from 'date-fns';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { humanizeLabel } from '../utils/labels';
+import { logError } from '../utils/log';
 import { useAuthStore } from '../stores/authStore';
 
 // Each section is gated to the permission(s) a role needs to actually do
@@ -1109,7 +1110,7 @@ function PoliciesAdmin() {
       toast.success(`Policy activated: ${data.message || 'Success'}`);
     },
     onError: (error: any) => {
-      console.error('Failed to activate policy:', error);
+      logError('Failed to activate policy:', error);
       const detail = error.response?.data?.detail;
       let message = error.message;
       if (detail) {
@@ -1139,7 +1140,7 @@ function PoliciesAdmin() {
       setShowCreateModal(false);
     },
     onError: (error: any) => {
-      console.error('Failed to create policy:', error);
+      logError('Failed to create policy:', error);
       toast.error(`Failed to create policy: ${formatErrorMessage(error)}`);
     },
   });
@@ -1155,7 +1156,7 @@ function PoliciesAdmin() {
       }
     },
     onError: (error: any) => {
-      console.error('Failed to delete policy:', error);
+      logError('Failed to delete policy:', error);
       toast.error(`Failed to delete policy: ${formatErrorMessage(error)}`);
     },
   });
@@ -1187,7 +1188,7 @@ function PoliciesAdmin() {
       setEditingPolicy(null);
     },
     onError: (error: any) => {
-      console.error('Failed to update policy:', error);
+      logError('Failed to update policy:', error);
       toast.error(`Failed to update policy: ${formatErrorMessage(error)}`);
     },
   });
@@ -2605,7 +2606,8 @@ function ConnectorFormModal({
       setGeneratedKeys(keys);
       setFormData({ ...formData, public_key_pem: keys.public_key_pem });
     } catch (err) {
-      console.error('Failed to generate keys:', err);
+      logError('Failed to generate keys:', err);
+      toast.error('Failed to generate keys. Please try again.');
     } finally {
       setIsGenerating(false);
     }
@@ -2826,7 +2828,8 @@ function KeyManagementModal({
       setGeneratedKeys(keys);
       setNewPublicKey(keys.public_key_pem);
     } catch (err) {
-      console.error('Failed to generate keys:', err);
+      logError('Failed to generate keys:', err);
+      toast.error('Failed to generate keys. Please try again.');
     } finally {
       setIsGenerating(false);
     }

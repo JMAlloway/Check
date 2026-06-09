@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { archiveApi } from '../services/api';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { logError } from '../utils/log';
 import {
   ArchiveBoxIcon,
   MagnifyingGlassIcon,
@@ -155,7 +156,7 @@ export default function ArchivePage() {
         date_to: dateTo ? `${dateTo}T23:59:59` : undefined,
       });
     } catch (error) {
-      console.error('Export failed:', error);
+      logError('Export failed:', error);
       const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       toast.error(detail || 'Failed to export archive data');
     } finally {

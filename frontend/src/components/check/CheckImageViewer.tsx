@@ -11,6 +11,7 @@ import {
 import clsx from 'clsx';
 import { CheckImage, ROIRegion } from '../../types';
 import { imageApi, resolveImageUrl } from '../../services/api';
+import { logError } from '../../utils/log';
 
 interface CheckImageViewerProps {
   images: CheckImage[];
@@ -41,6 +42,7 @@ export default function CheckImageViewer({
   const [invert, setInvert] = useState(false);
   const [showControls, setShowControls] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [retrySeq, setRetrySeq] = useState(0);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
@@ -426,8 +428,18 @@ export default function CheckImageViewer({
             {imageError && (
               <div className="absolute inset-0 flex items-center justify-center z-10">
                 <div className="text-center text-red-400">
-                  <p>Failed to load image</p>
-                  <p className="text-xs text-gray-500 mt-1">{imageError}</p>
+                  <p>{imageError}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImageError(null);
+                      setImageLoaded(false);
+                      setRetrySeq((n) => n + 1);
+                    }}
+                    className="mt-2 px-3 py-1 text-xs rounded bg-gray-700 text-white hover:bg-gray-600"
+                  >
+                    Retry
+                  </button>
                 </div>
               </div>
             )}
@@ -443,6 +455,7 @@ export default function CheckImageViewer({
               }}
             >
               <img
+                key={`${activeImage}-${retrySeq}`}
                 ref={imageRef}
                 src={resolveImageUrl(currentImage.image_url)}
                 alt={`Check ${activeImage}`}
@@ -455,9 +468,8 @@ export default function CheckImageViewer({
                 draggable={false}
                 onLoad={handleImageLoad}
                 onError={(e) => {
-                  const img = e.target as HTMLImageElement;
-                  setImageError(`URL: ${img.src.substring(0, 80)}...`);
-                  console.error('Image load failed:', img.src);
+                  setImageError('The image could not be loaded. It may have expired — try again.');
+                  logError('Image load failed:', (e.target as HTMLImageElement).src);
                 }}
               />
 

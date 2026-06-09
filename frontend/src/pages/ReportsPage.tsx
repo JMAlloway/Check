@@ -19,6 +19,7 @@ import {
   Line,
 } from 'recharts';
 import { humanizeLabel } from '../utils/labels';
+import { logError } from '../utils/log';
 import AutomationRoiPanel from '../components/reports/AutomationRoiPanel';
 import {
   DocumentArrowDownIcon,
@@ -60,7 +61,7 @@ export default function ReportsPage() {
         await reportsApi.exportExecutiveOverviewPdf();
       }
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      logError('Error generating PDF:', error);
       toast.error('Failed to generate PDF report. Please try again.');
     } finally {
       setGeneratingReport(null);
@@ -77,7 +78,7 @@ export default function ReportsPage() {
         `${reportDateTo}T23:59:59`
       );
     } catch (error) {
-      console.error('Error exporting decisions CSV:', error);
+      logError('Error exporting decisions CSV:', error);
       toast.error('Failed to export decisions. Please try again.');
     } finally {
       setExportingCsv(false);

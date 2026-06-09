@@ -278,7 +278,9 @@ async def get_check_history(
             detail="Check item not found",
         )
 
-    history = await check_service.get_check_history(item.account_id, current_user.id, limit=limit)
+    history = await check_service.get_check_history(
+        item.account_id, current_user.id, limit=limit, tenant_id=current_user.tenant_id
+    )
     return history
 
 

@@ -83,9 +83,11 @@ class AuditService:
             resource_type=resource_type,
             resource_id=resource_id,
             description=description,
-            before_value=json.dumps(before_value) if before_value else None,
-            after_value=json.dumps(after_value) if after_value else None,
-            extra_data=json.dumps(metadata) if metadata else None,
+            # JSONB columns - pass the dicts through so Postgres stores real
+            # JSON objects (queryable, GIN-indexable), not re-encoded strings.
+            before_value=before_value or None,
+            after_value=after_value or None,
+            extra_data=metadata or None,
             session_id=session_id,
         )
 

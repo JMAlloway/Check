@@ -96,6 +96,11 @@ class Settings(BaseSettings):
     # Session
     SESSION_TIMEOUT_MINUTES: int = 30
 
+    # Database
+    # Server-side statement timeout: one runaway query cannot hold a pool
+    # connection forever and cascade into pool exhaustion.
+    DB_STATEMENT_TIMEOUT_MS: int = 60000
+
     # Image handling
     IMAGE_CACHE_TTL_SECONDS: int = 300
     # Short TTL for signed URLs - treated as bearer tokens, not user-bound.

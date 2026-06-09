@@ -115,7 +115,7 @@ async def _render_demo_check_image(
     # have no backing CheckItem - render them from the CheckHistory row instead,
     # so "select a prior check" shows a real check (not a 404 / broken image).
     if item_id.startswith("HIST-"):
-        return await _render_demo_history_image(db, resource_id, side, thumbnail)
+        return await _render_demo_history_image(db, resource_id, tenant_id, side, thumbnail)
 
     result = await db.execute(
         select(CheckItem).where(CheckItem.id == item_id, CheckItem.tenant_id == tenant_id)
@@ -145,7 +145,7 @@ async def _render_demo_check_image(
 
 
 async def _render_demo_history_image(
-    db, resource_id: str, side: str, thumbnail: bool
+    db, resource_id: str, tenant_id: str, side: str, thumbnail: bool
 ) -> bytes | None:
     """Render a prior (account-history) check image from its CheckHistory row.
 
@@ -156,10 +156,11 @@ async def _render_demo_history_image(
     """
     result = await db.execute(
         select(CheckHistory).where(
+            CheckHistory.tenant_id == tenant_id,
             or_(
                 CheckHistory.front_image_ref == resource_id,
                 CheckHistory.back_image_ref == resource_id,
-            )
+            ),
         )
     )
     history = result.scalar_one_or_none()

@@ -6,7 +6,7 @@ import { useAutomationStore, type AutoClearTier } from '../stores/automationStor
 
 const TIER_RANK: Record<string, number> = { low: 0, medium: 1, high: 2, critical: 3 };
 
-const OPEN_STATUSES = ['new', 'in_review', 'escalated', 'pending_approval', 'pending_dual_control'];
+const OPEN_STATUSES = ['new', 'in_review', 'escalated', 'pending_dual_control'];
 const DECIDED_STATUSES = ['approved', 'rejected', 'returned'];
 
 const SAMPLE_SIZE = 500; // backend cap; covers the full open queue + ample decided history

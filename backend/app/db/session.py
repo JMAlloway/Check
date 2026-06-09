@@ -13,6 +13,11 @@ engine = create_async_engine(
     pool_pre_ping=True,
     pool_size=10,
     max_overflow=20,
+    # Server-side statement timeout so a runaway query cannot hold a pool
+    # connection indefinitely (asyncpg passes these to the server per session).
+    connect_args={
+        "server_settings": {"statement_timeout": str(settings.DB_STATEMENT_TIMEOUT_MS)}
+    },
 )
 
 AsyncSessionLocal = async_sessionmaker(

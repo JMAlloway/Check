@@ -151,7 +151,9 @@ class AuditLog(Base, UUIDMixin):
     Immutable audit log entry.
 
     IMMUTABILITY ENFORCEMENT:
-    - DB-level trigger blocks UPDATE and DELETE operations (see migration 004)
+    - DB-level trigger blocks UPDATE and DELETE operations (installed by the
+      0001_baseline migration and the dev create_all path; see
+      app/db/audit_triggers.py)
     - Application role should have INSERT/SELECT only permissions
     - No updated_at column - entries are write-once
     - Partitioning by timestamp recommended for retention management
@@ -203,8 +205,7 @@ class AuditLog(Base, UUIDMixin):
     # Tamper-proofing: SHA-256 hash of critical fields for integrity verification
     integrity_hash: Mapped[str | None] = mapped_column(String(64))
     # Hash of the preceding audit entry, forming a tamper-evident chain (set by
-    # AuditService.log). Genesis rows use a fixed sentinel. Added in migration
-    # 013; this column was previously missing from the model.
+    # AuditService.log). Genesis rows use a fixed sentinel.
     previous_hash: Mapped[str | None] = mapped_column(String(64))
 
     # Demo mode flag - marks synthetic demo audit entries
@@ -214,6 +215,10 @@ class AuditLog(Base, UUIDMixin):
         Index("ix_audit_logs_resource", "resource_type", "resource_id"),
         Index("ix_audit_logs_user_action", "user_id", "action"),
         Index("ix_audit_logs_timestamp_action", "timestamp", "action"),
+        # The chain predecessor lookup (WHERE tenant_id = ? ORDER BY
+        # timestamp DESC, id DESC LIMIT 1) runs on every audit insert -
+        # this composite makes it a single index probe.
+        Index("ix_audit_logs_tenant_chain", "tenant_id", "timestamp", "id"),
         # GIN index for efficient JSONB containment queries on the change payload.
         Index(
             "ix_audit_logs_extra_data_gin",

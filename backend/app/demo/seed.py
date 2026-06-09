@@ -1620,7 +1620,7 @@ mwIDAQAB
                 ai_risk_score=Decimal(str(1 - scenario_config.ai_confidence)).quantize(
                     Decimal("0.0001")
                 ),
-                risk_flags=json.dumps(scenario_config.flags) if scenario_config.flags else None,
+                risk_flags=scenario_config.flags or None,
                 ai_model_id="demo-risk-analyzer",
                 ai_model_version="demo-1.0.0",
                 ai_analyzed_at=datetime.now(timezone.utc),
@@ -1629,9 +1629,7 @@ mwIDAQAB
                     Decimal("0.0001")
                 ),
                 ai_explanation=scenario_config.explanation,
-                ai_risk_factors=(
-                    json.dumps(scenario_config.flags) if scenario_config.flags else None
-                ),
+                ai_risk_factors=scenario_config.flags or None,
                 account_tenure_days=account.tenure_days,
                 current_balance=account.avg_balance,
                 average_balance_30d=account.avg_balance,
@@ -1742,6 +1740,7 @@ mwIDAQAB
 
                 history = CheckHistory(
                     id=history_id,
+                    tenant_id="DEMO-TENANT-000000000000000000000000",
                     account_id=account.account_id,
                     check_number=f"{random.randint(1000, 9999)}",
                     amount=amount.quantize(Decimal("0.01")),

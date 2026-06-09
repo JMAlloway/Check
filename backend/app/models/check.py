@@ -4,9 +4,11 @@ from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 
-from sqlalchemy import Boolean, DateTime
+from sqlalchemy import Boolean, CheckConstraint, DateTime
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import text as sa_text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -32,7 +34,6 @@ class CheckStatus(str, Enum):
     IN_REVIEW = "in_review"
     ESCALATED = "escalated"
     PENDING_DUAL_CONTROL = "pending_dual_control"  # Awaiting second-level approval
-    PENDING_APPROVAL = "pending_approval"  # Legacy: use PENDING_DUAL_CONTROL
     APPROVED = "approved"
     REJECTED = "rejected"
     RETURNED = "returned"
@@ -173,8 +174,8 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     # Flags and context
     has_ai_flags: Mapped[bool] = mapped_column(Boolean, default=False)
     ai_risk_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
-    risk_flags: Mapped[str | None] = mapped_column(Text)  # JSON array of flag codes
-    upstream_flags: Mapped[str | None] = mapped_column(Text)  # Flags from source system
+    risk_flags: Mapped[list | None] = mapped_column(JSONB)  # array of flag codes
+    upstream_flags: Mapped[list | None] = mapped_column(JSONB)  # flags from source system
 
     # AI Analysis Tracking - ADVISORY ONLY
     # CRITICAL: AI output is NEVER authoritative. These fields track AI analysis
@@ -187,7 +188,7 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     )  # ADVISORY: "likely_legitimate", "needs_review", etc.
     ai_confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))  # 0.0000 to 1.0000
     ai_explanation: Mapped[str | None] = mapped_column(Text)  # Human-readable explanation
-    ai_risk_factors: Mapped[str | None] = mapped_column(Text)  # JSON array of risk factors
+    ai_risk_factors: Mapped[list | None] = mapped_column(JSONB)  # array of risk factors
 
     # Account context (denormalized for performance)
     account_tenure_days: Mapped[int | None] = mapped_column(Integer)
@@ -274,10 +275,47 @@ class CheckItem(Base, UUIDMixin, TimestampMixin):
     )
 
     __table_args__ = (
-        Index("ix_check_items_status_priority", "status", "priority"),
+        # Queue listing filters by tenant + status and sorts by priority /
+        # presented_date - lead the index with tenant_id to match that pattern.
+        Index(
+            "ix_check_items_tenant_status_priority",
+            "tenant_id",
+            "status",
+            "priority",
+            "presented_date",
+        ),
         Index("ix_check_items_queue_status", "queue_id", "status"),
+        # SLA-breach scans only ever look at items still in flight; a partial
+        # index keeps it small.
+        Index(
+            "ix_check_items_sla_due_active",
+            "sla_due_at",
+            postgresql_where=sa_text("status IN ('new', 'in_review', 'escalated')"),
+        ),
         # Per-tenant uniqueness for external IDs (Bank A and Bank B can have same external_item_id)
         UniqueConstraint("tenant_id", "external_item_id", name="uq_check_items_tenant_external_id"),
+        # Data sanity guards against bad connector imports.
+        CheckConstraint("amount > 0", name="ck_check_items_amount_positive"),
+        CheckConstraint(
+            "ai_confidence IS NULL OR (ai_confidence >= 0 AND ai_confidence <= 1)",
+            name="ck_check_items_ai_confidence_range",
+        ),
+        CheckConstraint(
+            "ai_risk_score IS NULL OR (ai_risk_score >= 0 AND ai_risk_score <= 1)",
+            name="ck_check_items_ai_risk_score_range",
+        ),
+        CheckConstraint(
+            "micr_confidence_score IS NULL OR micr_confidence_score BETWEEN 0 AND 100",
+            name="ck_check_items_micr_confidence_range",
+        ),
+        CheckConstraint(
+            "signature_match_score IS NULL OR signature_match_score BETWEEN 0 AND 100",
+            name="ck_check_items_signature_score_range",
+        ),
+        CheckConstraint(
+            "deposit_regularity_score IS NULL OR deposit_regularity_score BETWEEN 0 AND 100",
+            name="ck_check_items_deposit_regularity_range",
+        ),
         # Note: presented_date index is created via index=True on the column
     )
 
@@ -288,7 +326,7 @@ class CheckImage(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "check_images"
 
     check_item_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("check_items.id"), nullable=False
+        String(36), ForeignKey("check_items.id"), nullable=False, index=True
     )
     image_type: Mapped[str] = mapped_column(String(20), nullable=False)  # "front", "back"
     external_image_id: Mapped[str | None] = mapped_column(
@@ -313,6 +351,11 @@ class CheckHistory(Base, UUIDMixin, TimestampMixin):
 
     __tablename__ = "check_history"
 
+    # Tenant isolation - account IDs are bank-internal, so two tenants can
+    # legitimately share the same account_id string. Every query MUST filter
+    # by tenant_id.
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+
     account_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     check_number: Mapped[str | None] = mapped_column(String(20))
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
@@ -329,7 +372,10 @@ class CheckHistory(Base, UUIDMixin, TimestampMixin):
     # Demo mode flag
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    __table_args__ = (Index("ix_check_history_account_date", "account_id", "check_date"),)
+    __table_args__ = (
+        Index("ix_check_history_tenant_account_date", "tenant_id", "account_id", "check_date"),
+        CheckConstraint("amount > 0", name="ck_check_history_amount_positive"),
+    )
 
 
 # Import for relationship

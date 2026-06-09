@@ -61,7 +61,7 @@ class TestCheckItemConstraints:
         expected_statuses = [
             "new",
             "in_review",
-            "pending_approval",
+            "pending_dual_control",
             "approved",
             "returned",
             "rejected",

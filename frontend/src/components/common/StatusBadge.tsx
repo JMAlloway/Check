@@ -43,7 +43,6 @@ const statusLabels: Record<CheckStatus, string> = {
   new: 'New',
   in_review: 'In Review',
   escalated: 'Escalated',
-  pending_approval: 'Pending Approval',
   pending_dual_control: 'Pending Dual Control',
   approved: 'Approved',
   rejected: 'Rejected',

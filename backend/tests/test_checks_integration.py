@@ -283,6 +283,7 @@ class TestGetCheckItem:
         )
         db_session.add(
             CheckHistory(
+                tenant_id=test_tenant_id,
                 account_id="acct-histimg",
                 check_number="8496",
                 amount=Decimal("852.92"),

@@ -1,6 +1,5 @@
 """Check item service."""
 
-import json
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import uuid4
@@ -129,8 +128,8 @@ class CheckService:
                 priority=self._calculate_priority(item.amount, risk_level),
                 requires_dual_control=requires_dual_control,
                 sla_due_at=sla_due_at,
-                risk_flags=json.dumps(item.upstream_flags) if item.upstream_flags else None,
-                upstream_flags=json.dumps(item.upstream_flags) if item.upstream_flags else None,
+                risk_flags=item.upstream_flags or None,
+                upstream_flags=item.upstream_flags or None,
             )
 
             # Add account context
@@ -464,25 +463,21 @@ class CheckService:
                 )
             )
 
-        # Parse upstream flags
+        # Upstream flags (JSONB array)
         if item.upstream_flags:
-            try:
-                upstream = json.loads(item.upstream_flags)
-                for flag in upstream:
-                    flags.append(
-                        AIFlagResponse(
-                            code=flag,
-                            description=f"Upstream flag: {flag}",
-                            category="system",
-                            severity="info",
-                            confidence=None,
-                            explanation="Flag from source system",
-                        )
+            for flag in item.upstream_flags:
+                flags.append(
+                    AIFlagResponse(
+                        code=flag,
+                        description=f"Upstream flag: {flag}",
+                        category="system",
+                        severity="info",
+                        confidence=None,
+                        explanation="Flag from source system",
                     )
-            except json.JSONDecodeError:
-                pass
+                )
 
-        # Parse risk_flags (demo/AI-generated flags stored as JSON)
+        # Risk flags (demo/AI-generated, JSONB array)
         if item.risk_flags:
             # Flag definitions - ONLY flags with REAL detection capabilities
             # All flags here can be calculated from account context data
@@ -573,28 +568,24 @@ class CheckService:
                 },
             }
 
-            try:
-                risk_flag_codes = json.loads(item.risk_flags)
-                for flag_code in risk_flag_codes:
-                    # Skip if we already have this flag from calculated rules
-                    if any(f.code == flag_code for f in flags):
-                        continue
+            for flag_code in item.risk_flags:
+                # Skip if we already have this flag from calculated rules
+                if any(f.code == flag_code for f in flags):
+                    continue
 
-                    flag_def = flag_definitions.get(flag_code, {})
-                    flags.append(
-                        AIFlagResponse(
-                            code=flag_code,
-                            description=flag_def.get("description", f"Risk flag: {flag_code}"),
-                            category=flag_def.get("category", "risk"),
-                            severity=flag_def.get("severity", "warning"),
-                            confidence=item.ai_confidence if item.ai_confidence else None,
-                            explanation=flag_def.get(
-                                "explanation", f"Rule-based risk indicator: {flag_code}"
-                            ),
-                        )
+                flag_def = flag_definitions.get(flag_code, {})
+                flags.append(
+                    AIFlagResponse(
+                        code=flag_code,
+                        description=flag_def.get("description", f"Risk flag: {flag_code}"),
+                        category=flag_def.get("category", "risk"),
+                        severity=flag_def.get("severity", "warning"),
+                        confidence=item.ai_confidence if item.ai_confidence else None,
+                        explanation=flag_def.get(
+                            "explanation", f"Rule-based risk indicator: {flag_code}"
+                        ),
                     )
-            except json.JSONDecodeError:
-                pass
+                )
 
         return flags
 
@@ -743,17 +734,18 @@ class CheckService:
         self,
         account_id: str,
         user_id: str,
+        tenant_id: str,
         limit: int = 10,
-        tenant_id: str | None = None,
     ) -> list[CheckHistoryResponse]:
         """Get check history for an account.
 
         Args:
             account_id: The account ID
             user_id: The requesting user's ID (for user-bound signed URLs)
+            tenant_id: Requesting user's tenant. CRITICAL: account IDs are
+                bank-internal and can collide across tenants, so history MUST
+                be filtered by tenant. Also embedded in the image signed URLs.
             limit: Maximum number of history items
-            tenant_id: Requesting user's tenant, embedded in the image signed
-                URLs so the tenant-bound image endpoint will serve them
         """
         from sqlalchemy import select
 
@@ -761,9 +753,13 @@ class CheckService:
         from app.models.check import CheckHistory
 
         # Query database directly for historical checks
+        # CRITICAL: Filter by tenant_id for multi-tenant security
         result = await self.db.execute(
             select(CheckHistory)
-            .where(CheckHistory.account_id == account_id)
+            .where(
+                CheckHistory.tenant_id == tenant_id,
+                CheckHistory.account_id == account_id,
+            )
             .order_by(CheckHistory.check_date.desc())
             .limit(limit)
         )

@@ -28,6 +28,22 @@ from app.services.pdf_generator import AuditPacketGenerator
 router = APIRouter()
 
 
+def _jsonb_value(value: object) -> dict | None:
+    """Normalize an audit JSONB payload for the API response.
+
+    New rows store real JSON objects; rows written before the double-encoding
+    fix store the payload as a JSON-encoded string scalar. Accept both.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return None
+    return value
+
+
 @router.get("/logs", response_model=PaginatedResponse[AuditLogResponse])
 async def search_audit_logs(
     db: DBSession,
@@ -71,9 +87,9 @@ async def search_audit_logs(
                 resource_type=log.resource_type,
                 resource_id=log.resource_id,
                 description=log.description,
-                before_value=json.loads(log.before_value) if log.before_value else None,
-                after_value=json.loads(log.after_value) if log.after_value else None,
-                metadata=json.loads(log.extra_data) if log.extra_data else None,
+                before_value=_jsonb_value(log.before_value),
+                after_value=_jsonb_value(log.after_value),
+                metadata=_jsonb_value(log.extra_data),
             )
             for log in logs
         ],
@@ -113,9 +129,9 @@ async def get_item_audit_trail(
             resource_type=log.resource_type,
             resource_id=log.resource_id,
             description=log.description,
-            before_value=json.loads(log.before_value) if log.before_value else None,
-            after_value=json.loads(log.after_value) if log.after_value else None,
-            metadata=json.loads(log.extra_data) if log.extra_data else None,
+            before_value=_jsonb_value(log.before_value),
+            after_value=_jsonb_value(log.after_value),
+            metadata=_jsonb_value(log.extra_data),
         )
         for log in logs
     ]
@@ -352,9 +368,9 @@ async def get_user_activity(
             resource_type=log.resource_type,
             resource_id=log.resource_id,
             description=log.description,
-            before_value=json.loads(log.before_value) if log.before_value else None,
-            after_value=json.loads(log.after_value) if log.after_value else None,
-            metadata=json.loads(log.extra_data) if log.extra_data else None,
+            before_value=_jsonb_value(log.before_value),
+            after_value=_jsonb_value(log.after_value),
+            metadata=_jsonb_value(log.extra_data),
         )
         for log in logs
     ]

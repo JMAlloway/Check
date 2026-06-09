@@ -118,6 +118,56 @@ async def lifespan(app: FastAPI):
                 "ON roles (tenant_id, name) WHERE tenant_id IS NOT NULL",
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_roles_system_name "
                 "ON roles (name) WHERE tenant_id IS NULL",
+                # --- DB hardening (migration 0002) ---
+                # check_history tenant isolation: add, backfill, enforce.
+                "ALTER TABLE check_history ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36)",
+                "UPDATE check_history ch SET tenant_id = ci.tenant_id FROM check_items ci "
+                "WHERE ch.tenant_id IS NULL AND ci.account_id = ch.account_id",
+                "DELETE FROM check_history WHERE tenant_id IS NULL",
+                "ALTER TABLE check_history ALTER COLUMN tenant_id SET NOT NULL",
+                "CREATE INDEX IF NOT EXISTS ix_check_history_tenant_id "
+                "ON check_history (tenant_id)",
+                "CREATE INDEX IF NOT EXISTS ix_check_history_tenant_account_date "
+                "ON check_history (tenant_id, account_id, check_date)",
+                "DROP INDEX IF EXISTS ix_check_history_account_date",
+                # JSON-in-Text -> JSONB flag columns.
+                "ALTER TABLE check_items ALTER COLUMN risk_flags TYPE JSONB "
+                "USING risk_flags::jsonb",
+                "ALTER TABLE check_items ALTER COLUMN upstream_flags TYPE JSONB "
+                "USING upstream_flags::jsonb",
+                "ALTER TABLE check_items ALTER COLUMN ai_risk_factors TYPE JSONB "
+                "USING ai_risk_factors::jsonb",
+                # Missing FK indexes (Postgres does not index FKs automatically).
+                "CREATE INDEX IF NOT EXISTS ix_decisions_check_item_id "
+                "ON decisions (check_item_id)",
+                "CREATE INDEX IF NOT EXISTS ix_check_images_check_item_id "
+                "ON check_images (check_item_id)",
+                # Query-pattern indexes.
+                "CREATE INDEX IF NOT EXISTS ix_check_items_tenant_status_priority "
+                "ON check_items (tenant_id, status, priority, presented_date)",
+                "DROP INDEX IF EXISTS ix_check_items_status_priority",
+                "CREATE INDEX IF NOT EXISTS ix_check_items_sla_due_active "
+                "ON check_items (sla_due_at) "
+                "WHERE status IN ('new', 'in_review', 'escalated')",
+                "CREATE INDEX IF NOT EXISTS ix_audit_logs_tenant_chain "
+                "ON audit_logs (tenant_id, timestamp, id)",
+                # Data sanity constraints ("already exists" failures are
+                # swallowed by the per-statement try/except below).
+                "ALTER TABLE check_items ADD CONSTRAINT ck_check_items_amount_positive "
+                "CHECK (amount > 0)",
+                "ALTER TABLE check_items ADD CONSTRAINT ck_check_items_ai_confidence_range "
+                "CHECK (ai_confidence IS NULL OR (ai_confidence >= 0 AND ai_confidence <= 1))",
+                "ALTER TABLE check_items ADD CONSTRAINT ck_check_items_ai_risk_score_range "
+                "CHECK (ai_risk_score IS NULL OR (ai_risk_score >= 0 AND ai_risk_score <= 1))",
+                "ALTER TABLE check_items ADD CONSTRAINT ck_check_items_micr_confidence_range "
+                "CHECK (micr_confidence_score IS NULL OR micr_confidence_score BETWEEN 0 AND 100)",
+                "ALTER TABLE check_items ADD CONSTRAINT ck_check_items_signature_score_range "
+                "CHECK (signature_match_score IS NULL OR signature_match_score BETWEEN 0 AND 100)",
+                "ALTER TABLE check_items ADD CONSTRAINT ck_check_items_deposit_regularity_range "
+                "CHECK (deposit_regularity_score IS NULL "
+                "OR deposit_regularity_score BETWEEN 0 AND 100)",
+                "ALTER TABLE check_history ADD CONSTRAINT ck_check_history_amount_positive "
+                "CHECK (amount > 0)",
             ]
             # Audit-immutability triggers. create_all never creates these, so a
             # dev database historically ran without them while production (via

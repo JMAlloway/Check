@@ -157,10 +157,8 @@ def build_evidence_snapshot(
             "returned_item_count_90d": check_item.returned_item_count_90d,
             "exception_count_90d": check_item.exception_count_90d,
             "risk_level": check_item.risk_level.value if check_item.risk_level else None,
-            "risk_flags": json.loads(check_item.risk_flags) if check_item.risk_flags else [],
-            "upstream_flags": (
-                json.loads(check_item.upstream_flags) if check_item.upstream_flags else []
-            ),
+            "risk_flags": check_item.risk_flags or [],
+            "upstream_flags": check_item.upstream_flags or [],
         },
         # Image references (for reproducibility)
         "images": [

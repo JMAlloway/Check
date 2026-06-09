@@ -91,7 +91,7 @@ async def get_my_queue(
 
     search = CheckSearchRequest(
         assigned_to=current_user.id,
-        status=[CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_APPROVAL],
+        status=[CheckStatus.NEW, CheckStatus.IN_REVIEW, CheckStatus.PENDING_DUAL_CONTROL],
     )
 
     items, total = await check_service.search_items(
@@ -422,7 +422,6 @@ async def get_adjacent_items(
         status = [
             CheckStatus.NEW,
             CheckStatus.IN_REVIEW,
-            CheckStatus.PENDING_APPROVAL,
             CheckStatus.ESCALATED,
         ]
 

@@ -68,7 +68,7 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
   const isLocked = LOCKED_STATUSES.includes(item.status);
 
   // Determine which actions to show based on status and permissions
-  const isAwaitingApproval = item.status === 'pending_approval' || item.status === 'pending_dual_control';
+  const isAwaitingApproval = item.status === 'pending_dual_control';
   const actions = isAwaitingApproval && canApprove ? approvalActions : reviewActions;
   const decisionType = isAwaitingApproval && canApprove ? 'approval_decision' : 'review_recommendation';
 

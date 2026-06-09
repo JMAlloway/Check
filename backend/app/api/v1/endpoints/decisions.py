@@ -41,10 +41,16 @@ from app.services.evidence_seal import get_previous_evidence_hash, seal_evidence
 router = APIRouter()
 
 
-def _safe_json_loads(value: str | None) -> list:
-    """Safely parse JSON, returning empty list on failure."""
+def _flag_list(value: list | str | None) -> list:
+    """Normalize a flag payload to a list.
+
+    risk_flags/upstream_flags are JSONB arrays; rows written before the JSONB
+    migration may surface as JSON-encoded strings, so accept both.
+    """
     if not value:
         return []
+    if isinstance(value, list):
+        return value
     try:
         result = json.loads(value)
         return result if isinstance(result, list) else []
@@ -108,8 +114,8 @@ def build_evidence_snapshot(
         returned_item_count_90d=check_item.returned_item_count_90d,
         exception_count_90d=check_item.exception_count_90d,
         risk_level=check_item.risk_level.value if check_item.risk_level else None,
-        risk_flags=_safe_json_loads(check_item.risk_flags),
-        upstream_flags=_safe_json_loads(check_item.upstream_flags),
+        risk_flags=_flag_list(check_item.risk_flags),
+        upstream_flags=_flag_list(check_item.upstream_flags),
     )
 
     # Build image references

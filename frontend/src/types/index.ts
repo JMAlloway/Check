@@ -3,7 +3,6 @@ export type CheckStatus =
   | 'new'
   | 'in_review'
   | 'escalated'
-  | 'pending_approval'
   | 'pending_dual_control'
   | 'approved'
   | 'rejected'

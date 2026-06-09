@@ -17,7 +17,7 @@ import pytest
 from fastapi import status
 
 from app.core.security import create_access_token
-from app.models.check import CheckItem, CheckStatus, ItemType, RiskLevel
+from app.models.check import CheckHistory, CheckItem, CheckStatus, ItemType, RiskLevel
 from app.models.user import Permission, Role, User
 
 
@@ -239,6 +239,74 @@ class TestGetCheckItem:
         assert data["id"] == "check-get-1"
         assert data["amount"] == "5000.00"
         assert data["payee_name"] == "Test Payee"
+
+    @pytest.mark.asyncio
+    async def test_account_history_prior_check_image_renders(
+        self, client, db_session, test_tenant_id, test_user_id, reviewer_headers
+    ):
+        """Selecting a prior (account-history) check must show its image.
+
+        Regression: history image signed URLs were minted without the tenant
+        claim that the secure-image endpoint requires (so they 404'd), and the
+        ``DEMO-IMG-HIST-*`` refs had no renderer (so they fell through to a
+        404 adapter). Either way "select a prior check" showed nothing. This
+        drives the full path: history endpoint -> signed URL -> served PNG.
+        """
+        # The secure-image endpoint resolves the token's user; it must exist
+        # in the requesting tenant for the tenant binding to pass.
+        db_session.add(
+            User(
+                id=test_user_id,
+                tenant_id=test_tenant_id,
+                email="histimg@example.com",
+                username="histimg",
+                full_name="History Image User",
+                hashed_password="hashed",
+                is_active=True,
+            )
+        )
+        db_session.add(
+            CheckItem(
+                id="check-histimg",
+                source_system="test_core",
+                account_number_masked="****0000",
+                account_type="consumer",
+                tenant_id=test_tenant_id,
+                external_item_id="EXT-HISTIMG",
+                account_id="acct-histimg",
+                amount=Decimal("5000.00"),
+                status=CheckStatus.NEW,
+                risk_level=RiskLevel.MEDIUM,
+                item_type=ItemType.ON_US,
+                presented_date=datetime.now(timezone.utc),
+            )
+        )
+        db_session.add(
+            CheckHistory(
+                account_id="acct-histimg",
+                check_number="8496",
+                amount=Decimal("852.92"),
+                check_date=datetime.now(timezone.utc),
+                payee_name="Brightline IT Solutions",
+                status="cleared",
+                front_image_ref="DEMO-IMG-HIST-hist-img-regression-front",
+                is_demo=True,
+            )
+        )
+        await db_session.commit()
+
+        resp = client.get("/api/v1/checks/check-histimg/history", headers=reviewer_headers)
+        assert resp.status_code == status.HTTP_200_OK, resp.text
+        rows = resp.json()
+        assert len(rows) == 1
+        front_url = rows[0]["front_image_url"]
+        assert front_url, "history row must expose a front_image_url"
+
+        # The signed URL is self-authenticating (no auth header, like an <img> tag).
+        img = client.get(front_url)
+        assert img.status_code == status.HTTP_200_OK, img.text
+        assert img.headers["content-type"] == "image/png"
+        assert len(img.content) > 0
 
     @pytest.mark.asyncio
     async def test_get_item_not_found(self, client, reviewer_headers):

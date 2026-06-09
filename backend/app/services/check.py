@@ -3,6 +3,7 @@
 import json
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from uuid import uuid4
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -94,8 +95,11 @@ class CheckService:
                 sla_hours = 2
             sla_due_at = datetime.now(timezone.utc) + timedelta(hours=sla_hours)
 
-            # Create check item with tenant isolation
+            # Create check item with tenant isolation. Assign the id up front
+            # (rather than relying on the flush-time default) so the demo image
+            # refs below can embed it.
             check_item = CheckItem(
+                id=str(uuid4()),
                 tenant_id=tenant_id,
                 external_item_id=item.external_item_id,
                 source_system=item.source_system,
@@ -146,12 +150,20 @@ class CheckService:
                 check_item.returned_item_count_90d = behavior_stats.returned_item_count_90d
                 check_item.exception_count_90d = behavior_stats.exception_count_90d
 
-            # Create image references
+            # Create image references. In DEMO_MODE, point them at the demo
+            # renderer (DEMO-IMG-{item_id}-{side}) so the synced check renders
+            # from its own payee/amount/MICR/date - matching the seeded items -
+            # instead of the adapter's generic placeholder. Production keeps the
+            # adapter-provided image ids.
             if item.front_image_id:
                 front_image = CheckImage(
                     check_item=check_item,
                     image_type="front",
-                    external_image_id=item.front_image_id,
+                    external_image_id=(
+                        f"DEMO-IMG-{check_item.id}-front"
+                        if settings.DEMO_MODE
+                        else item.front_image_id
+                    ),
                 )
                 self.db.add(front_image)
 
@@ -159,7 +171,11 @@ class CheckService:
                 back_image = CheckImage(
                     check_item=check_item,
                     image_type="back",
-                    external_image_id=item.back_image_id,
+                    external_image_id=(
+                        f"DEMO-IMG-{check_item.id}-back"
+                        if settings.DEMO_MODE
+                        else item.back_image_id
+                    ),
                 )
                 self.db.add(back_image)
 
@@ -728,6 +744,7 @@ class CheckService:
         account_id: str,
         user_id: str,
         limit: int = 10,
+        tenant_id: str | None = None,
     ) -> list[CheckHistoryResponse]:
         """Get check history for an account.
 
@@ -735,6 +752,8 @@ class CheckService:
             account_id: The account ID
             user_id: The requesting user's ID (for user-bound signed URLs)
             limit: Maximum number of history items
+            tenant_id: Requesting user's tenant, embedded in the image signed
+                URLs so the tenant-bound image endpoint will serve them
         """
         from sqlalchemy import select
 
@@ -756,9 +775,9 @@ class CheckService:
             front_url = None
             back_url = None
             if h.front_image_ref:
-                front_url, _ = generate_signed_url(h.front_image_ref, user_id)
+                front_url, _ = generate_signed_url(h.front_image_ref, user_id, tenant_id=tenant_id)
             if h.back_image_ref:
-                back_url, _ = generate_signed_url(h.back_image_ref, user_id)
+                back_url, _ = generate_signed_url(h.back_image_ref, user_id, tenant_id=tenant_id)
 
             history_responses.append(
                 CheckHistoryResponse(

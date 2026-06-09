@@ -16,7 +16,7 @@ from app.core.rate_limit import RateLimits, limiter, user_limiter
 from app.core.security import verify_signed_url
 from app.integrations.adapters.factory import get_adapter
 from app.models.audit import AuditAction
-from app.models.check import CheckImage, CheckItem
+from app.models.check import CheckHistory, CheckImage, CheckItem
 from app.models.image_token import ImageAccessToken
 from app.models.user import User
 
@@ -111,6 +111,12 @@ async def _render_demo_check_image(
         return None
     item_id, side = parsed
 
+    # Account check-history images are minted as DEMO-IMG-HIST-...-{side} and
+    # have no backing CheckItem - render them from the CheckHistory row instead,
+    # so "select a prior check" shows a real check (not a 404 / broken image).
+    if item_id.startswith("HIST-"):
+        return await _render_demo_history_image(db, resource_id, side, thumbnail)
+
     result = await db.execute(
         select(CheckItem).where(CheckItem.id == item_id, CheckItem.tenant_id == tenant_id)
     )
@@ -135,6 +141,47 @@ async def _render_demo_check_image(
         )
     except Exception:
         # Never let image rendering break the request; fall back to the adapter.
+        return None
+
+
+async def _render_demo_history_image(
+    db, resource_id: str, side: str, thumbnail: bool
+) -> bytes | None:
+    """Render a prior (account-history) check image from its CheckHistory row.
+
+    History images are minted with refs like ``DEMO-IMG-HIST-{uuid}-front`` that
+    point at a CheckHistory row, not a CheckItem. Render the check from that
+    row's own data so the side-by-side history comparison shows a real, matching
+    check instead of 404ing. Returns None to fall back to the adapter.
+    """
+    result = await db.execute(
+        select(CheckHistory).where(
+            or_(
+                CheckHistory.front_image_ref == resource_id,
+                CheckHistory.back_image_ref == resource_id,
+            )
+        )
+    )
+    history = result.scalar_one_or_none()
+    if history is None:
+        return None
+
+    try:
+        from app.demo.images import build_demo_check_image
+
+        check_date = history.check_date.strftime("%m/%d/%Y") if history.check_date else ""
+        return build_demo_check_image(
+            image_type=side,
+            check_number=history.check_number,
+            amount=history.amount,
+            payee_name=history.payee_name,
+            memo=None,
+            check_date=check_date,
+            account_number_masked=None,
+            routing_number=None,
+            thumbnail=thumbnail,
+        )
+    except Exception:
         return None
 
 

@@ -17,6 +17,7 @@ from app.models.connector import FileFormat as CommitFileFormat
 from app.models.connector import HoldReasonCode, ReconciliationReport
 from app.models.connector import RecordStatus as CommitRecordStatus
 from app.models.decision import Decision, ReasonCode
+from app.models.demo_meta import DemoMeta
 from app.models.fraud import (
     AmountBucket,
     FraudChannel,
@@ -54,6 +55,7 @@ __all__ = [
     "CheckItem",
     "CheckImage",
     "CheckHistory",
+    "DemoMeta",
     # Connector A (Image Connector)
     "ImageConnector",
     "ConnectorAuditLog",

@@ -8,6 +8,7 @@ idempotently so demo users can exercise role-appropriate access.
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.user import Permission, Role
 
@@ -183,8 +184,16 @@ async def seed_rbac(db: AsyncSession) -> dict[str, Role]:
             db.add(perm)
         perm_lookup[name] = perm
 
-    # Roles
-    existing_roles = {r.name: r for r in (await db.execute(select(Role))).scalars().all()}
+    # Roles. Eager-load permissions: assigning role.permissions below would
+    # otherwise trigger a sync lazy load of the old collection on existing
+    # roles, which raises MissingGreenlet under the async session (this broke
+    # every restart against a persistent demo database).
+    existing_roles = {
+        r.name: r
+        for r in (
+            (await db.execute(select(Role).options(selectinload(Role.permissions)))).scalars().all()
+        )
+    }
     role_map: dict[str, Role] = {}
     for role_name, perm_names in ROLE_PERMISSIONS.items():
         role = existing_roles.get(role_name)

@@ -8,7 +8,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import joinedload
 
 from app.api.deps import DBSession, require_permission
 from app.audit.service import AuditService

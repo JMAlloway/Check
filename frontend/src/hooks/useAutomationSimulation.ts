@@ -22,7 +22,7 @@ interface AutoClearConfig {
  * reflected in the item's risk tier, so they don't unconditionally block —
  * consistent with how the review screen treats them.
  */
-export function autoClears(item: CheckItemListItem, cfg: AutoClearConfig): boolean {
+function autoClears(item: CheckItemListItem, cfg: AutoClearConfig): boolean {
   if (item.requires_dual_control) return false;
   if (TIER_RANK[item.risk_level] > TIER_RANK[cfg.autoClearMaxTier]) return false;
   if (item.amount > cfg.amountCap) return false;
@@ -37,7 +37,7 @@ export interface RoiResult {
   totalAnnualValue: number;
 }
 
-export function computeRoi(
+function computeRoi(
   stpRate: number,
   cfg: {
     annualVolume: number;

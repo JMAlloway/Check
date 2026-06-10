@@ -217,36 +217,6 @@ class FraudTrendByAmountBucket(BaseModel):
     network_display: str
 
 
-class NetworkTrendsResponse(BaseModel):
-    """Aggregated network trends response."""
-
-    period_start: datetime
-    period_end: datetime
-
-    # Summary stats
-    your_bank_total: int
-    network_total: int
-
-    # By fraud type
-    by_type: list[FraudTrendByType]
-
-    # By channel
-    by_channel: list[FraudTrendByChannel]
-
-    # By amount bucket
-    by_amount: list[FraudTrendByAmountBucket]
-
-    # Privacy threshold used
-    privacy_threshold: int
-
-
-class NetworkTrendsRequest(BaseModel):
-    """Request parameters for network trends."""
-
-    range: str = Field(default="6m", pattern=r"^(1m|3m|6m|12m|24m)$")
-    granularity: str = Field(default="month", pattern=r"^(week|month|quarter)$")
-
-
 # ============================================================================
 # Tenant Configuration Schemas
 # ============================================================================

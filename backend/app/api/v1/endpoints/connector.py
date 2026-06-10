@@ -42,7 +42,6 @@ from app.schemas.connector import (
     AcknowledgementResponse,
     BankConnectorConfigCreate,
     BankConnectorConfigResponse,
-    BankConnectorConfigUpdate,
     BatchApprovalRequest,
     BatchCancelRequest,
     BatchConfirmationDialog,

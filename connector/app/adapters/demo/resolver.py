@@ -14,7 +14,6 @@ from ..interfaces import (
     ImageHandle,
     ImageSide,
     ItemMetadata,
-    ItemNotFoundError,
     ItemResolver,
 )
 

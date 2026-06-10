@@ -46,12 +46,6 @@ class ConnectorNotFoundError(ImageConnectorError):
     pass
 
 
-class ConnectorUnavailableError(ImageConnectorError):
-    """Raised when connector is unavailable."""
-
-    pass
-
-
 class ImageConnectorService:
     """
     Service for managing image connectors.
@@ -426,87 +420,9 @@ class ImageConnectorService:
     # JWT Token Generation
     # =========================================================================
 
-    def generate_image_token(
-        self, connector: ImageConnector, user_id: str, org_id: str, roles: List[str]
-    ) -> str:
-        """
-        Generate a JWT token for image requests.
-
-        Args:
-            connector: The connector to generate token for
-            user_id: User ID (subject)
-            org_id: Organization/tenant ID
-            roles: User roles
-
-        Returns:
-            JWT token string
-        """
-        now = int(time.time())
-
-        payload = {
-            "sub": user_id,
-            "org_id": org_id,
-            "roles": roles,
-            "iat": now,
-            "exp": now + connector.token_expiry_seconds,
-            "jti": str(uuid.uuid4()),
-            "iss": connector.jwt_issuer,
-            "connector_id": connector.connector_id,
-        }
-
-        # Sign with the SaaS private key
-        # NOTE: In production, the SaaS has a private key that corresponds
-        # to the public key configured on each connector
-        token = jwt.encode(payload, settings.CONNECTOR_JWT_PRIVATE_KEY, algorithm="RS256")
-
-        return token
-
     # =========================================================================
     # Request Logging
     # =========================================================================
-
-    async def log_request(
-        self,
-        connector: ImageConnector,
-        tenant_id: str,
-        user_id: str,
-        request_type: str,
-        trace_number: str = None,
-        check_date: str = None,
-        path: str = None,
-        side: str = None,
-        success: bool = True,
-        status_code: int = None,
-        error_code: str = None,
-        error_message: str = None,
-        latency_ms: int = None,
-        bytes_received: int = None,
-        from_cache: bool = None,
-        correlation_id: str = None,
-    ):
-        """Log an image request."""
-        log_entry = ConnectorRequestLog(
-            requested_at=datetime.now(timezone.utc),
-            connector_id=connector.id if connector else None,
-            connector_name=connector.name if connector else "unknown",
-            tenant_id=tenant_id,
-            user_id=user_id,
-            request_type=request_type,
-            trace_number=trace_number,
-            check_date=check_date,
-            path_hash=hashlib.sha256(path.encode()).hexdigest() if path else None,
-            side=side,
-            success=success,
-            status_code=status_code,
-            error_code=error_code,
-            error_message=error_message[:500] if error_message else None,
-            latency_ms=latency_ms,
-            bytes_received=bytes_received,
-            from_cache=from_cache,
-            correlation_id=correlation_id or str(uuid.uuid4()),
-        )
-
-        self._db.add(log_entry)
 
     # =========================================================================
     # Helpers

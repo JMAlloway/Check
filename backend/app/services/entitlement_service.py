@@ -26,14 +26,6 @@ class EntitlementCheckResult:
         self.denial_reason = denial_reason
         self.entitlement_details = entitlement_details or {}
 
-    def to_dict(self) -> dict:
-        return {
-            "allowed": self.allowed,
-            "entitlement_id": self.entitlement_id,
-            "denial_reason": self.denial_reason,
-            "entitlement_details": self.entitlement_details,
-        }
-
 
 class EntitlementService:
     """
@@ -138,26 +130,6 @@ class EntitlementService:
 
         return self._check_entitlements_against_item(entitlements, check_item, "approve")
 
-    async def check_override_entitlement(
-        self,
-        user: User,
-        check_item: CheckItem,
-    ) -> EntitlementCheckResult:
-        """Check if user can override policy for this item."""
-        # Superusers bypass entitlement checks
-        if user.is_superuser:
-            return EntitlementCheckResult(allowed=True)
-
-        entitlements = await self.get_user_entitlements(user, ApprovalEntitlementType.OVERRIDE)
-
-        if not entitlements:
-            return EntitlementCheckResult(
-                allowed=False,
-                denial_reason="No override entitlement found",
-            )
-
-        return self._check_entitlements_against_item(entitlements, check_item, "override")
-
     def _check_entitlements_against_item(
         self,
         entitlements: list[ApprovalEntitlement],
@@ -246,53 +218,3 @@ class EntitlementService:
 
         # All checks passed
         return EntitlementCheckResult(allowed=True, entitlement_id=entitlement.id)
-
-    async def get_max_approval_amount(self, user: User) -> Decimal | None:
-        """Get the maximum amount a user can approve (across all entitlements)."""
-        entitlements = await self.get_user_entitlements(user, ApprovalEntitlementType.APPROVE)
-
-        if not entitlements:
-            return None
-
-        max_amounts = [e.max_amount for e in entitlements if e.max_amount is not None]
-        if not max_amounts:
-            return None  # No limit
-
-        return max(max_amounts)
-
-    async def get_entitlement_summary(self, user: User) -> dict:
-        """Get a summary of user's entitlements for UI display."""
-        review_entitlements = await self.get_user_entitlements(user, ApprovalEntitlementType.REVIEW)
-        approve_entitlements = await self.get_user_entitlements(
-            user, ApprovalEntitlementType.APPROVE
-        )
-        override_entitlements = await self.get_user_entitlements(
-            user, ApprovalEntitlementType.OVERRIDE
-        )
-
-        def summarize(entitlements: list[ApprovalEntitlement]) -> dict:
-            if not entitlements:
-                return {"has_entitlement": False}
-
-            max_amounts = [e.max_amount for e in entitlements if e.max_amount is not None]
-            all_account_types = set()
-            all_risk_levels = set()
-
-            for e in entitlements:
-                if e.allowed_account_types:
-                    all_account_types.update(e.allowed_account_types)
-                if e.allowed_risk_levels:
-                    all_risk_levels.update(e.allowed_risk_levels)
-
-            return {
-                "has_entitlement": True,
-                "max_amount": float(max(max_amounts)) if max_amounts else None,
-                "account_types": list(all_account_types) if all_account_types else None,
-                "risk_levels": list(all_risk_levels) if all_risk_levels else None,
-            }
-
-        return {
-            "review": summarize(review_entitlements),
-            "approve": summarize(approve_entitlements),
-            "override": summarize(override_entitlements),
-        }

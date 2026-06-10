@@ -123,20 +123,6 @@ class FraudHashingService:
             use_pepper.encode("utf-8"), value.encode("utf-8"), hashlib.sha256
         ).hexdigest()
 
-    def _hmac_hash_with_prior(self, value: str) -> str | None:
-        """
-        Compute HMAC-SHA256 hash using the prior pepper.
-
-        Args:
-            value: The normalized value to hash
-
-        Returns:
-            Hex digest or None if no prior pepper configured
-        """
-        if not self.has_prior_pepper:
-            return None
-        return self._hmac_hash(value, self._prior_pepper)
-
     # ========================================================================
     # Normalization Methods
     # ========================================================================
@@ -534,9 +520,3 @@ def get_hashing_service() -> FraudHashingService:
     if _hashing_service is None:
         _hashing_service = FraudHashingService()
     return _hashing_service
-
-
-def reset_hashing_service() -> None:
-    """Reset the singleton (for testing or config reload)."""
-    global _hashing_service
-    _hashing_service = None

@@ -16,7 +16,6 @@ from app.models.audit import AuditAction, AuditLog, ItemView
 from app.models.check import CheckItem
 from app.schemas.audit import (
     AuditLogResponse,
-    AuditLogSearchRequest,
     AuditPacketRequest,
     AuditPacketResponse,
     ItemViewResponse,

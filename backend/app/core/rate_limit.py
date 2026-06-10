@@ -66,20 +66,6 @@ def get_tenant_identifier(request: Request) -> str:
     return f"ip:{_ip_key(request)}"
 
 
-def get_user_and_tenant_identifier(request: Request) -> str:
-    """
-    Get composite rate limit key: user within tenant.
-
-    This allows both per-user AND per-tenant limits.
-    Uses format: tenant:{tenant_id}:user:{user_id} or ip:{ip_address}
-    """
-    user = getattr(request.state, "user", None)
-    if user and hasattr(user, "id") and hasattr(user, "tenant_id"):
-        return f"tenant:{user.tenant_id}:user:{user.id}"
-
-    return f"ip:{_ip_key(request)}"
-
-
 # =============================================================================
 # Rate Limiters
 # =============================================================================
@@ -150,32 +136,3 @@ class RateLimits:
 # =============================================================================
 # Decorator Helpers
 # =============================================================================
-
-
-def apply_rate_limit(
-    category: str = "STANDARD",
-    per_user: bool = True,
-    per_tenant: bool = False,
-):
-    """
-    Factory for creating rate limit decorators.
-
-    Usage:
-        @router.get("/items")
-        @apply_rate_limit("SEARCH", per_user=True, per_tenant=True)
-        async def list_items(...):
-            ...
-
-    Args:
-        category: Rate limit category from RateLimits class
-        per_user: Apply per-user rate limiting
-        per_tenant: Apply additional per-tenant rate limiting
-    """
-    limit_string = RateLimits.get_limit(category)
-
-    if per_user:
-        return user_limiter.limit(limit_string)
-    elif per_tenant:
-        return tenant_limiter.limit(limit_string)
-    else:
-        return limiter.limit(limit_string)

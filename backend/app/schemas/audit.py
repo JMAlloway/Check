@@ -25,17 +25,6 @@ class AuditLogResponse(BaseSchema):
     metadata: dict | None = None
 
 
-class AuditLogSearchRequest(BaseModel):
-    """Audit log search request."""
-
-    user_id: str | None = None
-    action: AuditAction | None = None
-    resource_type: str | None = None
-    resource_id: str | None = None
-    date_from: datetime | None = None
-    date_to: datetime | None = None
-
-
 class ItemViewResponse(BaseSchema):
     """Item view response schema."""
 

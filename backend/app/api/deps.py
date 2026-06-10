@@ -224,44 +224,6 @@ def require_role(role_name: str):
     return role_checker
 
 
-def require_any_permission(*permissions: tuple[str, str]):
-    """
-    Require at least one of the specified permissions.
-
-    Usage:
-        @router.get("/items")
-        async def view_items(
-            current_user: Annotated[User, Depends(require_any_permission(
-                ("item", "view"),
-                ("item", "admin"),
-            ))],
-        ):
-            ...
-    """
-
-    async def permission_checker(
-        request: Request,
-        current_user: Annotated[User, Depends(get_current_active_user)],
-    ) -> User:
-        for resource, action in permissions:
-            if current_user.has_permission(resource, action):
-                return current_user
-
-        _log_auth_failure(
-            event_type="permission_denied",
-            user=current_user,
-            resource=",".join(f"{r}:{a}" for r, a in permissions),
-            action="any",
-            request=request,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Permission denied: requires one of {permissions}",
-        )
-
-    return permission_checker
-
-
 # Type aliases for commonly used dependencies
 DBSession = Annotated[AsyncSession, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_active_user)]

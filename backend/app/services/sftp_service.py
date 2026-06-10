@@ -39,7 +39,6 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import BinaryIO
 
 import paramiko
 from paramiko import SFTPClient, SSHClient, Transport
@@ -589,43 +588,6 @@ class HostKeyInfo:
     fingerprint_sha256: str
     fingerprint_md5: str
     key_bits: int | None = None
-
-
-async def retrieve_host_key_fingerprint(
-    host: str,
-    port: int = 22,
-    timeout: int = 10,
-) -> HostKeyInfo:
-    """
-    Retrieve the host key fingerprint from an SFTP server.
-
-    SECURITY WARNING: This function is for INITIAL SETUP ONLY.
-    The fingerprint returned MUST be verified through an out-of-band
-    secure channel (phone call to bank admin, secure email, etc.)
-    before being stored in the connector configuration.
-
-    DO NOT blindly trust the fingerprint returned by this function
-    as it could be from a man-in-the-middle attacker.
-
-    Args:
-        host: SFTP server hostname
-        port: SFTP port (default 22)
-        timeout: Connection timeout in seconds
-
-    Returns:
-        HostKeyInfo with key type and fingerprints
-
-    Raises:
-        SSHException: If unable to retrieve host key
-    """
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        None,
-        _retrieve_host_key_fingerprint_sync,
-        host,
-        port,
-        timeout,
-    )
 
 
 def _retrieve_host_key_fingerprint_sync(

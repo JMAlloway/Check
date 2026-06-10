@@ -4,16 +4,14 @@ import io
 from datetime import datetime, timezone
 from typing import Any
 
-from PIL import Image as PILImage
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import (
     HRFlowable,
     Image,
-    PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,

@@ -217,12 +217,6 @@ export const authApi = {
     return response.data;
   },
 
-  getCurrentUser: async (token?: string) => {
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-    const response = await api.get('/auth/me', { headers });
-    return response.data;
-  },
-
   // Attempt to restore session using httpOnly cookie
   // Called on app init when user info exists but access token is missing
   refreshSession: async () => {
@@ -251,13 +245,6 @@ export const checkApi = {
     return response.data;
   },
 
-  getMyQueue: async (page = 1, pageSize = 20) => {
-    const response = await api.get('/checks/my-queue', {
-      params: { page, page_size: pageSize },
-    });
-    return response.data;
-  },
-
   getItem: async (itemId: string) => {
     const response = await api.get(`/checks/${itemId}`);
     return response.data;
@@ -273,11 +260,6 @@ export const checkApi = {
     return response.data as { locks: { item_id: string; username: string; user_id: string }[] };
   },
 
-  releaseItem: async (itemId: string) => {
-    const response = await api.post(`/checks/${itemId}/release`);
-    return response.data;
-  },
-
   getHistory: async (itemId: string, limit = 10) => {
     const response = await api.get(`/checks/${itemId}/history`, {
       params: { limit },
@@ -290,20 +272,6 @@ export const checkApi = {
     data: { reviewer_id?: string; approver_id?: string; queue_id?: string }
   ) => {
     const response = await api.post(`/checks/${itemId}/assign`, null, { params: data });
-    return response.data;
-  },
-
-  updateStatus: async (itemId: string, status: string) => {
-    const response = await api.post(`/checks/${itemId}/status`, null, {
-      params: { status },
-    });
-    return response.data;
-  },
-
-  syncItems: async (amountMin = 5000) => {
-    const response = await api.post('/checks/sync', null, {
-      params: { amount_min: amountMin },
-    });
     return response.data;
   },
 
@@ -361,11 +329,6 @@ export const decisionApi = {
     const response = await api.get(`/decisions/${itemId}/verify-evidence-chain`);
     return response.data;
   },
-
-  getDecisionHistory: async (itemId: string) => {
-    const response = await api.get(`/decisions/${itemId}/history`);
-    return response.data;
-  },
 };
 
 // Queue API
@@ -379,11 +342,6 @@ export const queueApi = {
 
   getQueue: async (queueId: string) => {
     const response = await api.get(`/queues/${queueId}`);
-    return response.data;
-  },
-
-  getQueueStats: async (queueId: string) => {
-    const response = await api.get(`/queues/${queueId}/stats`);
     return response.data;
   },
 };
@@ -508,55 +466,10 @@ export const imageApi = {
     });
     return response.data;
   },
-
-  /**
-   * Mint a one-time-use token for secure image access.
-   *
-   * Security Properties:
-   * - Token can only be used once
-   * - Token expires after 90 seconds
-   * - Token is tenant-scoped
-   * - No JWT in URL (opaque UUID)
-   *
-   * Use this for pilot/production instead of JWT bearer URLs.
-   */
-  mintToken: async (imageId: string, isThumbnail = false): Promise<{
-    token_id: string;
-    image_url: string;
-    expires_at: string;
-  }> => {
-    const response = await api.post('/images/mint-token', {
-      image_id: imageId,
-      is_thumbnail: isThumbnail,
-    });
-    return response.data;
-  },
-
-  /**
-   * Mint multiple one-time tokens at once (max 10).
-   * Useful for loading all images on a check detail view.
-   */
-  mintTokensBatch: async (imageIds: string[], isThumbnail = false): Promise<{
-    tokens: Array<{
-      token_id: string;
-      image_url: string;
-      expires_at: string;
-    }>;
-  }> => {
-    const response = await api.post('/images/mint-tokens-batch', {
-      image_ids: imageIds,
-      is_thumbnail: isThumbnail,
-    });
-    return response.data;
-  },
 };
 
 // Audit API
 export const auditApi = {
-  getItemAuditTrail: async (itemId: string, limit = 100) => {
-    const response = await api.get(`/audit/items/${itemId}`, { params: { limit } });
-    return response.data;
-  },
 
   getItemViews: async (itemId: string): Promise<ItemView[]> => {
     const response = await api.get(`/audit/items/${itemId}/views`);
@@ -632,11 +545,6 @@ export const fraudApi = {
     return response.data;
   },
 
-  updateEvent: async (eventId: string, data: Record<string, unknown>) => {
-    const response = await api.patch(`/fraud/fraud-events/${eventId}`, data);
-    return response.data;
-  },
-
   submitEvent: async (eventId: string, data: {
     sharing_level?: number;
     confirm_no_pii?: boolean;
@@ -668,17 +576,6 @@ export const fraudApi = {
     const response = await api.get('/fraud/network-trends', {
       params: { range, granularity },
     });
-    return response.data;
-  },
-
-  // Config
-  getConfig: async () => {
-    const response = await api.get('/fraud/config');
-    return response.data;
-  },
-
-  updateConfig: async (data: Record<string, unknown>) => {
-    const response = await api.patch('/fraud/config', data);
     return response.data;
   },
 
@@ -735,20 +632,6 @@ export const userApi = {
 
   getRoles: async () => {
     const response = await api.get('/users/roles/');
-    return response.data;
-  },
-
-  createRole: async (data: {
-    name: string;
-    description?: string;
-    permission_ids?: string[];
-  }) => {
-    const response = await api.post('/users/roles/', data);
-    return response.data;
-  },
-
-  getPermissions: async () => {
-    const response = await api.get('/users/permissions/');
     return response.data;
   },
 };
@@ -1025,11 +908,6 @@ export const systemApi = {
     });
     return response.data;
   },
-
-  resetDemoData: async () => {
-    const response = await api.post('/system/demo/reset');
-    return response.data;
-  },
 };
 
 // Operations API - System health and performance metrics
@@ -1041,16 +919,6 @@ export const operationsApi = {
 
   getPerformanceMetrics: async () => {
     const response = await api.get('/operations/metrics');
-    return response.data;
-  },
-
-  getActiveAlerts: async () => {
-    const response = await api.get('/operations/alerts');
-    return response.data;
-  },
-
-  getDRStatus: async () => {
-    const response = await api.get('/operations/dr-status');
     return response.data;
   },
 };

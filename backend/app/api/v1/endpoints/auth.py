@@ -89,7 +89,11 @@ def clear_auth_cookies(response: Response) -> None:
 
 
 @router.post("/login", response_model=LoginResponse)
-@limiter.limit("5/minute")  # Prevent brute force attacks
+# Prevent brute force attacks. Demo mode allows rapid role-switching (cycling
+# through all six personas in a walkthrough exceeds 5/minute); DEMO_MODE is
+# hard-blocked in production/pilot/staging/uat, so the relaxed limit cannot
+# apply to a real environment.
+@limiter.limit(lambda: "30/minute" if settings.DEMO_MODE else "5/minute")
 async def login(
     request: Request,
     response: Response,

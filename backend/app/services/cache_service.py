@@ -46,6 +46,11 @@ class CacheService:
         """
         self._redis_url = redis_url or settings.REDIS_URL
         self._redis: redis.Redis | None = None
+        # Process-local fallback for audit packets when Redis is unavailable
+        # (single-process dev/demo). Maps packet_id -> (expires_at, packet_data).
+        # With Redis configured this is never used; without Redis it keeps the
+        # "Generate Audit Packet" feature working instead of returning 503.
+        self._memory_packets: dict[str, tuple[datetime, dict]] = {}
 
     async def connect(self) -> None:
         """Establish Redis connection."""
@@ -440,22 +445,31 @@ class CacheService:
         Returns:
             True if stored successfully
         """
+        ttl = ttl or self.TTL_AUDIT_PACKET
+
+        # Store PDF as base64 with ownership metadata
+        # Base64 is required since Redis client uses decode_responses=True
+        packet_data = {
+            "pdf_base64": base64.b64encode(pdf_bytes).decode("ascii"),
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+            "check_item_id": check_item_id,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+
         if not await self._ensure_connected():
-            return False
+            # Process-local fallback (single-process dev/demo without Redis).
+            logger.warning(
+                "Redis unavailable - storing audit packet %s in process memory", packet_id
+            )
+            now = datetime.now(timezone.utc)
+            # Prune expired entries so abandoned packets don't accumulate.
+            self._memory_packets = {k: v for k, v in self._memory_packets.items() if v[0] > now}
+            self._memory_packets[packet_id] = (now + ttl, packet_data)
+            return True
 
         try:
             key = f"{self.PREFIX_AUDIT_PACKET}{packet_id}"
-            ttl = ttl or self.TTL_AUDIT_PACKET
-
-            # Store PDF as base64 with ownership metadata
-            # Base64 is required since Redis client uses decode_responses=True
-            packet_data = {
-                "pdf_base64": base64.b64encode(pdf_bytes).decode("ascii"),
-                "tenant_id": tenant_id,
-                "user_id": user_id,
-                "check_item_id": check_item_id,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }
 
             await self._redis.setex(key, ttl, json.dumps(packet_data))
             logger.debug(
@@ -495,7 +509,12 @@ class CacheService:
             which packets exist.
         """
         if not await self._ensure_connected():
-            return None, None
+            # Process-local fallback (see store_audit_packet).
+            entry = self._memory_packets.get(packet_id)
+            if entry is None or entry[0] <= datetime.now(timezone.utc):
+                self._memory_packets.pop(packet_id, None)
+                return None, None
+            return self._verify_packet_ownership(entry[1], packet_id, tenant_id, user_id)
 
         try:
             key = f"{self.PREFIX_AUDIT_PACKET}{packet_id}"
@@ -505,47 +524,48 @@ class CacheService:
                 logger.debug("Audit packet %s not found in cache", packet_id)
                 return None, None
 
-            packet_data = json.loads(data)
-
-            # CRITICAL: Verify ownership - must match BOTH tenant AND user
-            stored_tenant_id = packet_data.get("tenant_id")
-            stored_user_id = packet_data.get("user_id")
-
-            if stored_tenant_id != tenant_id:
-                logger.warning(
-                    "Audit packet access denied: tenant mismatch. "
-                    "packet=%s stored_tenant=%s requesting_tenant=%s",
-                    packet_id,
-                    stored_tenant_id,
-                    tenant_id,
-                )
-                return None, None
-
-            if stored_user_id != user_id:
-                logger.warning(
-                    "Audit packet access denied: user mismatch. "
-                    "packet=%s stored_user=%s requesting_user=%s",
-                    packet_id,
-                    stored_user_id,
-                    user_id,
-                )
-                return None, None
-
-            # Ownership verified - decode and return PDF
-            pdf_bytes = base64.b64decode(packet_data["pdf_base64"])
-            check_item_id = packet_data.get("check_item_id")
-
-            logger.debug(
-                "Retrieved audit packet %s for tenant=%s user=%s",
-                packet_id,
-                tenant_id,
-                user_id,
-            )
-            return pdf_bytes, check_item_id
+            return self._verify_packet_ownership(json.loads(data), packet_id, tenant_id, user_id)
 
         except Exception as e:
             logger.error("Failed to retrieve audit packet %s: %s", packet_id, e)
             return None, None
+
+    def _verify_packet_ownership(
+        self,
+        packet_data: dict,
+        packet_id: str,
+        tenant_id: str,
+        user_id: str,
+    ) -> tuple[bytes | None, str | None]:
+        """Verify packet ownership and decode the PDF.
+
+        CRITICAL: must match BOTH tenant AND user. Returns (None, None) for
+        any mismatch to avoid disclosing which packets exist.
+        """
+        if packet_data.get("tenant_id") != tenant_id:
+            logger.warning(
+                "Audit packet access denied: tenant mismatch. "
+                "packet=%s stored_tenant=%s requesting_tenant=%s",
+                packet_id,
+                packet_data.get("tenant_id"),
+                tenant_id,
+            )
+            return None, None
+
+        if packet_data.get("user_id") != user_id:
+            logger.warning(
+                "Audit packet access denied: user mismatch. "
+                "packet=%s stored_user=%s requesting_user=%s",
+                packet_id,
+                packet_data.get("user_id"),
+                user_id,
+            )
+            return None, None
+
+        logger.debug(
+            "Retrieved audit packet %s for tenant=%s user=%s", packet_id, tenant_id, user_id
+        )
+        return base64.b64decode(packet_data["pdf_base64"]), packet_data.get("check_item_id")
 
 
 # Global cache instance

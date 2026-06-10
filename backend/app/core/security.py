@@ -49,13 +49,21 @@ def create_access_token(
 
 
 def create_refresh_token(subject: str | int) -> str:
-    """Create a JWT refresh token."""
+    """Create a JWT refresh token.
+
+    The jti claim guarantees uniqueness: without it, two refresh tokens minted
+    for the same user within the same second are byte-identical, so two
+    concurrent /auth/refresh calls (e.g. a page reload firing the app-init
+    refresh and the 401-interceptor refresh together) collide on the
+    user_sessions.token_hash unique constraint and 500.
+    """
     expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode = {
         "exp": expire,
         "sub": str(subject),
         "type": "refresh",
         "iss": settings.JWT_ISSUER,
+        "jti": secrets.token_urlsafe(16),
     }
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt

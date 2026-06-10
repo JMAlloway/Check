@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   ArrowLeftIcon,
   DocumentArrowDownIcon,
+  EllipsisHorizontalIcon,
   ShieldExclamationIcon,
   ShieldCheckIcon,
   UserPlusIcon,
@@ -13,6 +14,7 @@ import {
   PlayIcon,
   PauseIcon,
 } from '@heroicons/react/24/outline';
+import { Menu } from '@headlessui/react';
 import { checkApi, auditApi, resolveImageUrl } from '../services/api';
 import { CheckItem, CheckHistory, ROIRegion } from '../types';
 import { useReviewSettings } from '../stores/reviewSettingsStore';
@@ -275,50 +277,70 @@ export default function CheckReviewPage() {
               Report Fraud
             </button>
           )}
-          {canAssign && (
-            <button
-              onClick={() => setShowAssignModal(true)}
+
+          {/* Occasional actions live in an overflow menu so the every-item
+              controls keep a single uncluttered row. */}
+          <Menu as="div" className="relative">
+            <Menu.Button
               className="flex items-center px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              title="More actions"
             >
-              <UserPlusIcon className="h-5 w-5 mr-1" />
-              Assign
-            </button>
-          )}
-          {canViewAudit && (
-            <button
-              onClick={() => setShowViewsModal(true)}
-              className="flex items-center px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              <EyeIcon className="h-5 w-5 mr-1" />
-              Views
-            </button>
-          )}
-          {canViewAudit && (
-            <button
-              onClick={() => setShowEvidenceModal(true)}
-              className="flex items-center px-3 py-2 text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100"
-            >
-              <ShieldCheckIcon className="h-5 w-5 mr-1" />
-              Verify Evidence
-            </button>
-          )}
-          <button
-            onClick={handleGeneratePacket}
-            disabled={isGeneratingPacket}
-            className="flex items-center px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isGeneratingPacket ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 mr-1 border-b-2 border-gray-700"></div>
-                Generating...
-              </>
-            ) : (
-              <>
-                <DocumentArrowDownIcon className="h-5 w-5 mr-1" />
-                Audit Packet
-              </>
-            )}
-          </button>
+              <EllipsisHorizontalIcon className="h-5 w-5" />
+            </Menu.Button>
+            <Menu.Items className="absolute right-0 z-20 mt-1 w-52 origin-top-right rounded-lg border border-gray-200 bg-white py-1 shadow-lg focus:outline-none">
+              {canAssign && (
+                <Menu.Item>
+                  {({ active }) => (
+                    <button
+                      onClick={() => setShowAssignModal(true)}
+                      className={`flex w-full items-center px-3 py-2 text-sm text-gray-700 ${active ? 'bg-gray-50' : ''}`}
+                    >
+                      <UserPlusIcon className="h-4 w-4 mr-2 text-gray-400" />
+                      Assign to Reviewer
+                    </button>
+                  )}
+                </Menu.Item>
+              )}
+              {canViewAudit && (
+                <Menu.Item>
+                  {({ active }) => (
+                    <button
+                      onClick={() => setShowViewsModal(true)}
+                      className={`flex w-full items-center px-3 py-2 text-sm text-gray-700 ${active ? 'bg-gray-50' : ''}`}
+                    >
+                      <EyeIcon className="h-4 w-4 mr-2 text-gray-400" />
+                      View Activity
+                    </button>
+                  )}
+                </Menu.Item>
+              )}
+              {canViewAudit && (
+                <Menu.Item>
+                  {({ active }) => (
+                    <button
+                      onClick={() => setShowEvidenceModal(true)}
+                      className={`flex w-full items-center px-3 py-2 text-sm text-gray-700 ${active ? 'bg-gray-50' : ''}`}
+                    >
+                      <ShieldCheckIcon className="h-4 w-4 mr-2 text-gray-400" />
+                      Verify Evidence Chain
+                    </button>
+                  )}
+                </Menu.Item>
+              )}
+              <Menu.Item>
+                {({ active }) => (
+                  <button
+                    onClick={handleGeneratePacket}
+                    disabled={isGeneratingPacket}
+                    className={`flex w-full items-center px-3 py-2 text-sm text-gray-700 disabled:opacity-50 ${active ? 'bg-gray-50' : ''}`}
+                  >
+                    <DocumentArrowDownIcon className="h-4 w-4 mr-2 text-gray-400" />
+                    {isGeneratingPacket ? 'Generating Packet...' : 'Download Audit Packet'}
+                  </button>
+                )}
+              </Menu.Item>
+            </Menu.Items>
+          </Menu>
         </div>
       </div>
 
@@ -352,14 +374,16 @@ export default function CheckReviewPage() {
         </div>
 
         {/* Right: check image(s) then the supporting panels */}
-        <div className="min-w-0 space-y-4">
-          {/* Check Image Viewer (side-by-side with historical when comparing) */}
-          <div className="h-[48vh] min-h-[320px]">
+        <div className="min-w-0 space-y-3">
+          {/* Check Image Viewer (side-by-side with historical when comparing).
+              ROI overlays default OFF so the check itself is what reviewers
+              (and prospects) see first; the R key / toolbar toggles them on. */}
+          <div className="h-[52vh] min-h-[320px]">
             <div className={`grid gap-4 h-full ${showComparison ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
               <CheckImageViewer
                 images={item.images}
                 roiRegions={defaultROIRegions}
-                showROI={true}
+                showROI={false}
               />
 
               {/* Comparison View (side-by-side when active) */}
@@ -392,27 +416,23 @@ export default function CheckReviewPage() {
             </div>
           </div>
 
-          {/* Decision / Review Recommendation panel - the primary action, kept
-              directly under the image so it is always visible without needing a
-              maximised window (previously it was the 3rd cell of a wrapping grid
-              and fell below the fold on smaller screens). */}
+          {/* Decision action bar - the primary interaction, directly under the
+              image so image + actions share one viewport at laptop sizes. */}
           <DecisionPanel item={item} onDecisionMade={handleDecisionMade} />
 
-          {/* Secondary context panels below the decision */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {/* History Panel */}
-            <CheckHistoryPanel
-              itemId={item.id}
-              currentAmount={item.amount}
-              onSelectComparison={(historyItem) => {
-                setComparisonItem(historyItem);
-                setShowComparison(true);
-              }}
-            />
+          {/* Prior checks as a filmstrip: clicking a card opens the
+              side-by-side comparison right next to the live image above. */}
+          <CheckHistoryPanel
+            itemId={item.id}
+            currentAmount={item.amount}
+            onSelectComparison={(historyItem) => {
+              setComparisonItem(historyItem);
+              setShowComparison(true);
+            }}
+          />
 
-            {/* Network Intelligence Panel */}
-            <NetworkIntelligencePanel checkItemId={item.id} />
-          </div>
+          {/* Network Intelligence: slim status row unless matches exist */}
+          <NetworkIntelligencePanel checkItemId={item.id} />
         </div>
       </div>
 

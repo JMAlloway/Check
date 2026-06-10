@@ -23,12 +23,14 @@ interface DecisionPanelProps {
   onDecisionMade?: () => void;
 }
 
+// Short labels: the panel title ("Review Recommendation") carries the
+// recommend-vs-final meaning, and the confirmation modal spells it out.
 const reviewActions: { action: DecisionAction; label: string; color: string }[] = [
-  { action: 'approve', label: 'Recommend Approve', color: 'green' },
-  { action: 'return', label: 'Recommend Return', color: 'orange' },
-  { action: 'reject', label: 'Recommend Reject', color: 'red' },
+  { action: 'approve', label: 'Approve', color: 'green' },
+  { action: 'return', label: 'Return', color: 'orange' },
+  { action: 'reject', label: 'Reject', color: 'red' },
   { action: 'escalate', label: 'Escalate', color: 'purple' },
-  { action: 'needs_more_info', label: 'Need More Info', color: 'blue' },
+  { action: 'needs_more_info', label: 'More Info', color: 'blue' },
 ];
 
 const approvalActions: { action: DecisionAction; label: string; color: string }[] = [
@@ -297,104 +299,141 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
   }
 
   const isSubmitting = createDecision.isPending || isDebouncing;
+  const notesRequired = reasonCodes?.some(
+    (rc: ReasonCode) => selectedReasonCodes.includes(rc.id) && rc.requires_notes
+  );
 
   return (
     <>
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          {isAwaitingApproval ? 'Final Decision' : 'Review Recommendation'}
-        </h3>
-
-        {/* Validation Errors Display */}
-        {validationErrors.length > 0 && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-start space-x-2">
-              <ExclamationCircleIcon className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-red-800">Please fix the following:</p>
-                <ul className="text-sm text-red-700 mt-1 list-disc list-inside">
-                  {validationErrors.map((error, idx) => (
-                    <li key={idx}>{error}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Dual Control Warning */}
-        {item.requires_dual_control && !isAwaitingApproval && (
-          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-800">
-              <strong>Dual Control Required:</strong> This item requires a second approver.
-              Your recommendation will be sent for final approval.
-            </p>
-          </div>
-        )}
-
-        {/* Action Buttons */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select Action
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            {actions.map(({ action, label, color }) => {
-              // Get shortcut key for this action
-              const shortcut = Object.entries(ACTION_SHORTCUTS).find(([, a]) => a === action)?.[0]?.toUpperCase();
-              return (
-                <button
-                  key={action}
-                  onClick={() => {
-                    setSelectedAction(action);
-                    setSelectedReasonCodes([]);
-                    setValidationErrors([]);
-                  }}
-                  disabled={isSubmitting}
-                  className={clsx(
-                    'px-4 py-2 text-sm font-medium rounded-lg border transition-colors relative',
-                    isSubmitting && 'opacity-50 cursor-not-allowed',
-                    // NOTE: avoid dynamic `bg-${color}-100` classes — Tailwind's
-                    // JIT purges classes it can't see as complete strings. Use the
-                    // explicit per-color classes below instead.
-                    selectedAction !== action && 'border-gray-300 text-gray-700 hover:bg-gray-50',
-                    color === 'green' && selectedAction === action && 'bg-green-100 border-green-500 text-green-700',
-                    color === 'orange' && selectedAction === action && 'bg-orange-100 border-orange-500 text-orange-700',
-                    color === 'red' && selectedAction === action && 'bg-red-100 border-red-500 text-red-700',
-                    color === 'purple' && selectedAction === action && 'bg-purple-100 border-purple-500 text-purple-700',
-                    color === 'blue' && selectedAction === action && 'bg-blue-100 border-blue-500 text-blue-700'
-                  )}
-                >
-                  {label}
-                  {shortcut && (
-                    <span className="absolute top-0.5 right-1 text-[10px] text-gray-400 font-mono">
-                      {shortcut}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+      {/* Compact action bar: title row, then one row of actions + submit.
+          Reason codes / notes / acknowledgment only appear when relevant, so
+          the whole decision loop fits in one viewport with the image. */}
+      <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <h3 className="text-sm font-semibold text-gray-900">
+            {isAwaitingApproval ? 'Final Decision' : 'Review Recommendation'}
+          </h3>
+          {item.requires_dual_control && !isAwaitingApproval && (
+            <span
+              className="text-[11px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded"
+              title="This item requires a second approver. Your recommendation will be sent for final approval."
+            >
+              Dual control — goes to a second approver
+            </span>
+          )}
+          <div className="ml-auto hidden md:flex items-center text-xs text-gray-400">
+            <KeyIcon className="h-3 w-3 mr-1" />
+            <span className="font-mono">A</span><span className="mx-0.5">pprove</span>
+            <span className="ml-2 font-mono">R</span><span className="mx-0.5">eturn</span>
+            <span className="ml-2 font-mono">J</span><span className="mx-0.5">Reject</span>
+            <span className="ml-2 font-mono">E</span><span className="mx-0.5">scalate</span>
+            <span className="ml-2 font-mono">I</span><span className="mx-0.5">nfo</span>
+            <span className="ml-2 font-mono">P</span><span className="mx-0.5">rev</span>
+            <span className="ml-2 font-mono">N</span><span className="mx-0.5">ext</span>
           </div>
         </div>
 
-        {/* Reason Codes - only required for reject/return actions */}
+        {/* Action row + submit */}
+        <div className="flex flex-wrap items-stretch gap-2">
+          {actions.map(({ action, label, color }) => {
+            const shortcut = Object.entries(ACTION_SHORTCUTS).find(([, a]) => a === action)?.[0]?.toUpperCase();
+            return (
+              <button
+                key={action}
+                onClick={() => {
+                  setSelectedAction(action);
+                  setSelectedReasonCodes([]);
+                  setValidationErrors([]);
+                }}
+                disabled={isSubmitting}
+                className={clsx(
+                  'flex-1 min-w-[96px] px-3 py-2 text-sm font-medium rounded-lg border transition-colors relative',
+                  isSubmitting && 'opacity-50 cursor-not-allowed',
+                  // NOTE: avoid dynamic `bg-${color}-100` classes — Tailwind's
+                  // JIT purges classes it can't see as complete strings. Use the
+                  // explicit per-color classes below instead.
+                  selectedAction !== action && 'border-gray-300 text-gray-700 hover:bg-gray-50',
+                  color === 'green' && selectedAction === action && 'bg-green-100 border-green-500 text-green-700',
+                  color === 'orange' && selectedAction === action && 'bg-orange-100 border-orange-500 text-orange-700',
+                  color === 'red' && selectedAction === action && 'bg-red-100 border-red-500 text-red-700',
+                  color === 'purple' && selectedAction === action && 'bg-purple-100 border-purple-500 text-purple-700',
+                  color === 'blue' && selectedAction === action && 'bg-blue-100 border-blue-500 text-blue-700'
+                )}
+              >
+                {label}
+                {shortcut && (
+                  <span className="absolute top-0.5 right-1 text-[10px] text-gray-400 font-mono">
+                    {shortcut}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+          <button
+            onClick={handleSubmitClick}
+            disabled={isSubmitting || !selectedAction}
+            className={clsx(
+              'flex-1 min-w-[150px] py-2 px-4 rounded-lg font-medium text-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500',
+              isSubmitting || !selectedAction
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-primary-600 hover:bg-primary-700'
+            )}
+          >
+            {isSubmitting ? (
+              <span className="flex items-center justify-center">
+                <svg
+                  className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                Processing...
+              </span>
+            ) : (
+              <>Submit <span className="text-xs opacity-70">(Enter)</span></>
+            )}
+          </button>
+        </div>
+
+        {/* Validation Errors */}
+        {validationErrors.length > 0 && (
+          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-2">
+            <ExclamationCircleIcon className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
+            <ul className="text-sm text-red-700 list-disc list-inside">
+              {validationErrors.map((error, idx) => (
+                <li key={idx}>{error}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Reason Codes - only for reject/return */}
         {needsReasonCodes && (
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="mt-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Reason Code(s) <span className="text-red-500">*</span>
             </label>
             {reasonCodesLoading ? (
-              <div className="text-sm text-gray-500 py-2">Loading reason codes...</div>
+              <div className="text-sm text-gray-500 py-1">Loading reason codes...</div>
             ) : reasonCodes && reasonCodes.length > 0 ? (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
+              <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto">
                 {reasonCodes.map((code: ReasonCode) => (
                   <label
                     key={code.id}
+                    title={code.description}
                     className={clsx(
-                      'flex items-start p-2 rounded cursor-pointer transition-colors',
+                      'flex items-center gap-1.5 px-2 py-1.5 rounded border cursor-pointer transition-colors text-sm',
                       isSubmitting && 'opacity-50 pointer-events-none',
                       selectedReasonCodes.includes(code.id)
-                        ? 'bg-primary-50 border border-primary-200'
-                        : 'hover:bg-gray-50 border border-transparent'
+                        ? 'bg-primary-50 border-primary-300 text-primary-800'
+                        : 'border-gray-200 hover:bg-gray-50 text-gray-700'
                     )}
                   >
                     <input
@@ -402,127 +441,59 @@ export default function DecisionPanel({ item, onDecisionMade }: DecisionPanelPro
                       checked={selectedReasonCodes.includes(code.id)}
                       onChange={() => toggleReasonCode(code.id)}
                       disabled={isSubmitting}
-                      className="mt-1 rounded border-gray-300 text-primary-600"
+                      className="rounded border-gray-300 text-primary-600"
                     />
-                    <div className="ml-2">
-                      <div className="text-sm font-medium text-gray-900">{code.code}</div>
-                      <div className="text-xs text-gray-500">{code.description}</div>
-                    </div>
+                    <span className="font-medium">{code.code}</span>
+                    <span className="text-xs text-gray-500 hidden sm:inline">{code.description}</span>
                   </label>
                 ))}
               </div>
             ) : (
-              <div className="text-sm text-amber-600 py-2">
+              <div className="text-sm text-amber-600 py-1">
                 No reason codes are configured for this action.
               </div>
             )}
           </div>
         )}
 
-        {/* Notes */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Notes
-            {reasonCodes?.some(
-              (rc: ReasonCode) => selectedReasonCodes.includes(rc.id) && rc.requires_notes
-            ) && <span className="text-red-500"> *</span>}
-          </label>
+        {/* Notes - one compact field, marked when a reason code requires it */}
+        <div className="mt-3">
           <textarea
             value={notes}
             onChange={(e) => {
               setNotes(e.target.value);
               setValidationErrors([]);
             }}
-            rows={3}
+            rows={notes || notesRequired ? 2 : 1}
             disabled={isSubmitting}
             className={clsx(
-              'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500',
+              'w-full rounded-lg border px-3 py-1.5 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500',
+              notesRequired && !notes.trim() ? 'border-red-300' : 'border-gray-300',
               isSubmitting && 'opacity-50 cursor-not-allowed'
             )}
-            placeholder="Add any additional notes..."
+            placeholder={notesRequired ? 'Notes (required for selected reason code)...' : 'Notes (optional)...'}
           />
         </div>
 
-        {/* Detection Flags Acknowledgment */}
+        {/* Detection Flags Acknowledgment - compact but unmissable */}
         {item.ai_flags.length > 0 && (
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <label className="flex items-start cursor-pointer">
-              <input
-                type="checkbox"
-                checked={acknowledgeAI}
-                onChange={(e) => {
-                  setAcknowledgeAI(e.target.checked);
-                  setValidationErrors([]);
-                }}
-                disabled={isSubmitting}
-                className="mt-1 rounded border-gray-300 text-primary-600"
-              />
-              <span className="ml-2 text-sm text-blue-800">
-                <strong>Advisory:</strong> I have reviewed the {item.ai_flags.length} risk signal(s)
-                for this item. I understand risk signals are advisory only and the final decision is mine.
-              </span>
-            </label>
-          </div>
-        )}
-
-        {/* Submit + shortcuts are pinned to the bottom of the (scrollable) panel
-            so the primary action stays reachable no matter how tall the form is. */}
-        <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-4 rounded-b-lg border-t border-gray-100 bg-white px-4 pb-4 pt-3">
-        {/* Submit Button */}
-        <button
-          onClick={handleSubmitClick}
-          disabled={isSubmitting}
-          className={clsx(
-            'w-full py-2 px-4 rounded-lg font-medium text-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500',
-            isSubmitting
-              ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-primary-600 hover:bg-primary-700'
-          )}
-        >
-          {isSubmitting ? (
-            <span className="flex items-center justify-center">
-              <svg
-                className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
-              Processing...
+          <label className="mt-2 flex items-center gap-2 cursor-pointer rounded-lg bg-blue-50 border border-blue-200 px-3 py-2">
+            <input
+              type="checkbox"
+              checked={acknowledgeAI}
+              onChange={(e) => {
+                setAcknowledgeAI(e.target.checked);
+                setValidationErrors([]);
+              }}
+              disabled={isSubmitting}
+              className="rounded border-gray-300 text-primary-600"
+            />
+            <span className="text-sm text-blue-800">
+              I have reviewed the <strong>{item.ai_flags.length} risk signal(s)</strong> — advisory
+              only; the final decision is mine.
             </span>
-          ) : (
-            <>Submit Decision <span className="text-xs opacity-70">(Enter)</span></>
-          )}
-        </button>
-
-        {/* Keyboard Shortcuts Legend */}
-        <div className="mt-3">
-          <div className="flex flex-wrap items-center text-xs text-gray-400">
-            <KeyIcon className="h-3 w-3 mr-1" />
-            <span>Shortcuts: </span>
-            <span className="ml-1 font-mono">A</span><span className="mx-0.5">Approve</span>
-            <span className="ml-2 font-mono">R</span><span className="mx-0.5">Return</span>
-            <span className="ml-2 font-mono">J</span><span className="mx-0.5">Reject</span>
-            <span className="ml-2 font-mono">E</span><span className="mx-0.5">Escalate</span>
-            <span className="ml-2 font-mono">I</span><span className="mx-0.5">More Info</span>
-            <span className="ml-2 font-mono">P</span><span className="mx-0.5">Prev</span>
-            <span className="ml-2 font-mono">N</span><span className="mx-0.5">Next</span>
-          </div>
-        </div>
-        </div>
+          </label>
+        )}
       </div>
 
       {/* Confirmation Modal */}

@@ -12,13 +12,12 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional, Set, Tuple
+from typing import List, Optional, Tuple
 
 import jwt
 from jwt.exceptions import (
     DecodeError,
     ExpiredSignatureError,
-    InvalidAudienceError,
     InvalidIssuerError,
     InvalidSignatureError,
     InvalidTokenError,

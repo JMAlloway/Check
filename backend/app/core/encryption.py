@@ -139,21 +139,6 @@ def is_encrypted(value: str) -> bool:
         return False
 
 
-def migrate_mfa_secret(value: str | None) -> str | None:
-    """Migrate an MFA secret to encrypted format if needed.
-
-    Returns:
-        Encrypted value, or None if input was None
-    """
-    if value is None:
-        return None
-
-    if is_encrypted(value):
-        return value  # Already encrypted
-
-    return encrypt_field(value)
-
-
 # Aliases for cleaner API in other modules
 encrypt_value = encrypt_field
 decrypt_value = decrypt_field

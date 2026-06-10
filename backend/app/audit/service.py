@@ -199,33 +199,6 @@ class AuditService:
 
         return view
 
-    async def end_item_view(self, view_id: str) -> ItemView | None:
-        """End an item view session and calculate duration."""
-        result = await self.db.execute(select(ItemView).where(ItemView.id == view_id))
-        view = result.scalar_one_or_none()
-
-        if not view:
-            return None
-
-        view.view_ended_at = datetime.now(timezone.utc)
-        view.duration_seconds = int((view.view_ended_at - view.view_started_at).total_seconds())
-
-        # Save interaction summary
-        view.interaction_summary = json.dumps(
-            {
-                "front_image_viewed": view.front_image_viewed,
-                "back_image_viewed": view.back_image_viewed,
-                "zoom_used": view.zoom_used,
-                "magnifier_used": view.magnifier_used,
-                "history_compared": view.history_compared,
-                "ai_assists_viewed": view.ai_assists_viewed,
-                "context_panel_viewed": view.context_panel_viewed,
-                "duration_seconds": view.duration_seconds,
-            }
-        )
-
-        return view
-
     async def log_decision(
         self,
         check_item_id: str,
@@ -443,54 +416,6 @@ class AuditService:
                 "failure_type": failure_type,
                 "attempted_action": attempted_action,
                 "reason": reason,
-            },
-        )
-
-    async def log_decision_override(
-        self,
-        check_item_id: str,
-        decision_id: str,
-        user_id: str,
-        username: str,
-        override_type: str,
-        original_action: str,
-        new_action: str,
-        justification: str,
-        tenant_id: str,  # Multi-tenant required
-        ip_address: str | None = None,
-        supervisor_id: str | None = None,
-    ) -> AuditLog:
-        """
-        Log a decision override or reversal.
-
-        Override types:
-        - "override": Supervisor overriding a reviewer's decision
-        - "reversal": Reversing a previously made decision
-        - "amendment": Modifying a decision (e.g., changing return reason)
-        """
-        action_map = {
-            "override": AuditAction.DECISION_OVERRIDDEN,
-            "reversal": AuditAction.DECISION_REVERSED,
-            "amendment": AuditAction.DECISION_AMENDED,
-        }
-        audit_action = action_map.get(override_type, AuditAction.DECISION_OVERRIDDEN)
-
-        return await self.log(
-            action=audit_action,
-            resource_type="decision",
-            resource_id=decision_id,
-            user_id=user_id,
-            username=username,
-            ip_address=ip_address,
-            tenant_id=tenant_id,
-            description=f"Decision {override_type}: {original_action} → {new_action}",
-            before_value={"action": original_action},
-            after_value={"action": new_action},
-            metadata={
-                "check_item_id": check_item_id,
-                "override_type": override_type,
-                "justification": justification,
-                "supervisor_id": supervisor_id,
             },
         )
 

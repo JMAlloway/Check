@@ -323,76 +323,6 @@ class CacheService:
     # Role Cache
     # ==========================================================================
 
-    async def get_role(self, role_id: str) -> dict[str, Any] | None:
-        """Get cached role with permissions.
-
-        Args:
-            role_id: Role ID
-
-        Returns:
-            Role data dict or None if not cached
-        """
-        if not await self._ensure_connected():
-            return None
-
-        try:
-            key = f"{self.PREFIX_ROLE}{role_id}"
-            data = await self._redis.get(key)
-            if data:
-                return json.loads(data)
-            return None
-        except Exception as e:
-            logger.warning("Failed to get role from cache: %s", e)
-            return None
-
-    async def set_role(
-        self,
-        role_id: str,
-        role_data: dict[str, Any],
-        ttl: timedelta | None = None,
-    ) -> bool:
-        """Cache role with permissions.
-
-        Args:
-            role_id: Role ID
-            role_data: Role data including permissions
-            ttl: Cache TTL (defaults to TTL_ROLES)
-
-        Returns:
-            True if cached successfully
-        """
-        if not await self._ensure_connected():
-            return False
-
-        try:
-            key = f"{self.PREFIX_ROLE}{role_id}"
-            ttl = ttl or self.TTL_ROLES
-            await self._redis.setex(key, ttl, json.dumps(role_data))
-            return True
-        except Exception as e:
-            logger.warning("Failed to set role in cache: %s", e)
-            return False
-
-    async def invalidate_role(self, role_id: str) -> bool:
-        """Invalidate cached role.
-
-        Args:
-            role_id: Role ID
-
-        Returns:
-            True if invalidated successfully
-        """
-        if not await self._ensure_connected():
-            return False
-
-        try:
-            key = f"{self.PREFIX_ROLE}{role_id}"
-            await self._redis.delete(key)
-            return True
-        except Exception as e:
-            logger.warning("Failed to invalidate role: %s", e)
-            return False
-
     # ==========================================================================
     # Generic Cache Operations
     # ==========================================================================
@@ -616,26 +546,6 @@ class CacheService:
         except Exception as e:
             logger.error("Failed to retrieve audit packet %s: %s", packet_id, e)
             return None, None
-
-    async def delete_audit_packet(self, packet_id: str) -> bool:
-        """Delete an audit packet from cache.
-
-        Args:
-            packet_id: Unique packet identifier
-
-        Returns:
-            True if deleted successfully
-        """
-        if not await self._ensure_connected():
-            return False
-
-        try:
-            key = f"{self.PREFIX_AUDIT_PACKET}{packet_id}"
-            await self._redis.delete(key)
-            return True
-        except Exception as e:
-            logger.warning("Failed to delete audit packet %s: %s", packet_id, e)
-            return False
 
 
 # Global cache instance

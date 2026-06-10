@@ -43,14 +43,6 @@ class RoleCreate(RoleBase):
     permission_ids: list[str] = []
 
 
-class RoleUpdate(BaseModel):
-    """Role update schema."""
-
-    name: str | None = None
-    description: str | None = None
-    permission_ids: list[str] | None = None
-
-
 class RoleResponse(RoleBase, TimestampSchema):
     """Role response schema."""
 

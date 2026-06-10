@@ -913,35 +913,3 @@ class CheckService:
             "position": position,
             "total": total,
         }
-
-    async def update_status(
-        self,
-        item_id: str,
-        status: CheckStatus,
-        user_id: str,
-        tenant_id: str,
-    ) -> CheckItem | None:
-        """Update check item status.
-
-        Args:
-            item_id: The check item ID
-            status: The new status
-            user_id: The user making the change
-            tenant_id: Required for multi-tenant isolation
-        """
-        result = await self.db.execute(
-            select(CheckItem).where(
-                CheckItem.id == item_id,
-                CheckItem.tenant_id == tenant_id,
-            )
-        )
-        item = result.scalar_one_or_none()
-
-        if not item:
-            return None
-
-        item.status = status
-        item.updated_at = datetime.now(timezone.utc)
-
-        await self.db.commit()
-        return item

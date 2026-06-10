@@ -44,10 +44,9 @@ This approach provides defense-in-depth:
 
 import logging
 from contextvars import ContextVar
-from functools import wraps
 from typing import Any, TypeVar
 
-from sqlalchemy import event, inspect
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Query
 from sqlalchemy.sql import Select

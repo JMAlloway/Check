@@ -168,13 +168,3 @@ def get_client_ip(request: Request) -> str:
 
     # Fall back to direct connection IP
     return direct_ip
-
-
-def clear_trusted_proxy_cache() -> None:
-    """
-    Clear the cached trusted proxy networks.
-
-    Call this if TRUSTED_PROXY_IPS setting changes at runtime
-    (e.g., during testing).
-    """
-    _get_trusted_proxy_networks.cache_clear()

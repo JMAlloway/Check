@@ -17,7 +17,6 @@ from app.schemas.user import (
     PermissionResponse,
     RoleCreate,
     RoleResponse,
-    RoleUpdate,
     UserCreate,
     UserListResponse,
     UserResponse,

@@ -15,7 +15,6 @@ from typing import Callable
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp
 
 # Pattern to match image access token IDs in paths
 # Matches /api/v1/images/secure/{token_id} where token_id is a UUID

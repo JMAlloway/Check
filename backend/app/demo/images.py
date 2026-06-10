@@ -9,7 +9,6 @@ import base64
 import io
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import BinaryIO
 
 # Try to import PIL, fall back to placeholder if not available
 try:
@@ -399,12 +398,6 @@ def build_demo_check_image(
         return buffer.getvalue()
 
     return image_bytes
-
-
-def get_demo_image_base64(data: DemoCheckImageData) -> str:
-    """Generate demo check image and return as base64 string."""
-    image_bytes = generate_demo_check_image(data)
-    return base64.b64encode(image_bytes).decode("utf-8")
 
 
 # Fallback for when PIL is not available

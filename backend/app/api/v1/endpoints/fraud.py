@@ -19,8 +19,6 @@ from app.schemas.fraud import (
     NetworkAlertDismiss,
     NetworkAlertResponse,
     NetworkAlertSummary,
-    NetworkTrendsRequest,
-    NetworkTrendsResponse,
     PIICheckRequest,
     PIIDetectionResult,
     TenantFraudConfigResponse,

@@ -28,16 +28,6 @@ body {
   @apply bg-gray-400;
 }
 
-/* Check image viewer styles */
-.check-viewer {
-  @apply relative overflow-hidden bg-gray-900 rounded-lg;
-}
-
-.check-viewer img {
-  @apply max-w-none;
-  image-rendering: -webkit-optimize-contrast;
-}
-
 /* Magnifier glass effect */
 .magnifier {
   @apply absolute pointer-events-none border-2 border-white rounded-full shadow-lg overflow-hidden;

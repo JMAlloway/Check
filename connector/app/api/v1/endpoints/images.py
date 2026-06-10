@@ -20,7 +20,6 @@ from ....services.image_service import (
     ImageDecodeFailedError,
     ImageNotFoundError,
     NoBackImageError,
-    PathNotAllowedError,
     UnsupportedImageFormatError,
     UpstreamIOError,
 )

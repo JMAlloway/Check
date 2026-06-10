@@ -10,7 +10,6 @@ Metrics are exposed at /metrics endpoint for Prometheus scraping.
 """
 
 import time
-from functools import wraps
 
 from fastapi import Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, Info, generate_latest
@@ -121,38 +120,6 @@ def track_security_event(event_type: str, severity: str = "info"):
         severity: Event severity (info, warning, error, critical)
     """
     security_events_total.labels(event_type=event_type, severity=severity).inc()
-
-
-def track_auth_attempt(result: str):
-    """Track authentication attempt.
-
-    Args:
-        result: Result of auth attempt (success, failure, mfa_required)
-    """
-    auth_attempts_total.labels(result=result).inc()
-
-
-def track_decision(decision_type: str, action: str):
-    """Track decision metrics.
-
-    Args:
-        decision_type: Type of decision (review, approval, escalation)
-        action: Decision action (approve, reject, hold, etc.)
-    """
-    decisions_total.labels(decision_type=decision_type, action=action).inc()
-
-
-def track_audit_log(action: str, success: bool = True):
-    """Track audit log write.
-
-    Args:
-        action: Audit action type
-        success: Whether write was successful
-    """
-    if success:
-        audit_log_entries_total.labels(action=action).inc()
-    else:
-        audit_log_write_failures_total.inc()
 
 
 class MetricsMiddleware:

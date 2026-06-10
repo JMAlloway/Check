@@ -115,24 +115,6 @@ class BankConnectorConfigCreate(BaseModel):
     max_notes_length: int = Field(500, ge=0, le=2000)
 
 
-class BankConnectorConfigUpdate(BaseModel):
-    """Schema for updating bank connector configuration."""
-
-    bank_name: str | None = None
-    file_format: FileFormat | None = None
-    file_encoding: str | None = None
-    file_name_pattern: str | None = None
-    field_config: FieldConfig | None = None
-    delivery_method: DeliveryMethod | None = None
-    delivery_config: dict[str, Any] | None = None
-    expects_acknowledgement: bool | None = None
-    ack_timeout_hours: int | None = None
-    require_encryption: bool | None = None
-    max_records_per_file: int | None = None
-    include_notes: bool | None = None
-    is_active: bool | None = None
-
-
 class BankConnectorConfigResponse(TimestampSchema):
     """Schema for bank connector configuration response."""
 

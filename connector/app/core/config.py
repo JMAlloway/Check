@@ -6,7 +6,6 @@ Supports two modes:
 - BANK: Uses real UNC paths with service account access (NOT YET IMPLEMENTED)
 """
 import logging
-import os
 from enum import Enum
 from pathlib import Path
 from typing import List, Optional

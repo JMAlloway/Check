@@ -11,7 +11,6 @@ from ..adapters import DecodedImage, ImageHandle, ImageSide
 from ..adapters.factory import get_adapters
 from ..adapters.interfaces import (
     DecodeError,
-    ItemNotFoundError,
     StorageAccessError,
     UnsupportedFormatError,
 )

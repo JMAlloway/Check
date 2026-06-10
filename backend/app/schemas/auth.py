@@ -54,9 +54,14 @@ class LoginRequest(BaseModel):
 
 
 class RefreshTokenRequest(BaseModel):
-    """Refresh token request schema."""
+    """Refresh token request schema.
 
-    refresh_token: str
+    refresh_token is optional: cookie-based clients send no token in the
+    body (some send an empty JSON object, which must not fail validation -
+    a 422 here logs the user out on every page refresh).
+    """
+
+    refresh_token: str | None = None
 
 
 class Token(BaseModel):

@@ -89,6 +89,27 @@ function onTokenRefreshed(token: string | null) {
   refreshSubscribers = [];
 }
 
+// Single shared in-flight refresh. Both the app-init session restore and the
+// 401 interceptor MUST go through this: on a page reload they fire at the
+// same time, and two concurrent /auth/refresh calls race each other
+// (token rotation + session insert) - the loser used to log the user out.
+let refreshPromise: Promise<string> | null = null;
+
+export function refreshAccessToken(): Promise<string> {
+  if (!refreshPromise) {
+    // IMPORTANT: send NO body - an empty object {} fails the backend's
+    // RefreshTokenRequest validation (422). The refresh token rides the
+    // httpOnly cookie.
+    refreshPromise = api
+      .post('/auth/refresh')
+      .then((response) => response.data.access_token as string)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
 // Request interceptor - add auth token and CSRF token
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
@@ -149,11 +170,8 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Refresh using httpOnly cookie (no body needed)
-        // The refresh token is automatically sent via the cookie
-        const response = await api.post('/auth/refresh', {});
-
-        const { access_token } = response.data;
+        // Refresh via the shared in-flight promise (deduped with app-init).
+        const access_token = await refreshAccessToken();
 
         // Update access token in memory
         setAccessToken(access_token);
@@ -218,10 +236,12 @@ export const authApi = {
   },
 
   // Attempt to restore session using httpOnly cookie
-  // Called on app init when user info exists but access token is missing
+  // Called on app init when user info exists but access token is missing.
+  // Shares the in-flight refresh with the 401 interceptor (see
+  // refreshAccessToken) so a page reload performs exactly one refresh.
   refreshSession: async () => {
-    const response = await api.post('/auth/refresh', {});
-    return response.data;
+    const access_token = await refreshAccessToken();
+    return { access_token };
   },
 };
 

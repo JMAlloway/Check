@@ -177,8 +177,14 @@ async def lifespan(app: FastAPI):
 
             reconcile_ddl.extend(audit_immutability_ddl())
             for stmt in reconcile_ddl:
+                # Each statement gets its own SAVEPOINT: in PostgreSQL a failed
+                # statement aborts the enclosing transaction, so without this a
+                # single benign failure (e.g. "constraint already exists" on a
+                # fresh database) would silently roll back create_all and every
+                # later statement - leaving an empty schema and a broken demo.
                 try:
-                    await conn.execute(text(stmt))
+                    async with conn.begin_nested():
+                        await conn.execute(text(stmt))
                 except Exception as exc:  # pragma: no cover - dev convenience only
                     logger.debug("Schema reconcile skipped: %s (%s)", stmt, exc)
 

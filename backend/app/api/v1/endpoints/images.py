@@ -265,9 +265,11 @@ async def get_secure_image(
             resource_id=resource_id,
             user_id=user.id,
             username=user.username,
+            tenant_id=user.tenant_id,
             ip_address=get_client_ip(request),
             description="User viewed check image via signed URL",
         )
+        await db.commit()
         return Response(
             content=demo_bytes,
             media_type="image/png",
@@ -284,9 +286,11 @@ async def get_secure_image(
                 resource_id=resource_id,
                 user_id=user.id,
                 username=user.username,
+                tenant_id=user.tenant_id,
                 ip_address=get_client_ip(request),
                 description="User viewed check thumbnail via signed URL",
             )
+            await db.commit()
             return Response(
                 content=image_data,
                 media_type="image/png",
@@ -302,9 +306,11 @@ async def get_secure_image(
                 resource_id=resource_id,
                 user_id=user.id,
                 username=user.username,
+                tenant_id=user.tenant_id,
                 ip_address=get_client_ip(request),
                 description="User viewed full check image via signed URL",
             )
+            await db.commit()
             return Response(
                 content=image.content,
                 media_type=image.content_type,
@@ -377,9 +383,11 @@ async def get_image_direct(
                 resource_id=image_id,
                 user_id=current_user.id,
                 username=current_user.username,
+                tenant_id=current_user.tenant_id,
                 ip_address=get_client_ip(request),
                 description="User viewed check image directly",
             )
+            await db.commit()
 
             return Response(
                 content=image.content,
@@ -412,6 +420,7 @@ async def log_image_zoom(
         resource_id=image_id,
         user_id=current_user.id,
         username=current_user.username,
+        tenant_id=current_user.tenant_id,
         ip_address=get_client_ip(request),
         description=f"User zoomed image to {zoom_level}%",
         metadata={"zoom_level": zoom_level, "view_id": view_id},
@@ -419,7 +428,13 @@ async def log_image_zoom(
 
     # Update item view tracking if view_id provided
     if view_id:
-        await audit_service.update_item_view(view_id, zoom_used=True)
+        await audit_service.update_item_view(
+            view_id, tenant_id=current_user.tenant_id, zoom_used=True
+        )
+
+    # Persist both the audit row and the view-tracking update; get_db does not
+    # auto-commit, so without this the sole purpose of this endpoint is lost.
+    await db.commit()
 
     return {"status": "logged"}
 

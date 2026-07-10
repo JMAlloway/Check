@@ -1,6 +1,7 @@
 """Authentication endpoints."""
 
 import secrets
+from datetime import datetime, timezone
 from typing import Annotated
 
 import pyotp
@@ -397,6 +398,7 @@ async def change_password(
         )
 
     current_user.hashed_password = get_password_hash(password_data.new_password)
+    current_user.password_changed_at = datetime.now(timezone.utc)
 
     # Invalidate all sessions for security - user must re-login on all devices
     auth_service = AuthService(db)
@@ -412,9 +414,14 @@ async def change_password(
         resource_id=current_user.id,
         user_id=current_user.id,
         username=current_user.username,
+        tenant_id=current_user.tenant_id,
         ip_address=get_client_ip(request),
         description=f"User changed password, {sessions_revoked} sessions invalidated",
     )
+    # logout_all_sessions committed the password change; this trailing commit
+    # persists the PASSWORD_CHANGE audit row, which would otherwise be rolled
+    # back by the session finalizer (get_db does not auto-commit).
+    await db.commit()
 
     return MessageResponse(
         message="Password changed successfully. Please log in again.", success=True

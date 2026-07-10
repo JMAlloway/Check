@@ -1,10 +1,18 @@
 """Audit-immutability triggers (single source of truth).
 
-The audit tables (audit_logs, item_views) are append-only: UPDATE is never
-allowed, and DELETE is allowed only for an authorized retention purge that opts
-in via the transaction-local flag ``app.allow_audit_purge``. This keeps the
-audit trail tamper-evident while still permitting the documented retention
-policy to age out records.
+The audit log (audit_logs) is append-only: UPDATE is never allowed, and DELETE
+is allowed only for an authorized retention purge that opts in via the
+transaction-local flag ``app.allow_audit_purge``. This keeps the tamper-evident
+audit chain intact while still permitting the documented retention policy to age
+out records.
+
+item_views is deliberately NOT immutable: it is per-session interaction
+telemetry (which images were viewed, whether zoom/magnifier were used) that the
+application updates as a review session progresses (see
+AuditService.update_item_view). The tamper-evident record of a view is the
+separate immutable ITEM_VIEWED row in audit_logs; item_views is supplementary
+UX tracking, so an UPDATE-blocking trigger on it only breaks the zoom/interaction
+endpoints.
 
 This DDL is defined once here and installed by:
   - the squashed baseline migration (production/alembic schema),
@@ -15,7 +23,7 @@ All statements use CREATE OR REPLACE so installation is idempotent.
 """
 
 # Tables that are append-only and carry the immutability triggers.
-AUDIT_TRIGGER_TABLES = ("audit_logs", "item_views")
+AUDIT_TRIGGER_TABLES = ("audit_logs",)
 
 # Session flag a retention purge sets (SET LOCAL, so it is scoped to the purge
 # transaction) to authorize DELETEs. Anything else is rejected by the trigger.

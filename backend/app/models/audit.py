@@ -89,6 +89,7 @@ class AuditAction(str, Enum):
     USER_CREATED = "user_created"
     USER_UPDATED = "user_updated"
     USER_DEACTIVATED = "user_deactivated"
+    ROLE_CREATED = "role_created"
     ROLE_ASSIGNED = "role_assigned"
     ROLE_REMOVED = "role_removed"
     POLICY_CREATED = "policy_created"

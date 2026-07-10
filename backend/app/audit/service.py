@@ -10,6 +10,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit import AuditAction, AuditLog, ItemView
+from app.models.user import User
 
 # Fixed sentinel used as previous_hash for the first entry in a tenant's chain.
 GENESIS_HASH = "0" * 64
@@ -67,6 +68,18 @@ class AuditService:
         Returns:
             The created AuditLog entry
         """
+        # Tenant attribution: an event attributed to a user belongs to that
+        # user's tenant. Many call sites omit tenant_id; without this, those
+        # rows land in the NULL-tenant chain and are invisible to every
+        # tenant-scoped audit read (item trails, packets, /audit/logs). Resolve
+        # it from the acting user so audit events are never silently dropped
+        # from a tenant's trail. System events (no user_id) stay tenant-less.
+        if tenant_id is None and user_id is not None:
+            resolved = await self.db.execute(
+                select(User.tenant_id).where(User.id == user_id)
+            )
+            tenant_id = resolved.scalar_one_or_none()
+
         # Assign the id up front so the integrity hash (which covers the id) can
         # be computed BEFORE the row is inserted. audit_logs carries DB-level
         # immutability triggers (no UPDATE/DELETE), so the hash must be set on
@@ -74,7 +87,10 @@ class AuditService:
         log_entry = AuditLog(
             id=str(uuid4()),
             tenant_id=tenant_id,  # Multi-tenant isolation
-            timestamp=datetime.now(timezone.utc),
+            # timestamp is assigned AFTER the per-tenant advisory lock below, so
+            # that timestamps are monotonic within the serialized section and
+            # the predecessor lookup (ORDER BY timestamp DESC) can never pick a
+            # row that sorts before this one - which would fork the chain.
             user_id=user_id,
             username=username,
             ip_address=ip_address,
@@ -110,6 +126,10 @@ class AuditService:
                 text("SELECT pg_advisory_xact_lock(:key)"),
                 {"key": _audit_chain_lock_key(tenant_id)},
             )
+
+        # Assign the timestamp now that we hold the serializing lock, so it is
+        # strictly monotonic with respect to the predecessor selected below.
+        log_entry.timestamp = datetime.now(timezone.utc)
 
         prev_result = await self.db.execute(
             select(AuditLog.integrity_hash)
@@ -167,6 +187,7 @@ class AuditService:
     async def update_item_view(
         self,
         view_id: str,
+        tenant_id: str | None = None,
         front_image_viewed: bool | None = None,
         back_image_viewed: bool | None = None,
         zoom_used: bool | None = None,
@@ -175,8 +196,15 @@ class AuditService:
         ai_assists_viewed: bool | None = None,
         context_panel_viewed: bool | None = None,
     ) -> ItemView | None:
-        """Update item view tracking with interaction details."""
-        result = await self.db.execute(select(ItemView).where(ItemView.id == view_id))
+        """Update item view tracking with interaction details.
+
+        When ``tenant_id`` is provided the lookup is tenant-scoped so a caller
+        cannot update another tenant's view record by guessing its id.
+        """
+        conditions = [ItemView.id == view_id]
+        if tenant_id is not None:
+            conditions.append(ItemView.tenant_id == tenant_id)
+        result = await self.db.execute(select(ItemView).where(*conditions))
         view = result.scalar_one_or_none()
 
         if not view:

@@ -268,6 +268,7 @@ async def generate_audit_packet(
         resource_id=packet_request.check_item_id,
         user_id=current_user.id,
         username=current_user.username,
+        tenant_id=current_user.tenant_id,
         description=f"Generated audit packet {packet_id}",
         metadata={
             "packet_id": packet_id,
@@ -275,6 +276,8 @@ async def generate_audit_packet(
             "include_images": packet_request.include_images,
         },
     )
+    # Persist the packet-generation audit row (get_db does not auto-commit).
+    await db.commit()
 
     # Generate download URL (relative to API base, frontend adds /api/v1 prefix)
     download_url = f"/audit/packet/{packet_id}/download"

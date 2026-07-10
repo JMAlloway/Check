@@ -454,6 +454,110 @@ class RetentionService:
 
         return stats
 
+    async def verify_chain_integrity(self) -> dict:
+        """Verify the tamper-evident hash *chain*, not just per-row hashes.
+
+        ``verify_all_audit_integrity`` only recomputes each row's own hash,
+        which stays valid even if an adjacent row is deleted. This method walks
+        each tenant's chain in order and checks that every row's
+        ``previous_hash`` matches the ``integrity_hash`` of its predecessor, so
+        a deleted or reordered row breaks the link and is detected.
+
+        A retention purge legitimately removes the oldest rows, orphaning the
+        first surviving row's ``previous_hash``. We therefore treat the first
+        row per tenant as an anchor (its back-link is not checked) and only
+        verify links between consecutive surviving rows - any *interior*
+        deletion still breaks a link and is reported.
+
+        Returns a dict with per-tenant break details.
+        """
+        from app.audit.service import GENESIS_HASH
+
+        stats: dict = {
+            "tenants_checked": 0,
+            "rows_checked": 0,
+            "row_hash_invalid": 0,
+            "chain_breaks": 0,
+            "breaks": [],  # list of {tenant_id, at_id, expected, found}
+        }
+
+        tenant_result = await self.db.execute(
+            select(AuditLog.tenant_id).distinct().where(AuditLog.integrity_hash.isnot(None))
+        )
+        tenant_ids = [row[0] for row in tenant_result.all()]
+
+        for tenant_id in tenant_ids:
+            stats["tenants_checked"] += 1
+            result = await self.db.execute(
+                select(AuditLog)
+                .where(
+                    AuditLog.tenant_id == tenant_id,
+                    AuditLog.integrity_hash.isnot(None),
+                )
+                .order_by(AuditLog.timestamp.asc(), AuditLog.id.asc())
+            )
+            rows = list(result.scalars().all())
+
+            prev_hash: str | None = None
+            for idx, row in enumerate(rows):
+                stats["rows_checked"] += 1
+
+                if not row.verify_integrity():
+                    stats["row_hash_invalid"] += 1
+                    stats["breaks"].append(
+                        {
+                            "tenant_id": tenant_id,
+                            "at_id": str(row.id),
+                            "reason": "row_hash_mismatch",
+                        }
+                    )
+
+                if idx == 0:
+                    # Anchor: its predecessor may have been purged. Accept a
+                    # GENESIS back-link or any value, but do not check it.
+                    prev_hash = row.integrity_hash
+                    continue
+
+                if row.previous_hash != prev_hash:
+                    stats["chain_breaks"] += 1
+                    stats["breaks"].append(
+                        {
+                            "tenant_id": tenant_id,
+                            "at_id": str(row.id),
+                            "reason": "chain_link_broken",
+                            "expected": prev_hash,
+                            "found": row.previous_hash,
+                        }
+                    )
+                    logger.warning(
+                        "Audit chain link broken",
+                        extra={
+                            "event_type": "audit.integrity.chain_broken",
+                            "tenant_id": tenant_id,
+                            "audit_log_id": str(row.id),
+                        },
+                    )
+
+                prev_hash = row.integrity_hash
+
+            # Sanity: genesis anchor should ultimately trace to GENESIS_HASH on
+            # an unpurged chain; note (do not fail) when it does not.
+            if rows and rows[0].previous_hash != GENESIS_HASH:
+                stats.setdefault("anchors_orphaned", 0)
+                stats["anchors_orphaned"] += 1
+
+        logger.info(
+            "Audit chain verification complete: %s breaks across %s tenants",
+            stats["chain_breaks"],
+            stats["tenants_checked"],
+            extra={
+                "event_type": "audit.integrity.chain_complete",
+                "chain_breaks": stats["chain_breaks"],
+                "row_hash_invalid": stats["row_hash_invalid"],
+            },
+        )
+        return stats
+
 
 async def run_retention_job(dry_run: bool = False) -> list[RetentionResult]:
     """Run the retention job as a standalone task.
@@ -470,6 +574,17 @@ async def get_retention_stats() -> dict:
     async with AsyncSessionLocal() as db:
         service = RetentionService(db)
         return await service.get_retention_stats()
+
+
+async def verify_audit_chain() -> dict:
+    """Verify the tamper-evident audit hash chain (link integrity).
+
+    Detects deleted or reordered audit rows, which per-row hash checks miss.
+    Intended to be run periodically alongside the retention job.
+    """
+    async with AsyncSessionLocal() as db:
+        service = RetentionService(db)
+        return await service.verify_chain_integrity()
 
 
 if __name__ == "__main__":

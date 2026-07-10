@@ -398,6 +398,9 @@ async def export_decisions_csv(
         exported=True,
         ip_address=get_client_ip(request),
     )
+    # Persist the export audit row (get_db does not auto-commit); an
+    # uncommitted data-export record is a data-governance gap.
+    await db.commit()
 
     # CRITICAL: Filter by tenant_id for multi-tenant security
     query = (
@@ -430,6 +433,15 @@ async def export_decisions_csv(
     import csv
     import io
 
+    def _csv_safe(value: object) -> str:
+        # Neutralize spreadsheet formula injection: a cell starting with
+        # = + - @ (or tab/CR) is executed as a formula in Excel/Sheets. Prefix
+        # a single quote so it is rendered as literal text.
+        text_value = "" if value is None else str(value)
+        if text_value and text_value[0] in ("=", "+", "-", "@", "\t", "\r"):
+            return "'" + text_value
+        return text_value
+
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(
@@ -453,9 +465,9 @@ async def export_decisions_csv(
                 row.account_number_masked,
                 str(row.amount),
                 row.action.value,
-                row.username,
+                _csv_safe(row.username),
                 row.created_at.isoformat(),
-                row.notes or "",
+                _csv_safe(row.notes),
             ]
         )
 

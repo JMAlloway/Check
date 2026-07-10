@@ -189,6 +189,7 @@ class BreachNotificationService:
         incident_id: str,
         user_id: str,
         username: str,
+        tenant_id: str,
         root_cause: str | None = None,
         additional_data_types: list[str] | None = None,
         ip_address: str | None = None,
@@ -198,7 +199,7 @@ class BreachNotificationService:
         This transitions the incident from DRAFT to CONFIRMED status
         and triggers notification workflow.
         """
-        incident = await self._get_incident(incident_id)
+        incident = await self._get_incident(incident_id, tenant_id)
         if not incident:
             raise ValueError(f"Incident not found: {incident_id}")
 
@@ -270,10 +271,11 @@ class BreachNotificationService:
         user_id: str,
         username: str,
         containment_actions: str,
+        tenant_id: str,
         ip_address: str | None = None,
     ) -> SecurityIncident:
         """Mark incident as contained."""
-        incident = await self._get_incident(incident_id)
+        incident = await self._get_incident(incident_id, tenant_id)
         if not incident:
             raise ValueError(f"Incident not found: {incident_id}")
 
@@ -322,11 +324,12 @@ class BreachNotificationService:
         user_id: str,
         username: str,
         remediation_steps: str,
+        tenant_id: str,
         lessons_learned: str | None = None,
         ip_address: str | None = None,
     ) -> SecurityIncident:
         """Resolve a security incident."""
-        incident = await self._get_incident(incident_id)
+        incident = await self._get_incident(incident_id, tenant_id)
         if not incident:
             raise ValueError(f"Incident not found: {incident_id}")
 
@@ -378,13 +381,21 @@ class BreachNotificationService:
         notification_id: str,
         user_id: str,
         username: str,
+        tenant_id: str,
         delivery_method: str = "email",
         delivery_reference: str | None = None,
         ip_address: str | None = None,
     ) -> BreachNotification:
         """Mark a notification as sent."""
+        # Join to the incident and scope to the caller's tenant so a
+        # notification belonging to another tenant cannot be marked sent.
         result = await self.db.execute(
-            select(BreachNotification).where(BreachNotification.id == notification_id)
+            select(BreachNotification)
+            .join(SecurityIncident, BreachNotification.incident_id == SecurityIncident.id)
+            .where(
+                BreachNotification.id == notification_id,
+                SecurityIncident.tenant_id == tenant_id,
+            )
         )
         notification = result.scalar_one_or_none()
 
@@ -397,8 +408,8 @@ class BreachNotificationService:
         notification.delivery_method = delivery_method
         notification.delivery_reference = delivery_reference
 
-        # Get incident for audit
-        incident = await self._get_incident(notification.incident_id)
+        # Get incident for audit (already tenant-verified via the join above)
+        incident = await self._get_incident(notification.incident_id, tenant_id)
 
         # Add incident update
         await self._add_update(
@@ -478,8 +489,14 @@ class BreachNotificationService:
 
         return notifications
 
-    async def get_incident_timeline(self, incident_id: str) -> list[dict]:
-        """Get the full timeline of an incident."""
+    async def get_incident_timeline(self, incident_id: str, tenant_id: str) -> list[dict]:
+        """Get the full timeline of an incident, scoped to the caller's tenant."""
+        # Verify the incident belongs to this tenant before returning its
+        # timeline; otherwise a guessed id leaks another tenant's breach narrative.
+        incident = await self._get_incident(incident_id, tenant_id)
+        if not incident:
+            raise ValueError(f"Incident not found: {incident_id}")
+
         result = await self.db.execute(
             select(IncidentUpdate)
             .where(IncidentUpdate.incident_id == incident_id)
@@ -514,11 +531,19 @@ class BreachNotificationService:
         )
         return list(result.scalars().all())
 
-    async def _get_incident(self, incident_id: str) -> SecurityIncident | None:
-        """Get incident by ID."""
-        result = await self.db.execute(
-            select(SecurityIncident).where(SecurityIncident.id == incident_id)
-        )
+    async def _get_incident(
+        self, incident_id: str, tenant_id: str | None = None
+    ) -> SecurityIncident | None:
+        """Get incident by ID, scoped to a tenant when one is provided.
+
+        tenant_id is required for any caller-facing lookup so a tenant cannot
+        read or mutate another tenant's incident by guessing its id. It is
+        optional only for internal audit-context reads.
+        """
+        conditions = [SecurityIncident.id == incident_id]
+        if tenant_id is not None:
+            conditions.append(SecurityIncident.tenant_id == tenant_id)
+        result = await self.db.execute(select(SecurityIncident).where(*conditions))
         return result.scalar_one_or_none()
 
     async def _add_update(

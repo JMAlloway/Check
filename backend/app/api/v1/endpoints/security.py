@@ -204,6 +204,7 @@ async def confirm_incident(
             incident_id=incident_id,
             user_id=current_user.id,
             username=current_user.username,
+            tenant_id=current_user.tenant_id,
             root_cause=data.root_cause,
             additional_data_types=data.additional_data_types,
             ip_address=get_client_ip(request),
@@ -236,6 +237,7 @@ async def contain_incident(
             user_id=current_user.id,
             username=current_user.username,
             containment_actions=data.containment_actions,
+            tenant_id=current_user.tenant_id,
             ip_address=get_client_ip(request),
         )
         await db.commit()
@@ -266,6 +268,7 @@ async def resolve_incident(
             user_id=current_user.id,
             username=current_user.username,
             remediation_steps=data.remediation_steps,
+            tenant_id=current_user.tenant_id,
             lessons_learned=data.lessons_learned,
             ip_address=get_client_ip(request),
         )
@@ -300,7 +303,10 @@ async def get_incident_timeline(
     Requires superuser privileges.
     """
     service = BreachNotificationService(db)
-    timeline = await service.get_incident_timeline(incident_id)
+    try:
+        timeline = await service.get_incident_timeline(incident_id, current_user.tenant_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     return [TimelineEntryResponse(**entry) for entry in timeline]
 
 
@@ -341,6 +347,7 @@ async def send_notification(
             notification_id=notification_id,
             user_id=current_user.id,
             username=current_user.username,
+            tenant_id=current_user.tenant_id,
             delivery_method=data.delivery_method,
             delivery_reference=data.delivery_reference,
             ip_address=get_client_ip(request),

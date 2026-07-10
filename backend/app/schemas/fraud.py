@@ -32,7 +32,10 @@ class FraudEventCreate(BaseModel):
     confidence: int = Field(default=3, ge=1, le=5)
     narrative_private: str | None = None
     narrative_shareable: str | None = None
-    sharing_level: SharingLevel = SharingLevel.PRIVATE
+    # None = caller did not specify; the service falls back to the tenant
+    # default. An explicit PRIVATE must be honored as private, so we cannot use
+    # PRIVATE as the "unspecified" sentinel.
+    sharing_level: SharingLevel | None = None
 
     @field_validator("narrative_shareable")
     @classmethod

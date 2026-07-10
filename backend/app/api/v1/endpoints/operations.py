@@ -342,29 +342,40 @@ async def get_performance_metrics(
         ),
     )
 
-    # Get database stats
+    # Get database stats. CRITICAL: scope every count to the caller's tenant -
+    # without the tenant_id filter these return whole-platform figures to any
+    # authenticated user of any tenant.
+    tenant_id = current_user.tenant_id
     try:
         # Active sessions (approximate active users)
         active_result = await db.execute(
             text(
-                "SELECT COUNT(DISTINCT user_id) FROM audit_logs WHERE timestamp > NOW() - INTERVAL '15 minutes'"
-            )
+                "SELECT COUNT(DISTINCT user_id) FROM audit_logs "
+                "WHERE timestamp > NOW() - INTERVAL '15 minutes' AND tenant_id = :tenant_id"
+            ),
+            {"tenant_id": tenant_id},
         )
         active_users = active_result.scalar() or 0
 
         # Pending checks
         pending_result = await db.execute(
             text(
-                "SELECT COUNT(*) FROM check_items WHERE status IN ('new', 'in_review', 'pending_dual_control')"
-            )
+                "SELECT COUNT(*) FROM check_items "
+                "WHERE status IN ('new', 'in_review', 'pending_dual_control') "
+                "AND tenant_id = :tenant_id"
+            ),
+            {"tenant_id": tenant_id},
         )
         pending_checks = pending_result.scalar() or 0
 
         # Checks processed today
         processed_result = await db.execute(
             text(
-                "SELECT COUNT(*) FROM check_items WHERE status IN ('approved', 'rejected', 'returned') AND updated_at > CURRENT_DATE"
-            )
+                "SELECT COUNT(*) FROM check_items "
+                "WHERE status IN ('approved', 'rejected', 'returned') "
+                "AND updated_at > CURRENT_DATE AND tenant_id = :tenant_id"
+            ),
+            {"tenant_id": tenant_id},
         )
         checks_processed = processed_result.scalar() or 0
     except Exception:

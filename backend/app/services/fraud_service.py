@@ -112,18 +112,33 @@ class FraudService:
         # Get tenant config for defaults
         config = await self.get_tenant_config(tenant_id)
 
+        # Validate any referenced check item belongs to this tenant, so a
+        # caller-supplied id cannot bind another tenant's item to the event
+        # (and thence into shared/network artifacts).
+        if data.check_item_id:
+            owns = await self.db.execute(
+                select(CheckItem.id).where(
+                    CheckItem.id == data.check_item_id,
+                    CheckItem.tenant_id == tenant_id,
+                )
+            )
+            if owns.scalar_one_or_none() is None:
+                raise ValueError("check_item_id not found for this tenant")
+
         # Compute amount bucket
         amount_bucket = get_amount_bucket(data.amount)
 
-        # Use default sharing level if not specified
+        # Apply the tenant default ONLY when the caller did not specify a level.
+        # An explicit PRIVATE must stay private - treating PRIVATE as
+        # "unspecified" silently escalates deliberately-private events to the
+        # tenant's default sharing level.
         # SharingLevel is stored as int (0=PRIVATE, 1=AGGREGATE, 2=NETWORK_MATCH)
-        sharing_level_val = (
-            data.sharing_level.value
-            if isinstance(data.sharing_level, SharingLevel)
-            else data.sharing_level
-        )
-        if sharing_level_val == SharingLevel.PRIVATE.value:
+        if data.sharing_level is None:
             sharing_level_val = config.default_sharing_level
+        elif isinstance(data.sharing_level, SharingLevel):
+            sharing_level_val = data.sharing_level.value
+        else:
+            sharing_level_val = data.sharing_level
 
         event = FraudEvent(
             id=str(uuid4()),
@@ -304,11 +319,16 @@ class FraudService:
 
     async def _create_shared_artifact(self, event: FraudEvent) -> FraudSharedArtifact:
         """Create a shared artifact from a fraud event."""
-        # Get check item for indicator extraction
+        # Get check item for indicator extraction. Scope to the event's tenant
+        # so a caller-supplied check_item_id cannot pull another tenant's item
+        # into a shared/network artifact.
         check_item = None
         if event.check_item_id:
             result = await self.db.execute(
-                select(CheckItem).where(CheckItem.id == event.check_item_id)
+                select(CheckItem).where(
+                    CheckItem.id == event.check_item_id,
+                    CheckItem.tenant_id == event.tenant_id,
+                )
             )
             check_item = result.scalar_one_or_none()
 
@@ -389,8 +409,14 @@ class FraudService:
                 alerts=alert_responses,
             )
 
-        # Get check item
-        result = await self.db.execute(select(CheckItem).where(CheckItem.id == check_item_id))
+        # Get check item, scoped to the caller's tenant so another tenant's
+        # item cannot be probed for network fraud matches by id.
+        result = await self.db.execute(
+            select(CheckItem).where(
+                CheckItem.id == check_item_id,
+                CheckItem.tenant_id == tenant_id,
+            )
+        )
         check_item = result.scalar_one_or_none()
         if not check_item:
             return NetworkAlertSummary(

@@ -3,7 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import CurrentUser, DBSession, require_permission
@@ -121,10 +121,24 @@ async def create_user(
         is_active=user_data.is_active,
     )
 
-    # Assign roles
+    # Assign roles. Restrict to the caller's own tenant roles plus shared
+    # system roles (tenant_id IS NULL); a role belonging to another tenant must
+    # never be attachable, or a user:create holder could escalate privileges by
+    # supplying a foreign role id.
     if user_data.role_ids:
-        roles_result = await db.execute(select(Role).where(Role.id.in_(user_data.role_ids)))
-        user.roles = list(roles_result.scalars().all())
+        roles_result = await db.execute(
+            select(Role).where(
+                Role.id.in_(user_data.role_ids),
+                or_(Role.tenant_id == current_user.tenant_id, Role.tenant_id.is_(None)),
+            )
+        )
+        resolved_roles = list(roles_result.scalars().all())
+        if len(resolved_roles) != len(set(user_data.role_ids)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="One or more roles are invalid or not available to this tenant",
+            )
+        user.roles = resolved_roles
 
     db.add(user)
     await db.flush()
@@ -267,8 +281,20 @@ async def update_user(
 
     if user_data.role_ids is not None:
         old_roles = [r.name for r in user.roles]
-        roles_result = await db.execute(select(Role).where(Role.id.in_(user_data.role_ids)))
-        user.roles = list(roles_result.scalars().all())
+        # Same tenant restriction as create_user: own-tenant + system roles only.
+        roles_result = await db.execute(
+            select(Role).where(
+                Role.id.in_(user_data.role_ids),
+                or_(Role.tenant_id == current_user.tenant_id, Role.tenant_id.is_(None)),
+            )
+        )
+        resolved_roles = list(roles_result.scalars().all())
+        if len(resolved_roles) != len(set(user_data.role_ids)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="One or more roles are invalid or not available to this tenant",
+            )
+        user.roles = resolved_roles
         new_roles = [r.name for r in user.roles]
         if old_roles != new_roles:
             changes["roles"] = {"before": old_roles, "after": new_roles}
@@ -324,9 +350,12 @@ async def list_roles(
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("role", "view"))],
 ):
-    """List all roles."""
+    """List roles available to the caller's tenant (own + shared system roles)."""
     result = await db.execute(
-        select(Role).options(selectinload(Role.permissions)).order_by(Role.name)
+        select(Role)
+        .options(selectinload(Role.permissions))
+        .where(or_(Role.tenant_id == current_user.tenant_id, Role.tenant_id.is_(None)))
+        .order_by(Role.name)
     )
     roles = result.scalars().all()
 
@@ -363,18 +392,27 @@ async def create_role(
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("role", "create"))],
 ):
-    """Create a new role."""
-    # Check for existing role
-    result = await db.execute(select(Role).where(Role.name == role_data.name))
+    """Create a new tenant-scoped role."""
+    # Duplicate-name check scoped to this tenant plus shared system roles - a
+    # tenant may reuse a name another tenant already uses.
+    result = await db.execute(
+        select(Role).where(
+            Role.name == role_data.name,
+            or_(Role.tenant_id == current_user.tenant_id, Role.tenant_id.is_(None)),
+        )
+    )
     if result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Role with this name already exists",
         )
 
+    # Bind the role to the caller's tenant. Leaving tenant_id NULL would make it
+    # a system-wide role visible to and usable by every tenant.
     role = Role(
         name=role_data.name,
         description=role_data.description,
+        tenant_id=current_user.tenant_id,
     )
 
     if role_data.permission_ids:
@@ -385,6 +423,19 @@ async def create_role(
 
     db.add(role)
     await db.flush()
+
+    # Audit the role creation (privileged authorization change).
+    audit_service = AuditService(db)
+    await audit_service.log(
+        action=AuditAction.ROLE_CREATED,
+        resource_type="role",
+        resource_id=role.id,
+        user_id=current_user.id,
+        username=current_user.username,
+        tenant_id=current_user.tenant_id,
+        ip_address=get_client_ip(request),
+        description=f"Created role {role.name}",
+    )
 
     # Explicit commit for write operation
     await db.commit()

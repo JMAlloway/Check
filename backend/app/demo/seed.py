@@ -2912,6 +2912,27 @@ async def _stored_seed_version(db: AsyncSession) -> int | None:
         return None
 
 
+async def _is_demo_only_database(db: AsyncSession) -> bool:
+    """True only if every user is a known demo persona.
+
+    Used as a final guard before an automatic destructive reseed: if any user
+    exists that the demo seeder did not create, the database holds non-demo
+    data and must not be dropped automatically.
+    """
+    from app.demo.scenarios import DEMO_CREDENTIALS
+
+    demo_usernames = {cred["username"] for cred in DEMO_CREDENTIALS.values()}
+    try:
+        result = await db.execute(select(User.username))
+        usernames = [u for (u,) in result.all()]
+    except Exception:
+        # If we cannot enumerate users, fail safe (treat as not demo-only).
+        return False
+    if not usernames:
+        return True
+    return all(u in demo_usernames for u in usernames)
+
+
 async def _write_seed_version(db: AsyncSession) -> None:
     """Upsert the seed-version stamp after a successful seed."""
     from app.models.demo_meta import DemoMeta
@@ -2951,6 +2972,27 @@ async def seed_demo_data(reset: bool = False, count: int = 250) -> dict:
                         DEMO_SEED_VERSION,
                     )
                     return {"users": 0, "seed_version": DEMO_SEED_VERSION}
+                # SAFETY: an automatic reseed runs DROP SCHEMA public CASCADE,
+                # destroying the ENTIRE database. Only ever do that automatically
+                # when we can positively confirm this database was produced by the
+                # demo seeder. A database with users but NO seed-version stamp was
+                # never demo-seeded (e.g. a shared dev DB holding real test data),
+                # so we must not wipe it - serve as-is and let an operator run an
+                # explicit `--reset` if they truly intend to.
+                if stored is None:
+                    logger.warning(
+                        "Database has users but no demo seed-version stamp; it was "
+                        "not produced by the demo seeder. Refusing to auto-reseed "
+                        "(no destructive DROP SCHEMA). Run seeding with --reset "
+                        "explicitly if this really is a demo database."
+                    )
+                    return {"users": 0, "seed_version": None, "auto_reseed_skipped": True}
+                if not await _is_demo_only_database(db):
+                    logger.warning(
+                        "Database contains non-demo users; refusing to auto-reseed "
+                        "(no destructive DROP SCHEMA)."
+                    )
+                    return {"users": 0, "seed_version": stored, "auto_reseed_skipped": True}
                 logger.warning(
                     "Demo data was seeded by version %s but current seed version is %s "
                     "- reseeding from scratch",

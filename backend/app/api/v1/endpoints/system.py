@@ -262,10 +262,16 @@ async def get_demo_credentials() -> dict[str, Any]:
     This endpoint only returns credentials when DEMO_MODE is enabled.
     These are synthetic credentials for demonstration purposes only.
     """
-    if not settings.DEMO_MODE:
+    from app.demo import SECURE_ENVIRONMENTS
+
+    # Defense in depth: this endpoint is unauthenticated (the login screen calls
+    # it before sign-in), so it must refuse to serve credentials both when demo
+    # mode is off AND whenever running in an environment that may hold real data
+    # - even if DEMO_MODE was misconfigured to true there.
+    if not settings.DEMO_MODE or settings.ENVIRONMENT.lower() in SECURE_ENVIRONMENTS:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Demo credentials are only available when DEMO_MODE is enabled",
+            detail="Demo credentials are only available in a non-production demo environment",
         )
 
     from app.demo.scenarios import DEMO_CREDENTIALS

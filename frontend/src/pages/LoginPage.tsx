@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { DocumentCheckIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { authApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { useDemoStore } from '../stores/demoStore';
 
 interface LoginForm {
   username: string;
@@ -16,6 +17,17 @@ export default function LoginPage() {
   const { setAuth } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Demo credentials are shown ONLY when the server reports demo mode is on.
+  // They must never ship in a real deployment's login screen.
+  const { status: demoStatus, credentials, fetchDemoStatus, fetchCredentials } = useDemoStore();
+  useEffect(() => {
+    void (async () => {
+      await fetchDemoStatus();
+      await fetchCredentials();
+    })();
+  }, [fetchDemoStatus, fetchCredentials]);
+  const showDemoCredentials = demoStatus?.enabled ?? false;
 
   const {
     register,
@@ -128,18 +140,24 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Demo credentials hint */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-xs text-gray-500 text-center">
-              Demo account —{' '}
-              <span className="font-mono text-gray-700">system_admin_demo</span> /{' '}
-              <span className="font-mono text-gray-700">DemoSysAdmin123!</span>
-            </p>
-            <p className="mt-1 text-center text-[11px] text-gray-400">
-              Other roles: reviewer_demo, senior_reviewer_demo, supervisor_demo, auditor_demo,
-              administrator_demo (passwords in README)
-            </p>
-          </div>
+          {/* Demo credentials hint - rendered only when the server confirms
+              demo mode is enabled, and populated from the server response so no
+              credentials are baked into the production bundle. */}
+          {showDemoCredentials && credentials.length > 0 && (
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-500 text-center">Demo accounts</p>
+              <ul className="mt-1 space-y-0.5">
+                {credentials.map((cred) => (
+                  <li key={cred.username} className="text-center text-[11px] text-gray-500">
+                    <span className="font-mono text-gray-700">{cred.username}</span>
+                    {' / '}
+                    <span className="font-mono text-gray-700">{cred.password}</span>
+                    {cred.role ? <span className="text-gray-400"> ({cred.role})</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

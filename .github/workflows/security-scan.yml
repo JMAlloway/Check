@@ -41,15 +41,14 @@ jobs:
           name: pip-audit-results
           path: backend/pip-audit-results.json
 
-      - name: Fail on critical vulnerabilities
+      - name: Fail on vulnerable dependencies
         run: |
           cd backend
-          # Only fail if vulnerabilities found in our requirements (not system packages)
-          pip-audit -r requirements.txt --format=json 2>/dev/null > /tmp/audit.json || true
-          VULN_COUNT=$(python3 -c "import json; data=json.load(open('/tmp/audit.json')); print(len(data.get('dependencies', [])))" 2>/dev/null || echo "0")
-          if [ "$VULN_COUNT" != "0" ] && [ "$VULN_COUNT" != "" ]; then
-            echo "::warning::Found vulnerable Python packages - review pip-audit-results.json"
-          fi
+          # Gating: a non-zero exit from pip-audit fails the job. Known,
+          # accepted, or not-yet-fixable advisories can be listed with
+          # --ignore-vuln GHSA-xxxx so the gate stays meaningful rather than
+          # being globally disabled with `|| true`.
+          pip-audit -r requirements.txt --strict
 
   node-audit:
     name: Node.js Dependency Audit
@@ -95,7 +94,9 @@ jobs:
         run: |
           docker build -t check-review-backend:scan -f docker/Dockerfile.backend .
 
-      - name: Run Trivy on backend
+      # First pass: produce SARIF for the Security tab (never fails, so the
+      # upload below always has a file).
+      - name: Run Trivy on backend (report)
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'check-review-backend:scan'
@@ -108,6 +109,18 @@ jobs:
         if: always()
         with:
           sarif_file: 'trivy-backend-results.sarif'
+
+      # Second pass: gate the build. exit-code 1 fails the job on any fixable
+      # CRITICAL/HIGH finding; ignore-unfixed avoids flaking on base-image CVEs
+      # with no available patch.
+      - name: Fail on container vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'check-review-backend:scan'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '1'
 
   secret-scan:
     name: Secret Detection
@@ -149,8 +162,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Semgrep
-        run: semgrep ci --config=auto --sarif --output=semgrep-results.sarif || true
+      # Report pass: emit SARIF for the Security tab without failing, so the
+      # upload always has a file even when the gating pass below fails.
+      - name: Run Semgrep (report)
+        run: semgrep scan --config=auto --sarif --output=semgrep-results.sarif || true
         env:
           SEMGREP_RULES: >-
             p/security-audit
@@ -164,9 +179,14 @@ jobs:
         with:
           sarif_file: semgrep-results.sarif
 
+      # Gating pass: --error makes Semgrep exit non-zero on findings so a
+      # flagged injection/secret blocks the merge instead of passing green.
+      - name: Fail on Semgrep findings
+        run: semgrep scan --config=auto --error --severity=ERROR
+
   security-summary:
     name: Security Summary
-    needs: [python-audit, node-audit, container-scan, secret-scan]
+    needs: [python-audit, node-audit, container-scan, secret-scan, sast-semgrep]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -180,3 +200,20 @@ jobs:
           echo "| Node.js Audit | ${{ needs.node-audit.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Container Scan | ${{ needs.container-scan.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Secret Scan | ${{ needs.secret-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| SAST (Semgrep) | ${{ needs.sast-semgrep.result }} |" >> $GITHUB_STEP_SUMMARY
+
+      # This job gates the workflow: fail if any security scan did not succeed,
+      # so a failed scan cannot be merged past a green Security Summary.
+      - name: Enforce all scans passed
+        run: |
+          for result in \
+            "${{ needs.python-audit.result }}" \
+            "${{ needs.node-audit.result }}" \
+            "${{ needs.container-scan.result }}" \
+            "${{ needs.secret-scan.result }}" \
+            "${{ needs.sast-semgrep.result }}"; do
+            if [ "$result" != "success" ]; then
+              echo "::error::A security scan did not pass (result: $result)"
+              exit 1
+            fi
+          done

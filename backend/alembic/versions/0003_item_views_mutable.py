@@ -12,8 +12,9 @@ This migration drops the UPDATE/DELETE triggers on item_views. audit_logs keeps
 its triggers. Idempotent via IF EXISTS.
 """
 
-from alembic import op
 from sqlalchemy import text
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "0003_item_views_mutable"

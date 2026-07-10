@@ -521,6 +521,10 @@ class ConnectorService:
                 Decision.tenant_id == tenant_id,
                 Decision.is_dual_control_required == True,
                 Decision.dual_control_approved_at.isnot(None),
+                # Defense in depth: an approved decision always carries the
+                # second approver's id. A rejected dual-control decision has
+                # neither field set and must never enter a commit batch.
+                Decision.dual_control_approver_id.isnot(None),
             )
         )
         decisions = decisions_result.scalars().all()

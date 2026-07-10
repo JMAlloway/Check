@@ -783,12 +783,16 @@ async def approve_dual_control(
             detail=f"Not entitled to approve this item: {entitlement_result.denial_reason}",
         )
 
-    # Update decision
-    decision.dual_control_approver_id = current_user.id
-    decision.dual_control_approved_at = datetime.now(timezone.utc)
-
-    # Update item status based on original decision action
+    # Update item status based on original decision action.
+    #
+    # CRITICAL: the dual-control approval stamp (approver id + approved_at) is
+    # only set when the second approver APPROVES. create_batch selects
+    # commit-eligible decisions on dual_control_approved_at IS NOT NULL, so
+    # stamping it on rejection would make an explicitly-rejected decision
+    # eligible for release to the bank core.
     if approval.approve:
+        decision.dual_control_approver_id = current_user.id
+        decision.dual_control_approved_at = datetime.now(timezone.utc)
         if decision.action == DecisionAction.APPROVE:
             item.status = CheckStatus.APPROVED
         elif decision.action == DecisionAction.RETURN:
@@ -796,7 +800,10 @@ async def approve_dual_control(
         elif decision.action == DecisionAction.REJECT:
             item.status = CheckStatus.REJECTED
     else:
-        # Dual control rejected - return to review
+        # Dual control rejected - leave the decision unapproved (never
+        # commit-eligible) and return the item to review.
+        decision.dual_control_approver_id = None
+        decision.dual_control_approved_at = None
         item.status = CheckStatus.IN_REVIEW
 
     # Clear pending dual control tracking

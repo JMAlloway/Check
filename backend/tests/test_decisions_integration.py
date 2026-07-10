@@ -302,6 +302,79 @@ class TestDualControlWorkflow:
         assert response.status_code == status.HTTP_200_OK
 
     @pytest.mark.asyncio
+    async def test_dual_control_rejection_not_commit_eligible(
+        self, client, db_session, test_tenant_id, test_user_id
+    ):
+        """A rejected dual-control decision must never become commit-eligible.
+
+        Regression: the approval stamp (dual_control_approved_at / approver_id)
+        was previously set before the approve/reject branch, so a rejected
+        decision still satisfied create_batch's eligibility filter and could be
+        released to the bank core.
+        """
+        from sqlalchemy import select
+
+        item = CheckItem(
+            source_system="test_core",
+            account_number_masked="****0000",
+            account_type="consumer",
+            id="check-dc-reject",
+            tenant_id=test_tenant_id,
+            external_item_id="EXT-DC-R",
+            account_id="acct-dc-r",
+            amount=Decimal("50000.00"),
+            status=CheckStatus.PENDING_DUAL_CONTROL,
+            risk_level=RiskLevel.HIGH,
+            item_type=ItemType.ON_US,
+            presented_date=datetime.now(timezone.utc),
+        )
+        db_session.add(item)
+
+        decision = Decision(
+            id="decision-dc-reject",
+            tenant_id=test_tenant_id,
+            check_item_id="check-dc-reject",
+            user_id=test_user_id,
+            decision_type=DecisionType.REVIEW_RECOMMENDATION,
+            action=DecisionAction.APPROVE,
+            is_dual_control_required=True,
+        )
+        db_session.add(decision)
+
+        item.pending_dual_control_decision_id = decision.id
+        db_session.add(_approve_entitlement("different-approver", test_tenant_id))
+        await db_session.commit()
+
+        approver_token = create_access_token(
+            subject="different-approver",
+            additional_claims={
+                "username": "approver2",
+                "roles": ["supervisor"],
+                "permissions": ["check_item:view", "check_item:approve"],
+                "tenant_id": test_tenant_id,
+            },
+        )
+
+        response = client.post(
+            "/api/v1/decisions/dual-control",
+            headers={"Authorization": f"Bearer {approver_token}"},
+            json={
+                "decision_id": "decision-dc-reject",
+                "approve": False,
+                "notes": "Rejected on second review",
+            },
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        # The decision must be left unapproved so it cannot enter a commit batch,
+        # and the item must return to review.
+        await db_session.refresh(decision)
+        await db_session.refresh(item)
+        assert decision.dual_control_approved_at is None
+        assert decision.dual_control_approver_id is None
+        assert item.status == CheckStatus.IN_REVIEW
+
+    @pytest.mark.asyncio
     async def test_self_approval_blocked(
         self, client, db_session, test_tenant_id, test_user_id, reviewer_headers
     ):

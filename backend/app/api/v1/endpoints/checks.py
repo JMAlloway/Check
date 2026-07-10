@@ -351,18 +351,53 @@ async def assign_check_item(
     return await check_service.get_check_item(item_id, current_user.id, current_user.tenant_id)
 
 
+# Operational routing states this endpoint may set directly. Decision outcomes
+# (APPROVED/REJECTED/RETURNED) and the dual-control gate (PENDING_DUAL_CONTROL)
+# must only be reached through the decision workflow, which records a Decision,
+# enforces entitlements, and applies dual control. CLOSED is administrative and
+# handled elsewhere.
+_MANUAL_STATUS_TARGETS = {
+    CheckStatus.NEW,
+    CheckStatus.IN_REVIEW,
+    CheckStatus.ESCALATED,
+}
+# States that represent a finalized decision and must not be manually overridden.
+_FINALIZED_STATUSES = {
+    CheckStatus.APPROVED,
+    CheckStatus.REJECTED,
+    CheckStatus.RETURNED,
+    CheckStatus.CLOSED,
+}
+
+
 @router.post("/{item_id}/status", response_model=CheckItemResponse)
 async def update_check_status(
     request: Request,
     item_id: str,
     db: DBSession,
     current_user: Annotated[object, Depends(require_permission("check_item", "update"))],
-    status: CheckStatus = Query(...),
+    new_status: CheckStatus = Query(..., alias="status"),
 ):
-    """Update check item status."""
+    """Update a check item's operational status.
+
+    This endpoint only performs benign routing transitions (e.g. reassigning to
+    review or escalating). It cannot set decision outcomes or the dual-control
+    gate - those must go through the decision endpoints so a Decision is
+    recorded and dual control is enforced - and it cannot override an item that
+    has already reached a finalized decision state.
+    """
     from sqlalchemy import select
 
     from app.models.check import CheckItem
+
+    if new_status not in _MANUAL_STATUS_TARGETS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "This status must be set through the decision workflow, not the "
+                "manual status endpoint"
+            ),
+        )
 
     # CRITICAL: Always filter by tenant_id for multi-tenant security
     result = await db.execute(
@@ -379,10 +414,16 @@ async def update_check_status(
             detail="Check item not found",
         )
 
+    if item.status in _FINALIZED_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Item is finalized ({item.status.value}) and cannot be manually changed",
+        )
+
     audit_service = AuditService(db)
     old_status = item.status
 
-    item.status = status
+    item.status = new_status
 
     await audit_service.log(
         action=AuditAction.ITEM_STATUS_CHANGED,
@@ -390,10 +431,11 @@ async def update_check_status(
         resource_id=item_id,
         user_id=current_user.id,
         username=current_user.username,
+        tenant_id=current_user.tenant_id,
         ip_address=get_client_ip(request),
-        description=f"Status changed from {old_status.value} to {status.value}",
+        description=f"Status changed from {old_status.value} to {new_status.value}",
         before_value={"status": old_status.value},
-        after_value={"status": status.value},
+        after_value={"status": new_status.value},
     )
 
     await db.commit()
